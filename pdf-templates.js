@@ -80,7 +80,7 @@
     });
   }
   async function drawHeader(doc, page, report, fonts, accent, title) {
-    const [width, height] = page.getSize();
+    const { width, height } = page.getSize();
     const school = report.school || {};
     const learner = report.learner || {};
     const margin = 18;
@@ -157,7 +157,7 @@
     });
   }
   async function drawFooter(doc, page, report, fonts, accent) {
-    const [width] = page.getSize();
+    const { width } = page.getSize();
     const school = report.school || {};
     const dates = report.term_dates || {};
     const fees = report.fees || {};
