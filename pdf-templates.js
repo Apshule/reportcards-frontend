@@ -168,8 +168,10 @@
       thickness: 0.7,
       color: accent,
     });
-    const footerText = `Term ended: ${str(dates.term_ended_on)}   ·   Next term begins: ${str(dates.next_term_begins)}   ·   Next term fees: ${str(dates.next_term_fees)}   ·   Fees balance: ${str(fees.balance)}`;
-    drawText(page, footerText, 31, y + 16, fonts.regular, 6.5, rgb(0.25, 0.26, 0.28), width - 62);
+    const termText = `School term/year: ${str(dates.current_term)} ${str(dates.current_year)}   ·   Term ended: ${str(dates.term_ended_on)}   ·   Next term begins: ${str(dates.next_term_begins)}`;
+    const feesText = `Next term fees: ${str(dates.next_term_fees)}   ·   Fees balance: ${str(fees.balance)}`;
+    drawText(page, termText, 31, y + 16, fonts.regular, 6.5, rgb(0.25, 0.26, 0.28), width - 62);
+    drawText(page, feesText, 31, y + 7, fonts.regular, 6.5, rgb(0.25, 0.26, 0.28), width - 62);
     const signature = await embedImage(doc, school.report_signature_base64);
     const leftX = 60;
     const rightX = width - 250;
@@ -325,9 +327,9 @@
         ? report.projects.map((project) => [
             project.project_name, num(project.score), num(project.out_of),
             project.percentage === null ? "—" : `${num(project.percentage)}%`,
-            str(project.grade), str(project.remarks),
+            str(project.grade), str(project.remarks), str(project.teacher_initials),
           ])
-        : [["No projects recorded", "—", "—", "—", "—", "—"]];
+        : [["No projects recorded", "—", "—", "—", "—", "—", "—"]];
       nextY -= 91;
       if (nextY < 130) {
         const nextPage = doc.addPage(landscape);
@@ -337,7 +339,8 @@
         drawTable(nextPage, [
           { label: "Project", weight: 2.2 }, { label: "Score", weight: 0.8 },
           { label: "Out of", weight: 0.8 }, { label: "Percent", weight: 0.9 },
-          { label: "Grade", weight: 0.8 }, { label: "Remarks", weight: 2 },
+          { label: "Grade", weight: 0.8 }, { label: "Remarks", weight: 1.7 },
+          { label: "Teacher initials", weight: 0.9 },
         ], projectRows, 30, nextTop - 10, nextPage.getWidth() - 60, fonts, accent, { fontSize: 7.4, rowHeight: 19 });
         await drawFooter(doc, nextPage, report, fonts, accent);
       } else {
@@ -345,7 +348,8 @@
         drawTable(page, [
           { label: "Project", weight: 2.2 }, { label: "Score", weight: 0.8 },
           { label: "Out of", weight: 0.8 }, { label: "Percent", weight: 0.9 },
-          { label: "Grade", weight: 0.8 }, { label: "Remarks", weight: 2 },
+          { label: "Grade", weight: 0.8 }, { label: "Remarks", weight: 1.7 },
+          { label: "Teacher initials", weight: 0.9 },
         ], projectRows, 30, nextY - 8, page.getWidth() - 60, fonts, accent, { fontSize: 7.4, rowHeight: 17 });
       }
     }

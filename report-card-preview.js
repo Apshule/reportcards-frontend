@@ -60,6 +60,7 @@
     const signature = imageSource(school.report_signature_base64);
     return `<footer class="rc-footer">
       <div class="rc-footer-details">
+        <span><b>School term / year</b> ${value(dates.current_term)} / ${value(dates.current_year)}</span>
         <span><b>Term ended</b> ${value(dates.term_ended_on)}</span>
         <span><b>Next term begins</b> ${value(dates.next_term_begins)}</span>
         <span><b>Next term fees</b> ${value(dates.next_term_fees)}</span>
@@ -126,7 +127,7 @@
     const heads = ["Code", "Subject", ...(level === "A_LEVEL" ? ["Paper"] : []),
       "A1", "A2", "A3", "AVG", "20%", "EOT", "80%", "100%", "Ident", "Grade", "Descriptor", "TR"];
     const summary = report.summary || {};
-    const projects = (report.projects || []).map((project) => `<tr><td>${value(project.project_name)}</td><td>${number(project.score)}</td><td>${number(project.out_of)}</td><td>${number(project.percentage)}%</td><td>${value(project.grade)}</td><td>${value(project.remarks)}</td></tr>`);
+    const projects = (report.projects || []).map((project) => `<tr><td>${value(project.project_name)}</td><td>${number(project.score)}</td><td>${number(project.out_of)}</td><td>${project.percentage===null||project.percentage===undefined?"—":`${number(project.percentage)}%`}</td><td>${value(project.grade)}</td><td>${value(project.remarks)}</td><td>${value(project.teacher_initials)}</td></tr>`);
     return `<article class="rc-preview" style="--rc-theme:${themeColor(report.school?.report_theme)}">
       ${header(report, level === "A_LEVEL" ? "A-Level Report" : "O-Level Report")}
       ${table(heads, rows, "rc-dense")}
@@ -137,7 +138,7 @@
         <span><b>Result</b> ${summary.overall_average === null ? "Pending" : "Recorded"}</span>
       </div>
       ${gradeLegend(level)}${identifierLegend}
-      ${level === "A_LEVEL" ? `<section class="rc-projects"><h3>Projects</h3>${table(["Project", "Score", "Out of", "Percent", "Grade", "Remarks"], projects)}</section>` : ""}
+      ${level === "A_LEVEL" ? `<section class="rc-projects"><h3>Projects</h3>${table(["Project", "Score", "Out of", "Percent", "Grade", "Remarks", "Teacher initials"], projects)}</section>` : ""}
       ${footer(report, ["Class Teacher Comment", "Head Teacher Comment"])}
     </article>`;
   }
