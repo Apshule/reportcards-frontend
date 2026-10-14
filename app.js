@@ -624,6 +624,7 @@
   async function submitAuth(form){
     if(!form.reportValidity())return;state.loading=true;const mode=state.authMode;renderAuth();
     const values=Object.fromEntries(new FormData(form).entries());
+    if(mode==="staff"&&typeof values.school_short_code==="string"){values.school_short_code=values.school_short_code.trim();if(!values.school_short_code)delete values.school_short_code}
     try{
       const path=mode==="signup"?"/api/auth/signup-school":mode==="staff"?"/api/auth/login-staff":"/api/auth/login-school";
       const result=await api(path,{method:"POST",auth:false,body:values});
