@@ -32,15 +32,18 @@
     const id = String(options.template ?? "1").replace(/^template[_-]?/i, "");
     const templates = window.ReportCardTemplateCatalog?.[level] || [];
     const template = templates.find((item) => String(item.id) === id);
-    return { id: /^[1-5]$/.test(id) ? id : "1", label: template?.label || `Template ${id || "1"}` };
+    return { id: /^[1-5]$/.test(id) ? id : "1", label: template?.label || `Template ${id || "1"}`, definition: template };
   }
   function previewAttrs(report, level, options) {
     const defaults = window.ReportCardThemeEngine?.defaultsFor(level) || {
       primary_color: "#4B2E9E", accent_color: "#D1C4E9", background_color: "#F6F2FC",
     };
-    const theme = window.ReportCardThemeEngine?.getTheme(level, report.level_theme || report.school?.level_theme) || defaults;
     const template = templateInfo(level, options);
-    return `class="rc-preview rc-preview-level-${level.toLowerCase()}" data-level="${level}" data-template="${esc(template.id)}" style="--rc-theme:${theme.primary_color};--rc-accent:${theme.accent_color};--rc-table-bg:${theme.background_color}"`;
+    const suppliedTheme = report.level_theme || report.school?.level_theme;
+    const theme = window.ReportCardThemeEngine?.getTemplateTheme?.(level, template.definition, suppliedTheme)
+      || window.ReportCardThemeEngine?.getTheme?.(level, suppliedTheme)
+      || defaults;
+    return `class="rc-preview rc-preview-level-${level.toLowerCase()}" data-level="${level}" data-template="${esc(template.id)}" style="--rc-theme:${theme.primary_color};--rc-header:${theme.header_color};--rc-header-text:${theme.header_text_color};--rc-table-header:${theme.table_header_color};--rc-table-header-text:${theme.table_header_text_color};--rc-accent:${theme.accent_color};--rc-table-bg:${theme.background_color}"`;
   }
   function previewMeta(level, options = {}) {
     const template = templateInfo(level, options);
