@@ -45,7 +45,8 @@
     const x = position === "bottomleft" ? margin
       : position === "bottomcenter" ? (page.getWidth() - width) / 2
         : page.getWidth() - width - margin;
-    return { x, y: 20, width, height, cx: x + width / 2, cy: 20 + height / 2 };
+    const y = 51;
+    return { x, y, width, height, cx: x + width / 2, cy: y + height / 2 };
   }
 
   function rotatedPoint(x, y, cx, cy, radians) {
