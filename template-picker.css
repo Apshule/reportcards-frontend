@@ -1,0 +1,124 @@
+.rc-template-picker {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.15fr) minmax(180px, 1fr) minmax(220px, 1fr);
+  align-items: end;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: #fbfaff;
+}
+
+.rc-template-picker__field {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.rc-template-picker__field label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.rc-template-picker__level {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+
+.rc-template-picker__field select {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 34px 9px 11px;
+  border: 1px solid #dcd8e6;
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.rc-template-picker__stamp {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.rc-template-picker__stamp input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.rc-template-picker__check {
+  position: relative;
+  flex: 0 0 19px;
+  width: 19px;
+  height: 19px;
+  border: 1.5px solid #bcb6ca;
+  border-radius: 5px;
+  background: var(--surface);
+}
+
+.rc-template-picker__stamp input:checked + .rc-template-picker__check {
+  border-color: var(--purple);
+  background: var(--purple);
+}
+
+.rc-template-picker__stamp input:checked + .rc-template-picker__check::after {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 2px;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.rc-template-picker__stamp input:focus-visible + .rc-template-picker__check {
+  outline: 3px solid rgba(255, 140, 66, .85);
+  outline-offset: 3px;
+}
+
+.rc-template-picker__stamp strong,
+.rc-template-picker__stamp small {
+  display: block;
+}
+
+.rc-template-picker__stamp strong {
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.rc-template-picker__stamp small {
+  margin-top: 1px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+@media (max-width: 760px) {
+  .rc-template-picker {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    padding: 12px;
+  }
+
+  .rc-template-picker__stamp {
+    min-height: 52px;
+  }
+}

@@ -10,19 +10,15 @@
     if (/^(PRIMARY|P[1-7])/.test(code)) return "PRIMARY";
     return "NURSERY";
   };
-  const themeHex = (theme) => ({
-    blue: "#1B5E20",
-    maroon: "#7B1FA2",
-    mixed: "#4B2E9E",
-  }[(theme || "blue").toLowerCase()] || "#1B5E20");
   const color = (hex) => {
-    const safe = hex.replace("#", "");
+    const safe = /^#[0-9a-f]{6}$/i.test(String(hex || "")) ? hex.slice(1) : "4B2E9E";
     return rgb(
       parseInt(safe.slice(0, 2), 16) / 255,
       parseInt(safe.slice(2, 4), 16) / 255,
       parseInt(safe.slice(4, 6), 16) / 255,
     );
   };
+  const colorToPdf = (value) => value && typeof value === "object" && "red" in value ? value : color(value);
   const num = (value, digits = 1) => {
     if (value === null || value === undefined || value === "") return "—";
     const parsed = Number(value);
@@ -79,7 +75,7 @@
       height: drawHeight,
     });
   }
-  async function drawHeader(doc, page, report, fonts, accent, title) {
+  async function drawHeader(doc, page, report, fonts, primary, title, accent = primary) {
     const { width, height } = page.getSize();
     const school = report.school || {};
     const learner = report.learner || {};
@@ -89,7 +85,7 @@
       y: margin,
       width: width - margin * 2,
       height: height - margin * 2,
-      borderColor: accent,
+      borderColor: colorToPdf(accent),
       borderWidth: 1.5,
     });
     const logo = await embedImage(doc, school.logo_base64);
@@ -98,20 +94,20 @@
     placeImage(page, photo, width - 84, height - 103, 57, 70);
     const center = width / 2;
     const maxCenter = width - 205;
-    centered(page, str(school.name), center, height - 38, fonts.bold, 15, accent, maxCenter);
+    centered(page, str(school.name), center, height - 38, fonts.bold, 15, colorToPdf(primary), maxCenter);
     if (school.motto) centered(page, school.motto, center, height - 53, fonts.italic, 8, rgb(0.28, 0.28, 0.3), maxCenter);
     const address = [school.street, school.po_box, school.city, school.district].filter(Boolean).join(" · ");
     const contact = [school.phone, school.email, school.website].filter(Boolean).join(" · ");
     if (address) centered(page, address, center, height - 67, fonts.regular, 7, rgb(0.3, 0.3, 0.32), maxCenter);
     if (contact) centered(page, contact, center, height - 79, fonts.regular, 7, rgb(0.3, 0.3, 0.32), maxCenter);
-    centered(page, title, center, height - 98, fonts.bold, 11, accent, maxCenter);
+    centered(page, title, center, height - 98, fonts.bold, 11, colorToPdf(primary), maxCenter);
     const learnerText = `${str(learner.full_name)}   ·   Reg. ${str(learner.reg_no)}   ·   ${str(report.class?.name)}   ·   ${str(report.term)} ${str(report.year)}`;
     centered(page, learnerText, center, height - 119, fonts.bold, 8, rgb(0.13, 0.14, 0.16), width - 150);
     page.drawLine({
       start: { x: margin + 2, y: height - 132 },
       end: { x: width - margin - 2, y: height - 132 },
       thickness: 2,
-      color: accent,
+      color: colorToPdf(accent),
     });
     return height - 148;
   }
@@ -122,7 +118,8 @@
     const availableFractions = columns.map((column) => column.weight || 1);
     const totalWeight = availableFractions.reduce((sum, weight) => sum + weight, 0);
     const widths = availableFractions.map((weight) => tableWidth * weight / totalWeight);
-    const pale = rgb(0.94, 0.96, 0.94);
+    const pale = options.backgroundColor ? colorToPdf(options.backgroundColor) : rgb(0.94, 0.96, 0.94);
+    const border = options.accentColor ? colorToPdf(options.accentColor) : accent;
     const ink = rgb(0.17, 0.18, 0.2);
     let y = top;
     page.drawRectangle({ x, y: y - headerHeight, width: tableWidth, height: headerHeight, color: pale });
@@ -132,12 +129,15 @@
       cellX += widths[index];
     });
     y -= headerHeight;
-    for (const row of rows) {
+    for (const [rowIndex, row] of rows.entries()) {
+      if (options.backgroundColor && rowIndex % 2 === 0) {
+        page.drawRectangle({ x, y: y - rowHeight, width: tableWidth, height: rowHeight, color: pale, opacity: 0.48 });
+      }
       page.drawLine({
         start: { x, y: y - rowHeight },
         end: { x: x + tableWidth, y: y - rowHeight },
         thickness: 0.4,
-        color: rgb(0.84, 0.85, 0.87),
+        color: border,
       });
       let currentX = x;
       row.forEach((value, index) => {
@@ -156,33 +156,51 @@
       drawText(page, str(value), left, y - 12, fonts.regular, 9, rgb(0.16, 0.17, 0.19), itemWidth - 8);
     });
   }
-  async function drawFooter(doc, page, report, fonts, accent) {
+  async function drawFooter(doc, page, report, fonts, accent, options = {}) {
     const { width } = page.getSize();
     const school = report.school || {};
     const dates = report.term_dates || {};
     const fees = report.fees || {};
-    const y = 46;
+    const y = report.__includeStamp === true ? 110 : 46;
+    const dividerY = report.__includeStamp === true ? 123 : y + 29;
+    const termY = report.__includeStamp === true ? 144 : y + 16;
+    const feesY = report.__includeStamp === true ? 133 : y + 7;
+    const lineAccent = colorToPdf(options.lineAccent || accent);
     page.drawLine({
-      start: { x: 28, y: y + 29 },
-      end: { x: width - 28, y: y + 29 },
+      start: { x: 28, y: dividerY },
+      end: { x: width - 28, y: dividerY },
       thickness: 0.7,
-      color: accent,
+      color: lineAccent,
     });
     const termText = `School term/year: ${str(dates.current_term)} ${str(dates.current_year)}   ·   Term ended: ${str(dates.term_ended_on)}   ·   Next term begins: ${str(dates.next_term_begins)}`;
     const feesText = `Next term fees: ${str(dates.next_term_fees)}   ·   Fees balance: ${str(fees.balance)}`;
-    drawText(page, termText, 31, y + 16, fonts.regular, 6.5, rgb(0.25, 0.26, 0.28), width - 62);
-    drawText(page, feesText, 31, y + 7, fonts.regular, 6.5, rgb(0.25, 0.26, 0.28), width - 62);
+    drawText(page, termText, 31, termY, fonts.regular, 6.5, rgb(0.25, 0.26, 0.28), width - 62);
+    drawText(page, feesText, 31, feesY, fonts.regular, 6.5, rgb(0.25, 0.26, 0.28), width - 62);
     const signature = await embedImage(doc, school.report_signature_base64);
-    const leftX = 60;
-    const rightX = width - 250;
-    page.drawLine({ start: { x: leftX, y }, end: { x: leftX + 155, y }, thickness: 0.6, color: rgb(0.35, 0.35, 0.37) });
-    page.drawLine({ start: { x: rightX, y }, end: { x: rightX + 155, y }, thickness: 0.6, color: rgb(0.35, 0.35, 0.37) });
-    if (signature) placeImage(page, signature, rightX + 42, y + 2, 75, 28);
-    drawText(page, str(report.class?.class_teacher_name || "Class Teacher"), leftX, y - 11, fonts.regular, 6.5, rgb(0.25, 0.26, 0.28), 150);
-    drawText(page, "Class Teacher", leftX, y - 20, fonts.bold, 6.5, accent, 150);
-    drawText(page, str(school.principal_name || school.head_teacher_name || "Head Teacher / Principal"), rightX, y - 11, fonts.regular, 6.5, rgb(0.25, 0.26, 0.28), 180);
-    drawText(page, "Head Teacher / Principal", rightX, y - 20, fonts.bold, 6.5, accent, 180);
-    if (school.report_footer_text) {
+    const signatures = Array.isArray(options.signatures) && options.signatures.length
+      ? options.signatures
+      : ["Class Teacher", "Head Teacher / Principal"];
+    const signatureWidth = (width - 62 - 14 * (signatures.length - 1)) / signatures.length;
+    signatures.forEach((label, index) => {
+      const left = 31 + index * (signatureWidth + 14);
+      page.drawLine({
+        start: { x: left, y },
+        end: { x: left + signatureWidth, y },
+        thickness: 0.6,
+        color: rgb(0.35, 0.35, 0.37),
+      });
+      const person = label === "Class Teacher"
+        ? report.class?.class_teacher_name
+        : /principal|head teacher/i.test(label)
+          ? school.principal_name || school.head_teacher_name
+          : /department/i.test(label)
+            ? school.head_of_department_name
+            : "";
+      drawText(page, str(person || ""), left, y - 11, fonts.regular, 6.5, rgb(0.25, 0.26, 0.28), signatureWidth - 2);
+      drawText(page, label, left, y - 20, fonts.bold, 6.5, lineAccent, signatureWidth - 2);
+      if (signature && index === signatures.length - 1) placeImage(page, signature, left + (signatureWidth - 75) / 2, y + 2, 75, 28);
+    });
+    if (school.report_footer_text && report.__includeStamp !== true) {
       centered(page, school.report_footer_text, width / 2, 26, fonts.regular, 6.5, rgb(0.32, 0.32, 0.34), width - 80);
     }
   }
@@ -213,21 +231,27 @@
       bold: await doc.embedFont(StandardFonts.HelveticaBold),
       italic: await doc.embedFont(StandardFonts.HelveticaOblique),
     };
-    const accent = color(themeHex(report.school?.report_theme));
-    const y = await drawHeader(doc, page, report, fonts, accent, title);
-    return { doc, page, fonts, accent, y, size };
+    const theme = window.ReportCardThemeEngine?.getTheme(level, report.level_theme || report.school?.level_theme) || {
+      primary_color: level === "NURSERY" ? "#8BC34A" : level === "PRIMARY" ? "#1E5EB5" : level === "O_LEVEL" ? "#7B1FA2" : "#4B2E9E",
+      accent_color: level === "NURSERY" ? "#DCEDC8" : level === "PRIMARY" ? "#BBDEFB" : level === "O_LEVEL" ? "#E1BEE7" : "#D1C4E9",
+      background_color: "#F7F6FA",
+    };
+    const primary = color(theme.primary_color);
+    const lineAccent = color(theme.accent_color);
+    const y = await drawHeader(doc, page, report, fonts, primary, title, lineAccent);
+    return { doc, page, fonts, accent: primary, primary, lineAccent, backgroundColor: theme.background_color, y, size };
   }
 
   async function renderNursery(learnerOrReport, school, marksData) {
     const report = asReport(learnerOrReport, school, marksData);
-    const { doc, page, fonts, accent, y } = await prepare(report, "NURSERY", "Nursery Learning Report");
+    const { doc, page, fonts, accent, lineAccent, backgroundColor, y } = await prepare(report, "NURSERY", "Nursery Learning Report");
     const entries = marks(report);
     const areas = entries.slice(0, 5);
     const areaRows = Array.from({ length: 5 }, (_, index) => {
       const entry = areas[index];
       return [
         entry?.subject.name || `Learning area ${index + 1}`,
-        num(entry?.mark.pct100),
+        num(entry?.mark.period_score ?? entry?.mark.pct100),
         entry?.mark.descriptor || "—",
       ];
     });
@@ -238,7 +262,7 @@
     drawTable(page, [
       { label: "Learning area", weight: 2.1 }, { label: "Score /100", weight: 1 },
       { label: "Remark", weight: 1.5 },
-    ], areaRows, x, y - 9, panelWidth, fonts, accent, { fontSize: 7.5, rowHeight: 23 });
+    ], areaRows, x, y - 9, panelWidth, fonts, accent, { fontSize: 7.5, rowHeight: 23, backgroundColor, accentColor: lineAccent });
     const activities = ["Writing", "Listening", "Reading", "Speaking", "Drawing", "Games", "Rhymes/Stories", "Music", "Health Habits", "Toilet Habits"];
     const activityRows = activities.map((activity) => [activity, "—", "—"]);
     const rightX = x + panelWidth + panelGap;
@@ -246,21 +270,21 @@
     drawTable(page, [
       { label: "Activity", weight: 2.1 }, { label: "Progress", weight: 1 },
       { label: "Remark", weight: 1.5 },
-    ], activityRows, rightX, y - 9, panelWidth, fonts, accent, { fontSize: 7.5, rowHeight: 23 });
+    ], activityRows, rightX, y - 9, panelWidth, fonts, accent, { fontSize: 7.5, rowHeight: 23, backgroundColor, accentColor: lineAccent });
     const summary = report.summary || {};
     drawSummary(page, [
       ["Total score", num(summary.total_score, 0)],
       ["Position", `${str(summary.position)} of ${str(summary.class_size)}`],
     ], x, 220, page.getWidth() - 62, fonts, accent);
-    await drawFooter(doc, page, report, fonts, accent);
+    await drawFooter(doc, page, report, fonts, accent, { lineAccent });
     return doc.save();
   }
 
   async function renderPrimary(learnerOrReport, school, marksData) {
     const report = asReport(learnerOrReport, school, marksData);
-    const { doc, page, fonts, accent, y } = await prepare(report, "PRIMARY", "Primary School Report");
+    const { doc, page, fonts, accent, lineAccent, backgroundColor, y } = await prepare(report, "PRIMARY", "Primary School Report");
     const rows = marks(report).map(({ subject, mark }) => [
-      subject.name, num(mark.pct100), str(mark.identifier),
+      subject.name, num(mark.period_score ?? mark.pct100), str(mark.identifier),
       mark.position ? `${mark.position} of ${mark.class_size}` : "—",
       str(mark.descriptor), str(mark.teacher_initials),
     ]);
@@ -268,7 +292,7 @@
       { label: "Subject", weight: 2.4 }, { label: "Marks", weight: 0.85 },
       { label: "Aggr", weight: 0.7 }, { label: "Position", weight: 1 },
       { label: "Remarks", weight: 2 }, { label: "Initials", weight: 0.9 },
-    ], rows, 30, y, page.getWidth() - 60, fonts, accent, { rowHeight: 19, fontSize: 7.5 });
+    ], rows, 30, y, page.getWidth() - 60, fonts, accent, { rowHeight: 19, fontSize: 7.5, backgroundColor, accentColor: lineAccent });
     const summary = report.summary || {};
     drawSummary(page, [
       ["Overall position", `${str(summary.position)} of ${str(summary.class_size)}`],
@@ -284,19 +308,19 @@
       drawText(page, str(name || ""), sx, 87, fonts.regular, 6.5, rgb(0.25, 0.26, 0.28), 150);
       drawText(page, label, sx, 77, fonts.bold, 6.5, accent, 150);
     });
-    await drawFooter(doc, page, report, fonts, accent);
+    await drawFooter(doc, page, report, fonts, accent, { lineAccent });
     return doc.save();
   }
 
   async function renderSecondary(learnerOrReport, level, school, marksData) {
     const report = asReport(learnerOrReport, school, marksData);
     const title = level === "A_LEVEL" ? "A-Level Report" : "O-Level Report";
-    const { doc, page, fonts, accent, y } = await prepare(report, level, title);
+    const { doc, page, fonts, accent, lineAccent, backgroundColor, y } = await prepare(report, level, title);
     const rows = marks(report).map(({ subject, mark }) => [
       subject.code, subject.name,
       ...(level === "A_LEVEL" ? [str(mark.paper_number)] : []),
       num(mark.a1), num(mark.a2), num(mark.a3), num(mark.avg),
-      num(mark.pct20), num(mark.eot), num(mark.pct80), num(mark.pct100),
+      num(mark.pct20), num(mark.eot), num(mark.pct80), num(mark.period_score ?? mark.pct100),
       str(mark.identifier), str(mark.grade), str(mark.descriptor), str(mark.teacher_initials),
     ]);
     const columns = [
@@ -310,7 +334,7 @@
       { label: "Descriptor", weight: 1.18 }, { label: "TR", weight: 0.55 },
     ];
     let nextY = drawTable(page, columns, rows, 28, y, page.getWidth() - 56, fonts, accent, {
-      rowHeight: 19, fontSize: 6.6, headerHeight: 23,
+      rowHeight: 19, fontSize: 6.6, headerHeight: 23, backgroundColor, accentColor: lineAccent,
     });
     const summary = report.summary || {};
     drawSummary(page, [
@@ -334,15 +358,15 @@
       if (nextY < 130) {
         const nextPage = doc.addPage(landscape);
         const nextTitle = "A-Level Projects";
-        const nextTop = await drawHeader(doc, nextPage, report, fonts, accent, nextTitle);
+         const nextTop = await drawHeader(doc, nextPage, report, fonts, accent, nextTitle, lineAccent);
         drawText(nextPage, "Projects", 30, nextTop - 2, fonts.bold, 9, accent, 200);
         drawTable(nextPage, [
           { label: "Project", weight: 2.2 }, { label: "Score", weight: 0.8 },
           { label: "Out of", weight: 0.8 }, { label: "Percent", weight: 0.9 },
           { label: "Grade", weight: 0.8 }, { label: "Remarks", weight: 1.7 },
           { label: "Teacher initials", weight: 0.9 },
-        ], projectRows, 30, nextTop - 10, nextPage.getWidth() - 60, fonts, accent, { fontSize: 7.4, rowHeight: 19 });
-        await drawFooter(doc, nextPage, report, fonts, accent);
+        ], projectRows, 30, nextTop - 10, nextPage.getWidth() - 60, fonts, accent, { fontSize: 7.4, rowHeight: 19, backgroundColor, accentColor: lineAccent });
+        await drawFooter(doc, nextPage, report, fonts, accent, { lineAccent });
       } else {
         drawText(page, "Projects", 30, nextY, fonts.bold, 9, accent, 200);
         drawTable(page, [
@@ -350,10 +374,222 @@
           { label: "Out of", weight: 0.8 }, { label: "Percent", weight: 0.9 },
           { label: "Grade", weight: 0.8 }, { label: "Remarks", weight: 1.7 },
           { label: "Teacher initials", weight: 0.9 },
-        ], projectRows, 30, nextY - 8, page.getWidth() - 60, fonts, accent, { fontSize: 7.4, rowHeight: 17 });
+          ], projectRows, 30, nextY - 8, page.getWidth() - 60, fonts, accent, { fontSize: 7.4, rowHeight: 17, backgroundColor, accentColor: lineAccent });
       }
     }
-    await drawFooter(doc, page, report, fonts, accent);
+    await drawFooter(doc, page, report, fonts, accent, { lineAccent });
+    return doc.save();
+  }
+
+  function templateMeta(level, id) {
+    const catalog = window.ReportCardTemplateCatalog || {};
+    const templates = catalog[level] || [];
+    return templates.find((item) => String(item.id) === String(id)) || templates[0] || { id: "1", variant: "default" };
+  }
+
+  function decorativeColor(meta) {
+    return color(/^#[0-9a-f]{6}$/i.test(String(meta.decorative || "")) ? meta.decorative : "#B58A2A");
+  }
+
+  function variantRule(page, y, width, meta) {
+    page.drawRectangle({ x: 30, y, width: width - 60, height: 3, color: decorativeColor(meta) });
+  }
+
+  function variantBanner(page, label, y, fonts, primary, background, width) {
+    page.drawRectangle({ x: 30, y: y - 23, width: width - 60, height: 22, color: color(background) });
+    drawText(page, label, 38, y - 16, fonts.bold, 8.5, primary, width - 76);
+    return y - 32;
+  }
+
+  function drawLearnerFeeBar(page, report, y, fonts, primary, background) {
+    const { width } = page.getSize();
+    const learner = report.learner || {};
+    const fees = report.fees || {};
+    const school = report.school || {};
+    page.drawRectangle({ x: 31, y: y - 27, width: width - 62, height: 24, color: color(background) });
+    const content = `Reg. no. ${str(learner.reg_no)}    Class ${str(report.class?.name)}    Fees balance ${str(fees.balance)}    SchoolPay Code ${str(learner.schoolpay_code || school.schoolpay_code)}`;
+    drawText(page, content, 38, y - 19, fonts.bold, 7, primary, width - 76);
+    return y - 37;
+  }
+
+  function signatureLabels(meta, report) {
+    if (meta.signatures) return meta.signatures;
+    if (meta.lowerPrimarySignature && isLowerPrimary(report)) return ["Class Teacher", "Head of Infants", "Principal"];
+    if (meta.variant === "primary_silver") return ["Class Teacher", "Head of Department", "Principal"];
+    return ["Class Teacher", "Head Teacher / Principal"];
+  }
+
+  function isLowerPrimary(report) {
+    return /(^|\b)(P[1-3]|PRIMARY\s*[1-3]|PRIMARY\s+(ONE|TWO|THREE))(\b|$)/i.test(String(report.class?.name || ""));
+  }
+
+  function projectRows(report, includeExample = false) {
+    const projects = report.projects || [];
+    if (projects.length) return projects.map((project) => [
+      project.project_name,
+      num(project.score),
+      num(project.out_of),
+      project.percentage === null || project.percentage === undefined
+        ? project.out_of && Number.isFinite(Number(project.score)) ? `${num((Number(project.score) / Number(project.out_of)) * 100)}%` : "—"
+        : `${num(project.percentage)}%`,
+      str(project.grade),
+      str(project.remarks),
+      str(project.teacher_initials),
+    ]);
+    return [[includeExample ? "No projects recorded (example: Apiculture)" : "No projects recorded", "—", "—", "—", "—", "—", "—"]];
+  }
+
+  async function renderVariant(report, level, meta) {
+    const title = level === "NURSERY" ? "Nursery Learning Report"
+      : level === "PRIMARY" ? "Primary School Report"
+        : level === "O_LEVEL" ? "O-Level Report" : "A-Level Report";
+    const { doc, page, fonts, accent, lineAccent, backgroundColor, y: headerY } = await prepare(report, level, title);
+    const width = page.getWidth();
+    variantRule(page, page.getHeight() - 150, width, meta);
+    const entries = marks(report);
+    let top = headerY - 4;
+
+    if (level === "NURSERY") {
+      if (meta.learnerFeeBar) top = drawLearnerFeeBar(page, report, top, fonts, accent, backgroundColor);
+      if (meta.photoPlaceholder && !report.learner?.photo_base64) {
+        page.drawRectangle({ x: width - 86, y: page.getHeight() - 107, width: 58, height: 70, borderColor: lineAccent, borderWidth: 1 });
+        centered(page, "Learner Photo", width - 57, page.getHeight() - 72, fonts.regular, 5.5, accent, 52);
+      }
+      const areas = entries.slice(0, 5);
+      const areaRows = Array.from({ length: 5 }, (_, index) => {
+        const entry = areas[index];
+        return [entry?.subject.name || `Learning area ${index + 1}`, num(entry?.mark.period_score ?? entry?.mark.pct100), str(entry?.mark.descriptor)];
+      });
+      const activities = ["Writing", "Listening", "Reading", "Speaking", "Drawing", "Games", "Rhymes/Stories", "Music", "Health Habits", "Toilet Habits"];
+      const activityRows = activities.map((activity) => [activity, "—", "—"]);
+      const x = 31;
+      const gap = 15;
+      const panelWidth = (width - 62 - gap) / 2;
+      drawText(page, "Learning Areas", x, top - 2, fonts.bold, 9, accent, panelWidth);
+      const afterAreas = drawTable(page, [
+        { label: "Learning area", weight: 2 }, { label: "Score", weight: 0.8 }, { label: "Remark", weight: 1.2 },
+      ], areaRows, x, top - 9, panelWidth, fonts, accent, { fontSize: 6.8, rowHeight: 19, backgroundColor, accentColor: lineAccent });
+      const rightX = x + panelWidth + gap;
+      drawText(page, "Activities", rightX, top - 2, fonts.bold, 9, accent, panelWidth);
+      drawTable(page, [
+        { label: "Activity", weight: 1.7 }, { label: "Progress", weight: 0.9 }, { label: "Remark", weight: 1.2 },
+      ], activityRows, rightX, top - 9, panelWidth, fonts, accent, { fontSize: 6.5, rowHeight: 15, backgroundColor, accentColor: lineAccent });
+      let bottom = Math.min(afterAreas, top - 25 - 10 * 15);
+      if (meta.requirements) {
+        const requirementsY = Math.max(190, bottom - 23);
+        drawText(page, "School Requirements", 32, requirementsY, fonts.bold, 8.5, accent, width - 64);
+        drawText(page, str(report.school?.school_requirements || "Exercise books · pencils · ruler · crayons · school diary"), 32, requirementsY - 12, fonts.regular, 7, accent, width - 64);
+        bottom = requirementsY - 25;
+      }
+      const summary = report.summary || {};
+      drawSummary(page, [["Total score", num(summary.total_score, 0)], ["Position", `${str(summary.position)} of ${str(summary.class_size)}`]], 32, Math.max(180, bottom - 22), width - 64, fonts, accent);
+      await drawFooter(doc, page, report, fonts, accent, { lineAccent, signatures: signatureLabels(meta, report) });
+    } else if (level === "PRIMARY") {
+      const rows = entries.map(({ subject, mark }) => {
+        const values = [
+          subject.name, num(mark.period_score ?? mark.pct100), str(mark.identifier),
+          mark.position ? `${mark.position} of ${str(mark.class_size)}` : "—",
+          str(mark.descriptor), str(mark.teacher_initials),
+        ];
+        if (meta.blankForm) return [subject.name, "________", "___", "________", "________________", "___"];
+        return values;
+      });
+      if (meta.printDate || meta.classAverageAge) {
+        const averageAge = report.class_average_age ?? report.class?.average_age;
+        const info = [
+          meta.printDate ? `Print Date: ${new Date().toLocaleDateString()}` : "",
+          meta.classAverageAge ? `Class Avg. Age: ${str(averageAge)}` : "",
+        ].filter(Boolean).join("    ");
+        top = variantBanner(page, info, top, fonts, accent, backgroundColor, width);
+      }
+      const columns = [
+        { label: "Subject", weight: 2.1 }, { label: "Marks", weight: 0.85 },
+        { label: meta.aggregation ? "AGGR" : "Ident", weight: 0.7 },
+        { label: meta.subjectPosition ? "Position" : "Result", weight: 1.05 },
+        { label: "Remarks", weight: 1.8 }, { label: "Initials", weight: 0.75 },
+      ];
+      let nextY = drawTable(page, columns, rows, 30, top, width - 60, fonts, accent, { rowHeight: 19, fontSize: 7.1, backgroundColor, accentColor: lineAccent });
+      const summary = report.summary || {};
+      drawSummary(page, [
+        ["Overall position", `${str(summary.position)} of ${str(summary.class_size)}`],
+        ["Average", num(summary.overall_average)],
+        ["Grade", str(summary.overall_grade)],
+      ], 34, nextY - 22, width - 68, fonts, accent);
+      await drawFooter(doc, page, report, fonts, accent, { lineAccent, signatures: signatureLabels(meta, report) });
+    } else if (level === "O_LEVEL") {
+      let nextY = top;
+      if (meta.academicBanner) nextY = variantBanner(page, "ACADEMIC PERFORMANCE", nextY, fonts, accent, backgroundColor, width);
+      if (meta.twoSections) {
+        drawText(page, "FORMATIVE", 30, nextY - 2, fonts.bold, 8.5, accent, width - 60);
+        nextY = drawTable(page, [
+          { label: "Code", weight: 0.7 }, { label: "Subject", weight: 1.7 }, { label: "A1", weight: 0.55 },
+          { label: "A2", weight: 0.55 }, { label: "A3", weight: 0.55 }, { label: "AVG", weight: 0.65 }, { label: "FA (20)", weight: 0.7 },
+        ], entries.map(({ subject, mark }) => [subject.code, subject.name, num(mark.a1), num(mark.a2), num(mark.a3), num(mark.avg), num(mark.pct20)]), 30, nextY - 9, width - 60, fonts, accent, { rowHeight: 18, fontSize: 6.6, backgroundColor, accentColor: lineAccent }) - 14;
+        drawText(page, "SUMMATIVE", 30, nextY, fonts.bold, 8.5, accent, width - 60);
+        nextY = drawTable(page, [
+          { label: "Code", weight: 0.7 }, { label: "Subject", weight: 1.7 }, { label: "EOT", weight: 0.65 },
+          { label: "EOTI (80)", weight: 0.8 }, { label: "FINAL (100)", weight: 0.9 }, { label: "Grade", weight: 0.65 }, { label: "Descriptor", weight: 1.2 },
+        ], entries.map(({ subject, mark }) => [subject.code, subject.name, num(mark.eot), num(mark.pct80), num(mark.period_score ?? mark.pct100), str(mark.grade), str(mark.descriptor)]), 30, nextY - 8, width - 60, fonts, accent, { rowHeight: 18, fontSize: 6.5, backgroundColor, accentColor: lineAccent });
+      } else {
+        const columns = meta.formativeFinal
+          ? [{ label: "Code", weight: .7 }, { label: "Subject", weight: 1.8 }, { label: "FA (20)", weight: .8 }, { label: "EOT", weight: .7 }, { label: "FINAL (100)", weight: .9 }, { label: "Grade", weight: .7 }, { label: "Descriptor", weight: 1.3 }]
+          : meta.formativeEotiFinal
+            ? [{ label: "Code", weight: .7 }, { label: "Subject", weight: 1.8 }, { label: "FA (20)", weight: .8 }, { label: "EOTI (80)", weight: .8 }, { label: "FINAL (100)", weight: .9 }, { label: "Grade", weight: .7 }, { label: "Descriptor", weight: 1.3 }]
+            : [{ label: "Code", weight: .7 }, { label: "Subject", weight: 1.7 }, { label: "AW Code", weight: .8 }, { label: "A1", weight: .5 }, { label: "A2", weight: .5 }, { label: "A3", weight: .5 }, { label: "FINAL", weight: .8 }, { label: "Grade", weight: .65 }, { label: "Descriptor", weight: 1.1 }];
+        const rows = entries.map(({ subject, mark }) => meta.formativeFinal
+          ? [subject.code, subject.name, num(mark.pct20), num(mark.eot), num(mark.period_score ?? mark.pct100), str(mark.grade), str(mark.descriptor)]
+          : meta.formativeEotiFinal
+            ? [subject.code, subject.name, num(mark.pct20), num(mark.pct80), num(mark.period_score ?? mark.pct100), str(mark.grade), str(mark.descriptor)]
+            : [subject.code, subject.name, str(mark.aw_code || subject.aw_code), num(mark.a1), num(mark.a2), num(mark.a3), num(mark.period_score ?? mark.pct100), str(mark.grade), str(mark.descriptor)]);
+        nextY = drawTable(page, columns, rows, 30, nextY, width - 60, fonts, accent, { rowHeight: 19, fontSize: 6.6, backgroundColor, accentColor: lineAccent });
+      }
+      const summary = report.summary || {};
+      drawSummary(page, [["Overall average", num(summary.overall_average)], ["Overall grade", str(summary.overall_grade)], ["Position", `${str(summary.position)} of ${str(summary.class_size)}`]], 32, nextY - 18, width - 64, fonts, accent);
+      await drawFooter(doc, page, report, fonts, accent, { lineAccent });
+    } else {
+      let nextY = top;
+      if (meta.studentBanner) {
+        const learner = report.learner || {};
+        const info = `STUDENT INFORMATION   ${str(learner.full_name)}   ·   ${str(learner.reg_no)}   ·   ${str(report.class?.name)}   ·   ${str(report.term)} ${str(report.year)}`;
+        nextY = variantBanner(page, info, nextY, fonts, accent, backgroundColor, width);
+      }
+      const rows = entries.map(({ subject, mark }) => [
+        subject.code, subject.name, str(mark.paper_number),
+        num(mark.pct20), num(mark.eot), num(mark.pct80), num(mark.period_score ?? mark.pct100),
+        str(mark.grade), str(mark.descriptor),
+      ]);
+      let columns = [
+        { label: "Code", weight: .7 }, { label: "Subject", weight: 1.4 }, { label: "Paper", weight: .55 },
+        { label: "Formative", weight: .8 }, { label: "EOT", weight: .6 }, { label: "Summative", weight: .8 },
+        { label: "Final", weight: .7 }, { label: "Grade", weight: .55 }, { label: "Descriptor", weight: 1.1 },
+      ];
+      nextY = drawTable(page, columns, rows, 28, nextY, width - 56, fonts, accent, { rowHeight: 18, fontSize: 6.4, backgroundColor, accentColor: lineAccent });
+      const summary = report.summary || {};
+      drawSummary(page, [["Average", num(summary.overall_average)], ["Grade", str(summary.overall_grade)], ["Position", `${str(summary.position)} of ${str(summary.class_size)}`]], 32, nextY - 18, width - 64, fonts, accent);
+      let projectsY = nextY - 61;
+      const shouldShowProjects = meta.projects || meta.apicultureExample;
+      if (shouldShowProjects) {
+        if (projectsY < 160) {
+          const projectPage = doc.addPage(landscape);
+          const projectTop = await drawHeader(doc, projectPage, report, fonts, accent, "A-Level Projects", lineAccent);
+          projectsY = projectTop - 4;
+          variantRule(projectPage, projectPage.getHeight() - 150, projectPage.getWidth(), meta);
+          drawText(projectPage, meta.projectsHeading || (meta.apicultureExample ? "Student Projects Work" : "Projects"), 30, projectsY, fonts.bold, 9, accent, projectPage.getWidth() - 60);
+          drawTable(projectPage, [
+            { label: "Project", weight: 1.8 }, { label: "Score", weight: .65 }, { label: "Out of", weight: .65 },
+            { label: "Percent", weight: .7 }, { label: "Grade", weight: .6 }, { label: "Remarks", weight: 1.4 }, { label: "Initials", weight: .7 },
+          ], projectRows(report, meta.apicultureExample), 30, projectsY - 8, projectPage.getWidth() - 60, fonts, accent, { rowHeight: 18, fontSize: 6.8, backgroundColor, accentColor: lineAccent });
+          await drawFooter(doc, projectPage, report, fonts, accent, { lineAccent });
+        } else {
+          drawText(page, meta.projectsHeading || (meta.apicultureExample ? "Student Projects Work" : "Projects"), 30, projectsY, fonts.bold, 9, accent, width - 60);
+          drawTable(page, [
+            { label: "Project", weight: 1.8 }, { label: "Score", weight: .65 }, { label: "Out of", weight: .65 },
+            { label: "Percent", weight: .7 }, { label: "Grade", weight: .6 }, { label: "Remarks", weight: 1.4 }, { label: "Initials", weight: .7 },
+          ], projectRows(report, meta.apicultureExample), 30, projectsY - 8, width - 60, fonts, accent, { rowHeight: 18, fontSize: 6.8, backgroundColor, accentColor: lineAccent });
+        }
+      }
+      await drawFooter(doc, page, report, fonts, accent, { lineAccent });
+    }
     return doc.save();
   }
 
@@ -429,15 +665,29 @@
     return new Blob([...localParts, ...centralParts, end], { type: "application/zip" });
   }
 
-  async function render(report, classLevel) {
-    const level = levelCode(classLevel);
-    if (level === "NURSERY") return renderNursery(report);
-    if (level === "PRIMARY") return renderPrimary(report);
-    return renderSecondary(report, level);
+  async function render(report, classLevel, templateId = "1", includeStamp = true) {
+    const stamp = includeStamp ? report?.stamp_config || report?.school?.stamp_config : null;
+    const renderReport = { ...report, __includeStamp: Boolean(stamp && typeof stamp === "object" && Object.keys(stamp).length) };
+    const level = levelCode(classLevel || renderReport.class?.level);
+    const id = String(templateId || "1").replace(/^template[_-]?/i, "");
+    const meta = templateMeta(level, id);
+    let bytes;
+    if (String(meta.id) === "1") {
+      if (level === "NURSERY") bytes = await renderNursery(renderReport);
+      else if (level === "PRIMARY") bytes = await renderPrimary(renderReport);
+      else bytes = await renderSecondary(renderReport, level);
+    } else {
+      bytes = await renderVariant(renderReport, level, meta);
+    }
+    if (includeStamp && window.ReportCardStampRenderer) {
+      return window.ReportCardStampRenderer.apply(bytes, renderReport, stamp);
+    }
+    return bytes;
   }
 
   window.ReportCardPdf = {
     render,
+    renderVariant,
     renderNursery,
     renderPrimary,
     renderOLevel: (learner, school, marksData) => renderSecondary(learner, "O_LEVEL", school, marksData),
