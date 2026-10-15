@@ -10,6 +10,34 @@
     ["COMBINED_ME", "Combined (Mid + E.O.T)"],
   ];
 
+  const periodAliases = {
+    BOT: "BOT",
+    BEGINNINGOFTERM: "BOT",
+    BEGINNINGOFTERMBOT: "BOT",
+    MID: "MID",
+    MIDTERM: "MID",
+    EOT: "EOT",
+    ENDOFTERM: "EOT",
+    ENDOFTERMEOT: "EOT",
+    COMBINEDBME: "COMBINED_BME",
+    COMBINEDBOTMIDEOT: "COMBINED_BME",
+    COMBINEDBE: "COMBINED_BE",
+    COMBINEDBOTEOT: "COMBINED_BE",
+    COMBINEDME: "COMBINED_ME",
+    COMBINEDMIDEOT: "COMBINED_ME",
+  };
+
+  function normalizePeriod(value) {
+    const normalized = String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    return periodAliases[normalized] || "EOT";
+  }
+
+  function normalizeTemplate(value) {
+    const normalized = String(value ?? "").trim();
+    const match = normalized.match(/^(?:template[\s_-]*)?([1-5])(?:\b|$)/i);
+    return match ? `template_${match[1]}` : normalized;
+  }
+
   const paletteLabels = {
     NURSERY: ["Default", "Orange/Blue", "Purple/Pink", "Green/Eco", "Maroon/Gold"],
     PRIMARY: ["Default", "Gold/Black", "Silver/Iridescent", "Blue/Gold Blank", "Maroon/Gold"],
@@ -65,5 +93,5 @@
     </div>`;
   }
 
-  window.ReportCardTemplatePicker = { render };
+  window.ReportCardTemplatePicker = { render, normalizePeriod, normalizeTemplate };
 })();
