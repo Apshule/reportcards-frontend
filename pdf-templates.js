@@ -111,6 +111,25 @@
     });
     return height - 148;
   }
+  function drawPromotionBanner(page, report, fonts, y) {
+    if (!["TERM_3", "END_OF_YEAR"].includes(String(report.term || "").toUpperCase())) return y;
+    const decision = report.promotion_decision || report.promotion?.promotion_decision
+      || report.suggested_decision || report.promotion?.suggested_decision;
+    const currentClass = report.promotion_current_class || report.promotion?.current_class || report.class?.name || "CURRENT CLASS";
+    const nextClass = report.promotion_next_class || report.promotion?.next_class || "NEXT CLASS";
+    const config = decision === "promoted"
+      ? { text: `PROMOTED TO ${nextClass}`, background: rgb(0.14, 0.53, 0.41), foreground: rgb(1, 1, 1) }
+      : decision === "try_another"
+        ? { text: "TRY ANOTHER CLASS", background: rgb(0.96, 0.82, 0.32), foreground: rgb(0.12, 0.12, 0.12) }
+        : decision === "repeat"
+          ? { text: `ADVISED TO REPEAT ${currentClass}`, background: rgb(0.75, 0.22, 0.26), foreground: rgb(1, 1, 1) }
+          : null;
+    if (!config) return y;
+    const { width } = page.getSize();
+    page.drawRectangle({ x: 28, y: y - 27, width: width - 56, height: 23, color: config.background });
+    centered(page, config.text, width / 2, y - 19, fonts.bold, 9, config.foreground, width - 76);
+    return y - 39;
+  }
   function drawTable(page, columns, rows, x, top, tableWidth, fonts, accent, options = {}) {
     const headerHeight = options.headerHeight ?? 25;
     const rowHeight = options.rowHeight ?? 19;
@@ -174,6 +193,11 @@
     });
     const termText = `School term/year: ${str(dates.current_term)} ${str(dates.current_year)}   ·   Term ended: ${str(dates.term_ended_on)}   ·   Next term begins: ${str(dates.next_term_begins)}`;
     const feesText = `Next term fees: ${str(dates.next_term_fees)}   ·   Fees balance: ${str(fees.balance)}`;
+    const teacherComment = report.class_teacher_comment || report.suggested_comment;
+    if (teacherComment) {
+      const commentY = report.__includeStamp === true ? 157 : 88;
+      drawText(page, `Class teacher comment: ${teacherComment}`, 31, commentY, fonts.regular, 6.5, rgb(0.25, 0.26, 0.28), width - 62);
+    }
     drawText(page, termText, 31, termY, fonts.regular, 6.5, rgb(0.25, 0.26, 0.28), width - 62);
     drawText(page, feesText, 31, feesY, fonts.regular, 6.5, rgb(0.25, 0.26, 0.28), width - 62);
     const signature = await embedImage(doc, school.report_signature_base64);
@@ -238,7 +262,8 @@
     };
     const primary = color(theme.primary_color);
     const lineAccent = color(theme.accent_color);
-    const y = await drawHeader(doc, page, report, fonts, primary, title, lineAccent);
+    const headerY = await drawHeader(doc, page, report, fonts, primary, title, lineAccent);
+    const y = drawPromotionBanner(page, report, fonts, headerY);
     return { doc, page, fonts, accent: primary, primary, lineAccent, backgroundColor: theme.background_color, y, size };
   }
 

@@ -76,6 +76,22 @@
       <span><b>Term / year</b> ${value(report.term)} / ${value(report.year)}</span>
     </div>`;
   };
+  const promotionBanner = (report) => {
+    const endOfYear = ["TERM_3", "END_OF_YEAR"].includes(String(report.term || "").toUpperCase());
+    if (!endOfYear) return "";
+    const decision = report.promotion_decision || report.promotion?.promotion_decision
+      || report.suggested_decision || report.promotion?.suggested_decision;
+    if (decision === "promoted") {
+      return `<div class="rc-promotion-banner rc-promotion-promoted">PROMOTED TO ${value(report.promotion_next_class || report.promotion?.next_class || "NEXT CLASS")}</div>`;
+    }
+    if (decision === "try_another") {
+      return `<div class="rc-promotion-banner rc-promotion-try-another">TRY ANOTHER CLASS</div>`;
+    }
+    if (decision === "repeat") {
+      return `<div class="rc-promotion-banner rc-promotion-repeat">ADVISED TO REPEAT ${value(report.promotion_current_class || report.promotion?.current_class || report.class?.name || "CURRENT CLASS")}</div>`;
+    }
+    return "";
+  };
   const footer = (report, commentLabels = [], signatureLabels = ["Class Teacher", "Head Teacher / Principal"]) => {
     const school = report.school || {};
     const dates = report.term_dates || {};
@@ -89,7 +105,7 @@
         <span><b>Next term fees</b> ${value(dates.next_term_fees)}</span>
         <span><b>Fees balance</b> ${value(fees.balance)}</span>
       </div>
-      ${commentLabels.length ? `<div class="rc-comments">${commentLabels.map((label) => `<div><b>${esc(label)}</b><span></span></div>`).join("")}</div>` : ""}
+       ${commentLabels.length ? `<div class="rc-comments">${commentLabels.map((label) => `<div><b>${esc(label)}</b><span>${label === "Class Teacher Comment" ? value(report.class_teacher_comment || report.suggested_comment) : ""}</span></div>`).join("")}</div>` : ""}
       <div class="rc-signatures rc-signatures-${signatureLabels.length}">${signatureLabels.map((label, index) => {
         const person = label === "Class Teacher" ? report.class?.class_teacher_name
           : /principal|head teacher/i.test(label) ? school.principal_name || school.head_teacher_name
@@ -123,6 +139,7 @@
     return `<article ${previewAttrs(report, "NURSERY", options)}>
       ${previewMeta("NURSERY", options)}
       ${header(report, "Nursery Learning Report")}
+       ${promotionBanner(report)}
       ${feeBar}
       <div class="rc-two-panels">
         <section><h3>Learning areas</h3>${table(["Learning area", "Score / 100", "Remark"], areaRows)}</section>
@@ -130,7 +147,7 @@
       </div>
       <div class="rc-summary"><span><b>Total score</b> ${number(summary.total_score, 0)}</span><span><b>Position</b> ${value(summary.position)} of ${value(summary.class_size)}</span></div>
       ${requirements}
-      ${footer(report, [], signatures)}
+       ${footer(report, ["Class Teacher Comment"], signatures)}
     </article>`;
   }
 
@@ -147,11 +164,12 @@
     return `<article ${previewAttrs(report, "PRIMARY", options)}>
       ${previewMeta("PRIMARY", options)}
       ${header(report, "Primary School Report")}
+       ${promotionBanner(report)}
       ${info}
       ${table(["Subject", "Marks", "Aggr", "Position", "Remarks", "Initials"], rows)}
       <div class="rc-summary"><span><b>Overall position</b> ${value(summary.position)} of ${value(summary.class_size)}</span><span><b>Average</b> ${number(summary.overall_average)}</span><span><b>Grade</b> ${value(summary.overall_grade)}</span></div>
       <p class="rc-legend"><b>Legend:</b> Very Good — B · Good — C · Fair — D · Still Weak — E</p>
-      ${footer(report, [], signatures)}
+       ${footer(report, ["Class Teacher Comment"], signatures)}
     </article>`;
   }
 
@@ -174,6 +192,7 @@
     return `<article ${previewAttrs(report, level, options)}>
       ${previewMeta(level, options)}
       ${header(report, level === "A_LEVEL" ? "A-Level Report" : "O-Level Report")}
+       ${promotionBanner(report)}
       ${table(heads, rows, "rc-dense")}
       <div class="rc-summary rc-summary-wide">
         <span><b>Overall average</b> ${number(summary.overall_average)}</span>
