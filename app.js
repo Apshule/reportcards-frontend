@@ -244,7 +244,7 @@
       <div class="field"><label for="report-term">Term</label><select id="report-term" data-report-filter="term">${["TERM_1","TERM_2","TERM_3"].map(t=>`<option value="${t}" ${reportState.term===t?"selected":""}>${t.replace("_"," ")}</option>`).join("")}</select></div>
       <button class="btn btn-primary" data-action="load-report-class" ${reportState.busy||!classes.length?"disabled":""}>${icon("fa-eye")} Load preview</button></div>
        ${reportState.error?`<div class="alert error" role="alert">${esc(reportState.error)}</div>`:""}${reportState.busy?loading():""}
-      ${!classes.length?empty("No classes yet","Create a class and add learners before generating report cards."):!reportState.data?`<div class="report-empty"><strong>Choose a class and assessment period.</strong><span>The preview uses saved marks, fees, school details, and term dates for that period.</span></div>`:!selected?empty("Choose a learner","Select a learner to preview their report card."):preview}</section>${projectPanel}`;
+       ${!classes.length?empty("No classes yet","Create a class and add learners before generating report cards."):!reportState.data?`<div class="report-empty"><strong>Choose a class and assessment period.</strong><span>The preview uses saved marks, fees, school details, and term dates for that period.</span></div>`:!learners.length?empty("No active learners in this class","Add an active learner to this class before generating report cards."):!reportState.learnerId?empty("Choose a learner","Select a learner to preview their report card."):!selected?empty("Report data unavailable","This learner is in the class register, but report-card details were not returned. Reload the preview."):preview}</section>${projectPanel}`;
   }
 
   function projectsPage(){
