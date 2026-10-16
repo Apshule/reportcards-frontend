@@ -27,9 +27,83 @@
     COMBINEDMIDEOT: "COMBINED_ME",
   };
 
+  const periodDefinitions = {
+    BOT: { title: "BEGINNING OF TERM", fields: [{ key: "bot", label: "B.O.T" }], combined: false },
+    MID: { title: "MID-TERM", fields: [{ key: "mid_term", label: "MID-TERM" }], combined: false },
+    EOT: { title: "END OF TERM", fields: [{ key: "eot_period", label: "E.O.T" }], combined: false },
+    COMBINED_BME: {
+      title: "COMBINED (B.O.T + MID + E.O.T)",
+      fields: [
+        { key: "bot", label: "B.O.T" },
+        { key: "mid_term", label: "MID-TERM" },
+        { key: "eot_period", label: "E.O.T" },
+      ],
+      combined: true,
+    },
+    COMBINED_BE: {
+      title: "COMBINED (B.O.T + E.O.T)",
+      fields: [{ key: "bot", label: "B.O.T" }, { key: "eot_period", label: "E.O.T" }],
+      combined: true,
+    },
+    COMBINED_ME: {
+      title: "COMBINED (MID + E.O.T)",
+      fields: [{ key: "mid_term", label: "MID-TERM" }, { key: "eot_period", label: "E.O.T" }],
+      combined: true,
+    },
+  };
+
   function normalizePeriod(value) {
     const normalized = String(value ?? "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
     return periodAliases[normalized] || "EOT";
+  }
+
+  function periodDefinition(value) {
+    const key = normalizePeriod(value);
+    return { key, ...periodDefinitions[key] };
+  }
+
+  function periodValue(mark, field, period) {
+    const raw = mark?.period_marks?.[field] ?? mark?.[field];
+    if (raw !== null && raw !== undefined && raw !== "") {
+      const parsed = Number(raw);
+      return Number.isFinite(parsed) ? parsed : null;
+    }
+    if (field === "eot_period" && !periodDefinition(period).combined) {
+      const selectedPeriod = mark?.selected_period
+        ? normalizePeriod(mark.selected_period)
+        : periodDefinition(period).key;
+      if (selectedPeriod === "EOT") {
+        const fallback = mark?.period_score ?? mark?.pct100;
+        if (fallback !== null && fallback !== undefined && fallback !== "") {
+          const parsed = Number(fallback);
+          return Number.isFinite(parsed) ? parsed : null;
+        }
+      }
+    }
+    return null;
+  }
+
+  function periodScore(mark, period) {
+    const definition = periodDefinition(period);
+    const values = definition.fields.map(({ key }) => periodValue(mark, key, definition.key));
+    if (values.every((score) => score !== null)) {
+      return Math.round((values.reduce((sum, score) => sum + score, 0) / values.length + Number.EPSILON) * 100) / 100;
+    }
+    if (mark?.selected_period && normalizePeriod(mark.selected_period) === definition.key) {
+      const selected = mark.period_score;
+      if (selected !== null && selected !== undefined && selected !== "") {
+        const parsed = Number(selected);
+        return Number.isFinite(parsed) ? parsed : null;
+      }
+    }
+    if (definition.key === "EOT" && !definition.combined) {
+      const legacy = mark?.pct100;
+      if (legacy !== null && legacy !== undefined && legacy !== "") {
+        const parsed = Number(legacy);
+        return Number.isFinite(parsed) ? parsed : null;
+      }
+    }
+    return null;
   }
 
   function normalizeTemplate(value) {
@@ -93,5 +167,12 @@
     </div>`;
   }
 
-  window.ReportCardTemplatePicker = { render, normalizePeriod, normalizeTemplate };
+  window.ReportCardTemplatePicker = {
+    render,
+    normalizePeriod,
+    normalizeTemplate,
+    periodDefinition,
+    periodValue,
+    periodScore,
+  };
 })();

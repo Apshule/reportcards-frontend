@@ -40,6 +40,41 @@
     return `${value(report.class?.name || (level === "O_LEVEL" ? "O-LEVEL" : "A-LEVEL"))} ${term} ${value(report.year)} REPORT CARD`;
   };
   const scoreValue = (mark) => number(mark?.period_score ?? mark?.pct100);
+  const periodTools = () => window.ReportCardTemplatePicker;
+  const assessmentPeriod = (report, options = {}) =>
+    periodTools().periodDefinition(options.period ?? report.period ?? "EOT");
+  const periodCell = (mark, field, period) =>
+    number(periodTools().periodValue(mark, field, period.key));
+  const periodFinal = (mark, period) =>
+    number(periodTools().periodScore(mark, period.key));
+  const periodCells = (mark, period) => [
+    ...period.fields.map(({ key }) => periodCell(mark, key, period)),
+    ...(period.combined ? [periodFinal(mark, period)] : []),
+  ];
+  const periodTotals = (entries, period) => [
+    ...period.fields.map(({ key }) => {
+      const values = entries
+        .map(({ mark }) => periodTools().periodValue(mark, key, period.key))
+        .filter((score) => score !== null);
+      return values.length ? number(values.reduce((sum, score) => sum + score, 0), 0) : "—";
+    }),
+  ];
+  const periodAverages = (entries, period) => [
+    ...period.fields.map(({ key }) => {
+      const values = entries
+        .map(({ mark }) => periodTools().periodValue(mark, key, period.key))
+        .filter((score) => score !== null);
+      return values.length ? number(values.reduce((sum, score) => sum + score, 0) / values.length) : "—";
+    }),
+  ];
+  const periodSummary = (report) => {
+    const summary = report.summary || {};
+    return `<div class="rc-summary rc-period-summary">
+      <span><b>POSITION:</b> ${value(summary.position)} OUT OF ${value(summary.class_size)}</span>
+      <span><b>AVERAGE:</b> ${number(summary.overall_average)}</span>
+      <span><b>GRADE:</b> ${value(summary.overall_grade)}</span>
+    </div>`;
+  };
   function templateInfo(level, options = {}) {
     const id = String(options.template ?? "1").replace(/^template[_-]?/i, "");
     const templates = window.ReportCardTemplateCatalog?.[level] || [];
@@ -61,7 +96,7 @@
     subject,
     mark: subject.mark || {},
   }));
-  const header = (report, title) => {
+  const header = (report, title, options = {}) => {
     const school = report.school || {};
     const learner = report.learner || {};
     const level = levelCode(report.class?.level);
@@ -78,11 +113,8 @@
     const photo = imageSource(learner.photo_base64);
     const term = displayTerm(report.term);
     const termNumber = term.replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3");
-    const bannerText = secondary
-      ? reportCardTitle(report, level)
-      : level === "NURSERY"
-        ? `LEARNER'S ASSESSMENT REPORT ${termNumber}, ${value(report.year)}`
-        : level === "PRIMARY" ? `${term} PROGRESSIVE REPORT` : `${term} PROGRESS REPORT`;
+    const period = assessmentPeriod(report, options);
+    const bannerText = `${termNumber} PROGRESS REPORT — ${period.title}`;
     return `<header class="rc-head">
       <div class="rc-brand-image">${logo ? `<img src="${esc(logo)}" alt="School logo">` : `<span>${esc(String(school.name || "S").slice(0, 1))}</span>`}</div>
       <div class="rc-school">
@@ -308,15 +340,22 @@
   function renderNursery(report, options = {}) {
     const rows = scoreRows(report);
     const summary = report.summary || {};
+    const period = assessmentPeriod(report, options);
     const activities = nurseryActivityItems(report);
     const maxScore = summary.maximum_score ?? summary.total_possible ?? rows.length * 100;
     const scored = summary.total_score ?? rows.reduce((total, { mark }) => {
-      const score = Number(mark.period_score ?? mark.pct100 ?? mark.score);
-      return Number.isFinite(score) ? total + score : total;
+      const score = periodTools().periodScore(mark, period.key);
+      return score === null ? total : total + score;
     }, 0);
     const areaRows = rows.map(({ subject, mark }, index) => {
       const description = subject.learning_area_description || subject.description || subject.learning_outcome || subject.details || "";
-      return `<tr><td><b>${value(subject.name || `Learning Area ${index + 1}`)}</b>${description ? `<small>${value(description)}</small>` : ""}</td><td><b>SCORE: ${number(mark.period_score ?? mark.pct100 ?? mark.score, 0)}/100</b><em>${value(mark.descriptor || mark.remark)}</em></td><td><i aria-hidden="true"></i></td></tr>`;
+      const cells = [
+        `<b>${value(subject.name || `Learning Area ${index + 1}`)}</b>${description ? `<small>${value(description)}</small>` : ""}`,
+        ...periodCells(mark, period),
+        value(mark.descriptor || mark.remark),
+        "<i aria-hidden=\"true\"></i>",
+      ];
+      return `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`;
     }).join("");
     const activityCards = activities.map((item) => {
       const source = imageSource(item.image);
@@ -324,12 +363,12 @@
     }).join("");
     return `<article ${previewAttrs(report, "NURSERY", options)}>
       <div class="rc-preview-content">
-      ${header(report, "Nursery Learning Report")}
+      ${header(report, "Nursery Learning Report", options)}
       ${learnerInfo(report, "NURSERY")}
       <section class="rc-nursery-panels">
         <div class="rc-nursery-learning">
-          <div class="rc-nursery-panel-title">Achievement Scores in the 5 Learning Areas</div>
-          <table class="rc-table"><thead><tr><th>Area</th><th>Score and Comment</th><th>Signature</th></tr></thead><tbody>${areaRows}</tbody></table>
+          <div class="rc-nursery-panel-title">Achievement Scores — ${esc(period.title)}</div>
+          ${table(["AREA", ...period.fields.map(({ label }) => label), ...(period.combined ? ["FINAL"] : []), "COMMENT", "SIGNATURE"], areaRows, "rc-period-table")}
           <div class="rc-nursery-totalbar"><span>TOTAL: ${number(maxScore, 0)}</span><span>SCORED: ${number(scored, 0)}</span><span>POSITION ${value(summary.position)} OUT OF ${value(summary.class_size)}</span></div>
         </div>
         <div class="rc-nursery-activities">
@@ -337,6 +376,7 @@
           <div class="rc-nursery-activity-grid">${activityCards}</div>
         </div>
       </section>
+       ${periodSummary(report)}
        ${earlyYearsRemarks(report, "NURSERY")}
       ${stampBlock(report, options)}
        ${footer(report, "NURSERY")}
@@ -346,20 +386,49 @@
 
   function renderPrimary(report, options = {}) {
     const template = templateInfo("PRIMARY", options);
-    const rows = scoreRows(report).map(({ subject, mark }) =>
-      template.definition?.blankForm
-        ? `<tr><td>${value(subject.name)}</td><td>________</td><td>___</td><td>________</td><td>________________</td><td>___</td></tr>`
-        : `<tr><td><b>${value(subject.name)}</b></td><td>${scoreValue(mark)}</td><td>${value(mark.identifier ?? mark.aggregate)}</td><td>${value(mark.position)}</td><td><em>${value(mark.descriptor || mark.teacher_remark)}</em></td><td>${value(mark.teacher_initials)}</td></tr>`,
-    );
+    const period = assessmentPeriod(report, options);
+    const entries = scoreRows(report);
+    const rows = entries.map(({ subject, mark }) => {
+      const cells = template.definition?.blankForm
+        ? [value(subject.name), ...period.fields.map(() => "________"), ...(period.combined ? ["________"] : []), "___", "________", "________________", "___"]
+        : [
+          `<b>${value(subject.name)}</b>`,
+          ...period.fields.map(({ key }) => periodCell(mark, key, period)),
+          ...(period.combined ? [periodFinal(mark, period)] : []),
+          value(mark.grade),
+          mark.position ? `${value(mark.position)} of ${value(mark.class_size)}` : "—",
+          `<em>${value(mark.descriptor || mark.teacher_remark)}</em>`,
+          value(mark.teacher_initials),
+        ];
+      return `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`;
+    });
     const summary = report.summary || {};
-    const aggregate = summary.overall_aggregate ?? summary.total_aggregate ?? summary.overall_average;
-    const totals = ["TOTALS", number(summary.total_score, 0), number(aggregate), `${value(summary.position)} OUT OF ${value(summary.class_size)}`, promotionStatus(report).replace(/^STATUS:\s*/, ""), firstInitials(report)];
+    const periodTotalCells = periodTotals(entries, period);
+    if (period.combined) periodTotalCells.push(number(summary.total_score, 0));
+    const totals = [
+      "TOTALS",
+      ...periodTotalCells,
+      value(summary.overall_grade),
+      `${value(summary.position)} OUT OF ${value(summary.class_size)}`,
+      promotionStatus(report).replace(/^STATUS:\s*/, ""),
+      firstInitials(report),
+    ];
     const activities = primaryOtherRows(report);
+    const headers = [
+      "SUBJECTS",
+      ...period.fields.map(({ label }) => label),
+      ...(period.combined ? ["FINAL"] : []),
+      "GRADE",
+      "POSITION",
+      "TEACHER'S REMARKS",
+      "INITIALS",
+    ];
     return `<article ${previewAttrs(report, "PRIMARY", options)}>
       <div class="rc-preview-content">
-      ${header(report, "Primary School Report")}
+      ${header(report, "Primary School Report", options)}
       ${learnerInfo(report, "PRIMARY")}
-       <section class="rc-subject-section">${table(["SUBJECTS", "MARKS", "AGGR", "POSITION", "TEACHER'S REMARKS", "INITIALS"], rows, "rc-primary-table", totals, "", { rowSpanColumns: [0], headerGroups: [{ label: "END OF YEAR RESULTS", start: 1, end: 5 }] })}</section>
+       <section class="rc-subject-section">${table(headers, rows, "rc-primary-table rc-period-table", totals)}</section>
+       ${periodSummary(report)}
        <section class="rc-activities">${table(["SUBJECT", "GR", "TEACHER'S REMARKS", "INITIALS"], activities, "", "", "OTHER SUBJECTS / CO-CURRICULAR")}</section>
       ${earlyYearsRemarks(report, "PRIMARY")}
       ${stampBlock(report, options)}
@@ -370,48 +439,57 @@
 
   function renderSecondary(report, level, options = {}) {
     const entries = scoreRows(report);
-    const mean = (key, digits = 1) => {
-      const values = entries.map(({ mark }) => Number(mark[key])).filter(Number.isFinite);
-      return values.length ? number(values.reduce((sum, item) => sum + item, 0) / values.length, digits) : "—";
-    };
-    const rows = entries.map(({ subject, mark }) => level === "A_LEVEL"
-      ? `<tr><td>${value(subject.code)}</td><td>${value(subject.name)}</td><td>${value(mark.paper_number)}</td><td>${number(mark.a1)}</td><td>${number(mark.a2)}</td><td>${number(mark.a3)}</td><td>${number(mark.avg)}</td><td>${number(mark.pct20)}</td><td>${number(mark.eot)}</td><td>${number(mark.pct80)}</td><td>${scoreValue(mark)}</td><td>${value(mark.grade)}</td><td>${value(mark.descriptor)}</td><td>${value(mark.teacher_initials)}</td></tr>`
-      : `<tr><td>${value(subject.name)}</td><td>${number(mark.a1)}</td><td>${number(mark.a2)}</td><td>${number(mark.a3)}</td><td>${number(mark.avg, 0)}</td><td>${number(mark.pct20)}</td><td>${number(mark.pct80)}</td><td>${scoreValue(mark)}</td><td>${value(mark.grade)}</td><td>${value(mark.descriptor)}</td><td>${value(mark.teacher_initials)}</td></tr>`);
-    const heads = level === "A_LEVEL"
-      ? ["CODE", "SUBJECT", "PAPER", "A1", "A2", "A3", "AVG", "20%", "EOT", "80%", "100%", "GRADE", "COMMENT", "TR"]
-      : ["SUBJECT", "T1", "T2", "T3", "AS", "FA (20)", "EOTI (80)", "FINAL (100)", "GRADE", "GRADE DESCRIPTOR", "TR"];
+    const period = assessmentPeriod(report, options);
     const summary = report.summary || {};
     const template = templateInfo(level, options);
+    const prefixHeads = level === "A_LEVEL" ? ["CODE", "SUBJECT", "PAPER"] : ["SUBJECT"];
+    const heads = [
+      ...prefixHeads,
+      ...period.fields.map(({ label }) => label),
+      ...(period.combined ? ["FINAL"] : []),
+      "GRADE",
+      level === "A_LEVEL" ? "COMMENT" : "GRADE DESCRIPTOR",
+      "TR",
+    ];
+    const rows = entries.map(({ subject, mark }) => {
+      const cells = [
+        ...(level === "A_LEVEL" ? [value(subject.code), value(subject.name), value(mark.paper_number)] : [value(subject.name)]),
+        ...period.fields.map(({ key }) => periodCell(mark, key, period)),
+        ...(period.combined ? [periodFinal(mark, period)] : []),
+        value(mark.grade),
+        value(mark.descriptor),
+        value(mark.teacher_initials),
+      ];
+      return `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`;
+    });
     const projects = (report.projects || []).map((project) => `<tr><td>${value(project.project_name)}</td><td>${number(project.score)}</td><td>${project.percentage===null||project.percentage===undefined?"—":`${number(project.percentage)}%`}</td><td>${value(project.grade)}</td><td>${value(project.remarks)}</td><td>${value(project.teacher_initials)}</td></tr>`);
     const activities = coCurricular(report, level === "PRIMARY" || level === "NURSERY");
     const projectHeading = level === "A_LEVEL" ? "STUDENT'S PROJECTS WORK" : "Projects";
-    const averageCells = ["", "AVERAGE SCORES", "", mean("a1"), mean("a2"), mean("a3"), mean("avg"), mean("pct20"), mean("eot"), mean("pct80"), mean("period_score") === "—" ? mean("pct100") : mean("period_score"), value(summary.overall_grade), value(summary.overall_achievement ?? summary.achievement), ""];
-    const secondaryFooterRows = level === "O_LEVEL" ? [
-      [{ text: "OVERALL AVERAGE", span: 6 }, { text: number(summary.overall_average), span: 1 }, { text: "", span: 1 }, { text: "LEVEL OF ACHIEVEMENT", span: 2 }, { text: `RESULT ${value(summary.overall_identifier ?? summary.identifier)}`, span: 1 }],
-      [{ text: "NEXT TERM BEGINS", span: 2 }, { text: value(report.term_dates?.next_term_begins), span: 3 }, { text: "Ends", span: 1 }, { text: value(report.term_dates?.next_term_ends || report.term_dates?.next_term_ends_on), span: 5 }],
-    ] : [
-      [{ text: "Overall Identifier", span: 2 }, { text: value(summary.overall_identifier ?? summary.identifier), span: 1 }, { text: "Overall Achievement", span: 3 }, { text: value(summary.overall_achievement ?? summary.achievement ?? summary.overall_average), span: 3 }, { text: "Overall grade", span: 2 }, { text: value(summary.overall_grade), span: 3 }],
+    const finalScores = period.combined
+      ? entries.map(({ mark }) => periodTools().periodScore(mark, period.key)).filter((score) => score !== null)
+      : [];
+    const averageCells = [
+      ...(level === "A_LEVEL" ? ["", "AVERAGE SCORES", ""] : ["AVERAGE SCORES"]),
+      ...periodAverages(entries, period),
+      ...(period.combined
+        ? [finalScores.length ? number(finalScores.reduce((sum, score) => sum + score, 0) / finalScores.length) : "—"]
+        : []),
+      value(summary.overall_grade),
+      value(summary.overall_achievement ?? summary.achievement),
+      "",
     ];
-    const groupedHeaders = level === "O_LEVEL" ? {
-      rowSpanColumns: [0],
-      headerGroups: [
-        { label: "FORMATIVE ASSESSMENT", start: 1, end: 5 },
-        { label: "SUMMATIVE ASSESSMENT", start: 6, end: 10 },
-      ],
-    } : {
-      rowSpanColumns: [0, 1, 2, 11, 12, 13],
-      headerGroups: [
-        { label: "FORMATIVE", start: 3, end: 7 },
-        { label: "SUMMATIVE", start: 8, end: 10 },
-      ],
-    };
+    const footerRows = level === "O_LEVEL" ? [[
+      { text: "NEXT TERM BEGINS", span: 2 },
+      { text: value(report.term_dates?.next_term_begins), span: Math.max(1, heads.length - 2) },
+    ]] : [];
     const title = level === "A_LEVEL" ? "A-Level Report" : "O-Level Report";
     return `<article ${previewAttrs(report, level, options)}>
       <div class="rc-preview-content">
-      ${header(report, title)}
+      ${header(report, title, options)}
       ${learnerInfo(report, level)}
        ${promotionBanner(report)}
-       <section class="rc-subject-section">${table(heads, rows, `rc-dense rc-secondary-${level.toLowerCase()}`, level === "A_LEVEL" ? averageCells : "", level === "A_LEVEL" ? "TERM PERFORMANCE RECORDS" : "", { ...groupedHeaders, footerRows: secondaryFooterRows })}</section>
+        <section class="rc-subject-section">${table(heads, rows, `rc-dense rc-secondary-${level.toLowerCase()} rc-period-table`, averageCells, `TERM PERFORMANCE RECORDS — ${period.title}`, { footerRows })}</section>
+        ${periodSummary(report)}
        ${activities.length ? `<section class="rc-activities">${table(["Activity / Subject", "Progress", "Remark", "Signature"], activities, "", "", "Activities / Other Subjects")}</section>` : ""}
         ${level === "A_LEVEL" && projects.length ? `<section class="rc-projects">${table(["TERMLY PROJECT WORK", "AVERAGE SCORE (10)", "OUT OF 100", "GRADE", "REMARKS", "TEACHER"], projects, "", "", projectHeading)}</section>` : ""}
        ${remarksAndSignatures(report, ["Class Teacher", "Head Teacher"], 2)}

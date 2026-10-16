@@ -298,6 +298,24 @@
 .rc-preview-level-primary .rc-activities .rc-table td:nth-child(3){font-style:italic}
 .rc-preview-level-primary .rc-remarks-grid>div,.rc-preview-level-nursery .rc-remarks-grid>div{min-height:70px}
 .rc-preview-level-nursery .rc-footer,.rc-preview-level-primary .rc-footer{margin-top:5px}
+.rc-preview .rc-primary-table.rc-period-table{width:100%;min-width:0;table-layout:fixed}
+.rc-preview .rc-primary-table.rc-period-table th,.rc-preview .rc-primary-table.rc-period-table td{padding:4px 3px;font-size:6.5px;white-space:normal;overflow-wrap:anywhere}
+.rc-preview .rc-primary-table.rc-period-table th:first-child{width:18%}
+.rc-preview .rc-primary-table.rc-period-table th:nth-last-child(1){width:7%}
+.rc-preview .rc-primary-table.rc-period-table th:nth-last-child(2){width:24%}
+.rc-preview .rc-primary-table.rc-period-table th:nth-last-child(3){width:10%}
+.rc-preview .rc-primary-table.rc-period-table th:nth-last-child(4){width:7%}
+.rc-preview .rc-primary-table.rc-period-table td:first-child{font-weight:700}
+.rc-preview .rc-primary-table.rc-period-table td:nth-last-child(2){font-style:italic}
+.rc-preview .rc-table.rc-period-table.rc-dense{min-width:760px;table-layout:fixed}
+.rc-preview .rc-table.rc-period-table.rc-secondary-alevel{min-width:870px}
+.rc-preview .rc-period-summary{font-weight:700}
+.rc-preview .rc-period-summary span{min-width:130px}
+.rc-nursery-learning .rc-table.rc-period-table{min-width:0}
+.rc-nursery-learning .rc-table.rc-period-table th:first-child{width:30%}
+.rc-nursery-learning .rc-table.rc-period-table th:nth-child(2){width:auto}
+.rc-nursery-learning .rc-table.rc-period-table th:nth-last-child(2){width:22%}
+.rc-nursery-learning .rc-table.rc-period-table th:last-child{width:12%}
 @media(max-width:760px){
   .rc-nursery-panels{grid-template-columns:1fr}
   .rc-nursery-activity-card{min-height:48px}
