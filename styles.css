@@ -60,6 +60,87 @@
 .promotion-review-card .page-actions{margin-top:14px}
 @media(max-width:760px){.promotion-edit-row{grid-template-columns:1fr}.promotion-edit-row>.btn{width:100%}.promotion-decision-summary{display:grid;gap:9px}}
 
+/* Report-card table structure and A4 preview viewer. Palette remains template-driven. */
+.rc-learner-grid{display:block;overflow:hidden;border-color:var(--rc-accent)}
+.rc-info-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+.rc-info-row-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.rc-info-row>div{display:grid;grid-template-columns:max-content minmax(0,1fr);align-items:baseline;gap:5px;min-height:28px;padding:5px 7px;border-right:1px solid var(--rc-accent);border-bottom:1px solid var(--rc-accent);font-size:9px}
+.rc-info-row>div:last-child{border-right:0}
+.rc-info-row:last-child>div{border-bottom:0}
+.rc-info-row.is-tinted>div{background:color-mix(in srgb,var(--rc-accent) 10%,#fff)}
+.rc-info-row b{color:var(--rc-theme);font-size:8px}
+.rc-info-row span{margin:0;min-width:0}
+.rc-preview .rc-table{border-collapse:collapse}
+.rc-preview .rc-table th{text-align:center}
+.rc-preview .rc-table td{border-color:var(--rc-accent)}
+.rc-preview .rc-subject-section tbody td:first-child{font-size:11pt;font-weight:700}
+.rc-preview-level-primary .rc-subject-section tbody td:nth-child(2),
+.rc-preview-level-primary .rc-subject-section tbody td:nth-child(3),
+.rc-preview-level-primary .rc-subject-section tbody td:nth-child(4),
+.rc-preview-level-primary .rc-subject-section tbody td:last-child{text-align:center}
+.rc-preview-level-primary[data-template="3"] .rc-subject-section tbody td:nth-child(4){text-align:left}
+.rc-preview-level-primary[data-template="3"] .rc-subject-section tbody td:nth-child(5){text-align:center}
+.rc-preview-level-primary .rc-subject-section tbody td:nth-child(5),
+.rc-preview-level-primary[data-template="3"] .rc-subject-section tbody td:nth-child(4){font-style:italic}
+.rc-preview-level-o_level .rc-subject-section tbody td:nth-child(n+3),
+.rc-preview-level-a_level .rc-subject-section tbody td:nth-child(n+3){text-align:center}
+.rc-preview-level-o_level .rc-subject-section tbody td:nth-child(2),
+.rc-preview-level-a_level .rc-subject-section tbody td:nth-child(2){text-align:left;font-weight:700}
+.rc-preview-level-a_level .rc-subject-section tbody td:nth-child(13){font-style:italic}
+.rc-preview .rc-table tfoot .rc-totals-row th,
+.rc-preview .rc-table tfoot .rc-totals-row td{background:var(--rc-theme);color:#fff;border:1px solid var(--rc-theme);font-size:8px;font-weight:800;text-align:center;padding:7px 4px}
+.rc-preview .rc-remarks-grid>div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.rc-remark-signature{display:grid;grid-template-rows:14px auto auto;min-height:42px;margin-top:auto;position:relative}
+.rc-remark-signature i{display:block;border-bottom:1px solid var(--rc-accent)}
+.rc-remark-signature img{position:absolute;left:50%;top:-4px;transform:translateX(-50%);height:20px;max-width:90px;object-fit:contain}
+.rc-remark-signature strong{margin-top:3px;color:#302d35;font-size:8px}
+.rc-remark-signature small{font-size:7px;color:var(--rc-theme)}
+.rc-footer-band{grid-template-columns:minmax(120px,1fr) minmax(0,3fr) minmax(70px,auto);text-align:center}
+.rc-footer-band .rc-grade-key{font-size:7px;line-height:1.35}
+.rc-footer-contact{display:flex;justify-content:space-between;gap:10px;padding:4px 0 0;font-size:7px;color:#6a6670}
+
+.rc-preview-viewer{margin-top:10px}
+.rc-viewer-controls{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:9px 10px;border:1px solid var(--line);border-radius:10px 10px 0 0;background:var(--surface)}
+.rc-viewer-controls .btn{min-height:32px}
+.rc-viewer-zoom{display:flex;align-items:center;gap:8px;margin-right:auto;font-size:12px;font-weight:700;color:var(--ink)}
+.rc-viewer-zoom>span{min-width:42px;text-align:center;font-variant-numeric:tabular-nums}
+.rc-preview-stage{height:min(70vh,680px);min-height:400px;display:flex;justify-content:center;align-items:flex-start;overflow:auto;padding:16px;background:#e7e7ea;border:1px solid #d1d0d5}
+.rc-preview-paper-box{position:relative;flex:none}
+.rc-preview-paper{width:210mm;height:297mm;transform-origin:top left}
+.rc-preview-paper>.rc-preview{box-sizing:border-box;width:210mm;height:297mm;min-height:297mm;max-width:none;margin:0;padding:5mm;border-radius:0;overflow:hidden;background:#fff}
+.rc-preview-paper .rc-preview-content{transform-origin:top center}
+.rc-preview .rc-footer-band,.rc-preview .rc-footer-band>*{color:#fff}
+.rc-preview-stage{height:clamp(320px,calc(100vh - 470px),600px);min-height:320px}
+.rc-preview-fullscreen{position:fixed;inset:0;z-index:1000;display:flex;align-items:stretch;justify-content:center;padding:10px;background:rgba(20,18,25,.72)}
+.rc-preview-fullscreen-panel{display:flex;flex-direction:column;width:min(100%,1500px);height:100%;min-height:0;background:var(--surface);border-radius:12px;overflow:hidden;box-shadow:0 20px 70px rgba(0,0,0,.35)}
+.rc-preview-fullscreen .rc-viewer-controls{border-radius:0}
+.rc-preview-fullscreen .rc-preview-stage{height:auto;min-height:0;flex:1;align-items:flex-start}
+.rc-preview-fullscreen .rc-preview-paper-box{margin:auto}
+.rc-print-root{display:none}
+
+@media(max-width:760px){
+  .rc-viewer-controls{gap:5px;padding:8px}
+  .rc-viewer-controls .btn{flex:1 1 auto}
+  .rc-viewer-zoom{width:100%;justify-content:center;margin:0}
+  .rc-preview-stage{height:58vh;min-height:320px;padding:10px}
+  .rc-preview-fullscreen{padding:0}
+  .rc-preview-fullscreen-panel{border-radius:0}
+  .rc-info-row>div{grid-template-columns:1fr;gap:2px}
+  .rc-info-row-3>div{grid-template-columns:1fr}
+  .rc-footer-band{grid-template-columns:1fr;gap:4px}
+}
+@media(max-width:760px){.rc-preview-stage{height:clamp(260px,calc(100vh - 510px),520px);min-height:260px}}
+@media print{
+  body.printing-report-cards #app{display:none!important}
+  body.printing-report-cards #rc-print-root{display:block!important}
+  #rc-print-root{display:block;position:static}
+  #rc-print-root .rc-print-card{break-after:page;page-break-after:always}
+  #rc-print-root .rc-print-card:last-child{break-after:auto;page-break-after:auto}
+  #rc-print-root .rc-preview{height:auto!important;min-height:0!important;overflow:visible!important}
+  #rc-print-root .rc-preview-content{transform:none!important}
+  .rc-preview-paper-box,.rc-viewer-controls,.rc-preview-stage{display:none!important}
+}
+
 /* Report card templates carry their own palette; share the same tokens with PDFs. */
 .rc-preview .rc-head{background:var(--rc-header);color:var(--rc-header-text);border-bottom-color:var(--rc-accent)}
 .rc-preview .rc-head .rc-school h2,.rc-preview .rc-head .rc-school p,.rc-preview .rc-head .rc-school strong{color:var(--rc-header-text)}

@@ -10,7 +10,7 @@
     ["finance","Finance","fa-coins"],["settings","School settings","fa-calendar-days"],["review","Marks review","fa-clipboard-check"]
   ];
   const state = {token:localStorage.getItem(TOKEN_KEY)||"",school:null,user:null,role:"school_admin",mustChangePassword:false,route:"dashboard",loading:false,modal:null,toast:null,filter:{level:"",class_id:"",subject_id:"",academic_year:String(new Date().getFullYear()),term:"TERM_1",search:""},data:{},authMode:"login",finance:{tab:"overview",term:"TERM_1",year:String(new Date().getFullYear()),loading:false,error:"",data:{},incomeFilters:{},expenseFilters:{},schoolpayFilters:{},reportClass:""},rm:{classes:null,marks:null,submission:null,comments:{},signature:null,review:null,reviewBusy:false,promotionClassId:"",promotion:null,promotionBusy:false,promotionError:""}};
-  const reportState = {classId:"",learnerId:"",term:"TERM_1",year:String(new Date().getFullYear()),template:"1",period:"EOT",includeStamp:true,data:null,learners:[],busy:false,error:"",promotionError:"",promotionBusy:false};
+  const reportState = {classId:"",learnerId:"",term:"TERM_1",year:String(new Date().getFullYear()),template:"1",period:"EOT",includeStamp:true,zoom:100,fullscreen:false,data:null,learners:[],busy:false,error:"",promotionError:"",promotionBusy:false};
   const projectState = {classId:"",term:"TERM_1",year:String(new Date().getFullYear()),data:null,busy:false,error:""};
   const root = document.getElementById("app");
   let schoolpayTimer=null;
@@ -239,7 +239,20 @@
     const ages=reports.map(item=>Number(item.learner?.age)).filter(age=>Number.isFinite(age)&&age>0);
     const classAverageAge=ages.length?ages.reduce((sum,age)=>sum+age,0)/ages.length:null;
     const previewReport=selected?{...selected,school:reportState.data.school,class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,term_dates:reportState.data.term_dates,level_theme:reportState.data.level_theme,stamp_config:reportState.data.stamp_config,class_average_age:classAverageAge}:null;
-    const preview=previewReport&&window.ReportCardPreview?window.ReportCardPreview.render(previewReport,{template:reportState.template,period:reportState.period,includeStamp:reportState.includeStamp}):"";
+    const cardMarkup=previewReport&&window.ReportCardPreview?window.ReportCardPreview.render(previewReport,{template:reportState.template,period:reportState.period,includeStamp:reportState.includeStamp}):"";
+    const previewToolbar=(fullscreen=false)=>`<div class="rc-viewer-controls" role="toolbar" aria-label="Report card preview controls">
+      <div class="rc-viewer-zoom"><button class="btn btn-outline btn-small" data-action="preview-zoom-out" aria-label="Zoom out">−</button><span data-preview-zoom-label>${reportState.zoom}%</span><button class="btn btn-outline btn-small" data-action="preview-zoom-in" aria-label="Zoom in">+</button></div>
+      ${fullscreen?`<button class="btn btn-outline btn-small" data-action="preview-close-fullscreen">${icon("fa-xmark")} Close</button>`:`<button class="btn btn-outline btn-small" data-action="preview-fullscreen">${icon("fa-expand")} Full screen</button>`}
+      <button class="btn btn-outline btn-small" data-action="print-report-learner">${icon("fa-print")} Print this learner</button>
+      <button class="btn btn-outline btn-small" data-action="print-report-class">${icon("fa-print")} Print whole class</button>
+      <button class="btn btn-outline btn-small" data-action="download-report-pdf">${icon("fa-file-pdf")} Download PDF</button>
+      <button class="btn btn-primary btn-small" data-action="download-report-image">${icon("fa-image")} Download as image</button>
+    </div>`;
+    const previewStage=(fullscreen=false)=>`<div class="rc-preview-stage ${fullscreen?"is-fullscreen-stage":""}"><div class="rc-preview-paper-box"><div class="rc-preview-paper">${cardMarkup}</div></div></div>`;
+    const preview=cardMarkup?`<div class="rc-preview-viewer">
+      ${previewToolbar(false)}${previewStage(false)}
+      ${reportState.fullscreen?`<div class="rc-preview-fullscreen" role="dialog" aria-modal="true" aria-label="Full-screen report card preview"><div class="rc-preview-fullscreen-panel">${previewToolbar(true)}${previewStage(true)}</div></div>`:""}
+    </div>`:"";
     const templatePicker=window.ReportCardTemplatePicker?window.ReportCardTemplatePicker.render({level,template:reportState.template,period:reportState.period,includeStamp:reportState.includeStamp}):"";
     const actions=`<button class="btn btn-outline" data-action="download-class-zip" ${!reports.length||reportState.busy?"disabled":""}>${icon("fa-file-zipper")} Download class ZIP</button><button class="btn btn-primary" data-action="download-report-pdf" ${!selected||reportState.busy?"disabled":""}>${icon("fa-file-pdf")} Download PDF</button>`;
     const canManageProjects=state.role==="school_admin";
@@ -301,20 +314,38 @@
   function currentView(){if(state.route==="dashboard")return dashboard();if(state.route==="classes")return classesPage();if(state.route==="learners")return learnersPage();if(state.route==="subjects")return subjectsPage();if(state.route==="grading")return gradingPage();if(state.route==="teachers")return teachersPage();if(state.route==="marks")return state.role==="teacher"?teacherMarksPage():marksPage();if(state.route==="review"&&state.role==="school_admin")return reviewPage();if(state.route==="projects")return projectsPage();if(state.route==="finance")return window.ReportCardsFinance?window.ReportCardsFinance.render(state):errorBox("Finance interface did not load.");if(state.route==="settings")return settingsPage();if(state.route==="reports")return reportsPage();return dashboard()}
   function renderPasswordChange(){root.innerHTML=`<main class="auth-shell"><section class="auth-card" aria-labelledby="password-title"><div class="brand"><span class="brand-mark"></span>appshule</div><h1 id="password-title">Set a new password</h1><p class="lede">Your administrator gave you a temporary password. Choose a new password of at least 8 characters before continuing.</p><div id="modal-error"></div><form id="modal-form" class="form-grid" data-type="change-password" data-method="POST" data-endpoint="/api/auth/change-password" novalidate><div class="field"><label for="old_password">Temporary password</label><input id="old_password" name="old_password" type="password" autocomplete="current-password" required maxlength="200"></div><div class="field"><label for="new_password">New password</label><input id="new_password" name="new_password" type="password" autocomplete="new-password" minlength="8" required maxlength="200"></div><div class="field"><label for="confirm_password">Confirm new password</label><input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" minlength="8" required maxlength="200"></div><button class="btn btn-primary btn-block" type="submit">Change password ${icon("fa-arrow-right")}</button><button class="text-button" type="button" data-action="logout">Sign out</button></form></section></main>`}
   let previewCountSequence=0,previewCountPending="",previewCountCache=new Map();
+  function applyPreviewScale(){
+    if(state.route!=="reports")return;
+    const pageWidth=210*96/25.4,pageHeight=297*96/25.4;
+    root.querySelectorAll(".rc-preview-stage").forEach(stage=>{
+      const box=stage.querySelector(".rc-preview-paper-box"),paper=stage.querySelector(".rc-preview-paper");
+      if(!box||!paper)return;
+      const fit=Math.min(1,stage.clientWidth/pageWidth,stage.clientHeight/pageHeight);
+      const scale=fit*Math.max(.5,Math.min(1.8,Number(reportState.zoom)||1)*.01);
+      box.style.width=`${pageWidth*scale}px`;box.style.height=`${pageHeight*scale}px`;
+      paper.style.transform=`scale(${scale})`;
+      const article=paper.querySelector(".rc-preview"),content=article?.querySelector(".rc-preview-content");
+      if(article&&content){
+        const fitContent=Math.min(1,(article.clientHeight-18)/Math.max(content.scrollHeight,1));
+        content.style.transform=`scale(${fitContent})`;
+        content.style.transformOrigin="top center";
+      }
+    });
+  }
   function updateReportPreviewPageCount(){
     if(state.route!=="reports"){previewCountSequence++;previewCountPending="";return}
-    const marker=root.querySelector(".rc-page-count");
+    const markers=root.querySelectorAll(".rc-page-count");
     const data=reportState.data;
     const selected=(data?.learners||[]).find(item=>String(item.learner?.id)===String(reportState.learnerId));
-    if(!marker||!selected)return;
+    if(!markers.length||!selected)return;
     const report=selected;
     const level=data.class?.level||"NURSERY";
     const rowCount=[report.subjects?.length||0,report.projects?.length||0,report.activities?.length||0,report.other_subjects?.length||0];
     const key=JSON.stringify([reportState.classId,reportState.learnerId,reportState.term,reportState.year,reportState.template,reportState.period,level,rowCount]);
     if(previewCountCache.has(key)){
-      const count=previewCountCache.get(key);marker.textContent=`Page 1 of ${count}`;marker.setAttribute("aria-label",`PDF report spans ${count} pages`);return;
+      const count=previewCountCache.get(key);markers.forEach(marker=>{marker.textContent=`Page 1 of ${count}`;marker.setAttribute("aria-label",`PDF report spans ${count} pages`)});return;
     }
-    marker.textContent="Calculating pages…";
+    markers.forEach(marker=>marker.textContent="Calculating pages…");
     if(previewCountPending===key)return;
     previewCountPending=key;
     const sequence=++previewCountSequence;
@@ -329,16 +360,14 @@
       previewCountCache.set(key,count);
       if(previewCountCache.size>12)previewCountCache.delete(previewCountCache.keys().next().value);
       previewCountPending="";
-      const current=root.querySelector(".rc-page-count");
-      if(current){current.textContent=`Page 1 of ${count}`;current.setAttribute("aria-label",`PDF report spans ${count} pages`)}
+      root.querySelectorAll(".rc-page-count").forEach(current=>{current.textContent=`Page 1 of ${count}`;current.setAttribute("aria-label",`PDF report spans ${count} pages`)});
     }).catch(()=>{
       if(sequence!==previewCountSequence)return;
       previewCountPending="";
-      const current=root.querySelector(".rc-page-count");
-      if(current){current.textContent="Page count unavailable";current.removeAttribute("aria-label")}
+      root.querySelectorAll(".rc-page-count").forEach(current=>{current.textContent="Page count unavailable";current.removeAttribute("aria-label")});
     });
   }
-  function render(){if(!state.token){renderAuth();return}if(state.mustChangePassword){renderPasswordChange();return}root.innerHTML=shell(currentView());if(state.route==="settings")window.ReportCardStampBuilder?.bind(root,state.data.stampConfig||{});if(state.route==="reports")updateReportPreviewPageCount();else if(previewCountPending){previewCountSequence++;previewCountPending="";}}
+  function render(){if(!state.token){renderAuth();return}if(state.mustChangePassword){renderPasswordChange();return}root.innerHTML=shell(currentView());if(state.route==="settings")window.ReportCardStampBuilder?.bind(root,state.data.stampConfig||{});if(state.route==="reports"){updateReportPreviewPageCount();requestAnimationFrame(applyPreviewScale)}else if(previewCountPending){previewCountSequence++;previewCountPending="";}}
   function renderAuth(){const signup=state.authMode==="signup",staff=state.authMode==="staff";const headingText=signup?"Set up your school":staff?"Staff sign in":"Welcome back";root.innerHTML=`<main class="auth-shell"><section class="auth-card" aria-labelledby="auth-title"><div class="brand"><span class="brand-mark"></span>appshule</div><h1 id="auth-title">${headingText}</h1><p class="lede">${signup?"Create your school office workspace.":staff?"Sign in to your assigned teaching or school staff workspace.":"Sign in to manage your school with confidence."}</p><div id="auth-error"></div><form id="auth-form" class="form-grid" novalidate>${signup?`<div class="field"><label for="school_name">School name</label><input id="school_name" name="school_name" required autocomplete="organization" maxlength="200"></div>`:""}<div class="field"><label for="email">${staff?"Staff email":"School email"}</label><input id="email" name="email" type="email" required autocomplete="email" maxlength="254"></div>${staff?`<div class="field"><label for="school_short_code">School code <span class="field-hint">(optional)</span></label><input id="school_short_code" name="school_short_code" maxlength="20" autocomplete="organization-title"></div>`:""}${signup?`<div class="field"><label for="phone">School phone</label><input id="phone" name="phone" type="tel" required autocomplete="tel" maxlength="60"></div>`:""}<div class="field"><label for="password">Password</label><input id="password" name="password" type="password" required autocomplete="${signup?"new-password":"current-password"}" minlength="${signup?8:1}" maxlength="200">${signup?'<span class="field-hint">Use at least 8 characters.</span>':""}</div>${signup?`<div class="field"><label for="head_teacher_name">Head teacher name <span class="field-hint">(optional)</span></label><input id="head_teacher_name" name="head_teacher_name" autocomplete="name" maxlength="200"></div><div class="form-two"><div class="field"><label for="city">City <span class="field-hint">(optional)</span></label><input id="city" name="city" maxlength="120"></div><div class="field"><label for="district">District <span class="field-hint">(optional)</span></label><input id="district" name="district" maxlength="120"></div></div>`:""}<button class="btn btn-primary btn-block" type="submit" ${state.loading?"disabled":""}>${state.loading?"Please wait…":signup?"Create school account":"Sign in"} ${icon(signup?"fa-arrow-right":"fa-arrow-right-to-bracket")}</button></form><p class="auth-footer">${signup?"Already have an account?":staff?"School administrator?":"New to AppShule?"} <button class="text-button" data-action="${signup?"toggle-auth":staff?"school-login":"toggle-auth"}">${signup?"Sign in":staff?"School login":"Create school account"}</button>${!signup&&!staff?`<br><button class="text-button" data-action="staff-login">School staff sign in</button>`:""}</p></section></main>`}
    function modalMarkup(){const m=state.modal;if(!m)return"";if(m.type==="learner-profile"){if(m.loading)return `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-head"><div><h2 id="modal-title">Learner profile</h2><p>Loading learner details…</p></div><button class="close-btn" data-action="close-modal" aria-label="Close">${icon("fa-xmark")}</button></div>${loading()}</section></div>`;if(m.error)return `<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-head"><div><h2 id="modal-title">Learner profile</h2><p>Could not load learner details.</p></div><button class="close-btn" data-action="close-modal" aria-label="Close">${icon("fa-xmark")}</button></div><div class="alert error" role="alert">${esc(m.error)}</div><div class="modal-actions"><button class="btn btn-outline" data-action="close-modal">Close</button></div></section></div>`;const learner=m.learner||{},schoolClass=(state.data.classes||[]).find(c=>String(c.id)===String(learner.class_id));const fields=[["Registration number",learner.reg_no],["LIN",learner.lin],["Class",schoolClass?`${schoolClass.name}${schoolClass.stream?` · ${schoolClass.stream}`:""}`:"—"],["Gender",learner.gender],["Age",learner.age],["Section",learner.section],["House",learner.house],["Combination",learner.combination],["Parent / guardian",learner.parent_name],["Parent phone",learner.parent_phone],["Parent email",learner.parent_email],["Created",learner.created_at?new Date(learner.created_at).toLocaleDateString("en-UG"):"—"]];return `<div class="modal-backdrop" data-action="backdrop"><section class="modal learner-profile-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-head"><div><h2 id="modal-title">${esc(learner.full_name||"Learner profile")}</h2><p>Learner details and guardian contact</p></div><button class="close-btn" data-action="close-modal" aria-label="Close">${icon("fa-xmark")}</button></div>${learner.photo_base64?`<img class="learner-profile-photo" src="${esc(learner.photo_base64)}" alt="${esc(learner.full_name||"Learner")}">`:""}<dl class="learner-profile-grid">${fields.map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${fmt(value)}</dd></div>`).join("")}</dl><div class="modal-actions"><button class="btn btn-outline" data-action="close-modal">Close</button><button class="btn btn-primary" data-action="edit-profile-learner" data-id="${esc(learner.id)}">${icon("fa-pen")} Edit learner</button></div></section></div>`}if(m.type==="review-entry")return `<div class="modal-backdrop" data-action="backdrop"><section class="modal review-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-head"><div><h2 id="modal-title">Review ${esc(m.submission.class_name||"class")} · ${esc(m.submission.subject_name||"subject")}</h2><p>${esc(m.period.term)} · ${esc(m.period.year)} — edit scores if needed, then save.</p></div><button class="close-btn" data-action="close-modal" aria-label="Close">${icon("fa-xmark")}</button></div><div class="table-wrap"><table id="review-edit-table"><thead><tr><th>Learner</th><th>A1</th><th>A2</th><th>A3</th><th>EOT</th></tr></thead><tbody>${m.learners.map(l=>`<tr data-learner="${esc(l.learner_id)}"><td>${esc(l.full_name)}</td>${["a1","a2","a3","eot"].map(k=>`<td><input class="mark-input" type="number" min="0" max="${k==="eot"?100:3}" step=".01" data-review-score="${k}" value="${l[k]??""}" aria-label="${esc(l.full_name)} ${k}"></td>`).join("")}</tr>`).join("")}</tbody></table></div><div class="modal-actions"><button class="btn btn-outline" data-action="close-modal">Close</button><button class="btn btn-primary" data-action="save-review-edit">${icon("fa-floppy-disk")} Save edits</button></div></section></div>`;if(m.type==="password-success")return `<div class="modal-backdrop" data-action="backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-head"><div><h2 id="modal-title">Temporary password ready</h2><p>Share this temporary credential securely with the teacher.</p></div><button class="close-btn" data-action="close-modal" aria-label="Close">${icon("fa-xmark")}</button></div><div class="password-reveal"><label>Temporary password — shown once</label><div class="copy-line"><code id="temp-password">${esc(m.password)}</code><button class="btn btn-primary" data-action="copy-password">${icon("fa-copy")} Copy</button></div><p class="password-warning">This password is not saved in the app. The teacher should change it after signing in.</p></div><div class="modal-actions"><button class="btn btn-primary" data-action="close-modal">Done</button></div></section></div>`;
     if(m.type==="import-result")return `<div class="modal-backdrop" data-action="backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><div class="modal-head"><div><h2 id="modal-title">CSV import results</h2><p>${esc(m.created)} learners created${m.errors.length?`; ${m.errors.length} row${m.errors.length===1?"":"s"} need attention`:"."}</p></div><button class="close-btn" data-action="close-modal" aria-label="Close">${icon("fa-xmark")}</button></div>${m.errors.length?`<ul class="row-errors">${m.errors.map(e=>`<li>Row ${esc(e.row)}: ${esc(e.error)}</li>`).join("")}</ul>`:`<div class="alert success">All valid rows were imported.</div>`}<div class="modal-actions"><button class="btn btn-primary" data-action="close-modal">Done</button></div></section></div>`;
@@ -547,6 +576,13 @@
     if(a==="staff-login"){state.authMode="staff";renderAuth();return}
     if(a==="school-login"){state.authMode="login";renderAuth();return}
     if(a==="logout"){logout();return}
+    if(a==="preview-zoom-in"){reportState.zoom=Math.min(180,(Number(reportState.zoom)||100)+10);render();return}
+    if(a==="preview-zoom-out"){reportState.zoom=Math.max(50,(Number(reportState.zoom)||100)-10);render();return}
+    if(a==="preview-fullscreen"){reportState.fullscreen=true;render();return}
+    if(a==="preview-close-fullscreen"){reportState.fullscreen=false;render();return}
+    if(a==="print-report-learner"){await printReportCards(false);return}
+    if(a==="print-report-class"){await printReportCards(true);return}
+    if(a==="download-report-image"){await downloadReportImage();return}
     if(a==="menu"){document.querySelector(".sidebar")?.classList.add("open");if(!document.querySelector(".sidebar-scrim")){const s=document.createElement("div");s.className="sidebar-scrim";s.addEventListener("click",()=>{document.querySelector(".sidebar").classList.remove("open");s.remove()});root.append(s)}return}
     if(a==="close-modal"){state.modal=null;render();return}
     if(a==="backdrop"&&button===clickEvent.target){state.modal=null;render();return}
@@ -643,6 +679,37 @@
   function saveDownload(blob,name){const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
   function filePart(value){return String(value||"learner").normalize("NFKD").replace(/[^\w.-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,90)||"learner"}
   function reportForDownload(report,stampConfig){const ages=(reportState.data?.learners||[]).map(item=>Number(item.learner?.age)).filter(age=>Number.isFinite(age)&&age>0);const classAverageAge=ages.length?ages.reduce((sum,age)=>sum+age,0)/ages.length:null;const stamp=stampConfig===undefined?reportState.data.stamp_config||reportState.data.school?.stamp_config:stampConfig;return {...report,school:{...reportState.data.school,stamp_config:stamp},class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,term_dates:reportState.data.term_dates,period:reportState.period,template:reportState.template,level_theme:reportState.data.level_theme,stamp_config:stamp,class_average_age:classAverageAge}}
+  async function printReportCards(wholeClass){
+    const reports=reportState.data?.learners||[];
+    const selected=reports.find(item=>String(item.learner?.id)===String(reportState.learnerId));
+    const list=wholeClass?reports:(selected?[selected]:[]);
+    if(!list.length){toast(wholeClass?"Load a class first.":"Choose a learner first.","error");return}
+    try{
+      const stamp=reportState.includeStamp?(await api("/api/schools/stamp")).stamp_config:undefined;
+      const printRoot=document.createElement("div");printRoot.id="rc-print-root";
+      printRoot.innerHTML=list.map(item=>`<section class="rc-print-card">${window.ReportCardPreview.render(reportForDownload(item,stamp),{template:reportState.template,period:reportState.period,includeStamp:reportState.includeStamp})}</section>`).join("");
+      document.getElementById("rc-print-root")?.remove();
+      document.body.append(printRoot);document.body.classList.add("printing-report-cards");
+      const cleanup=()=>{document.body.classList.remove("printing-report-cards");printRoot.remove()};
+      window.addEventListener("afterprint",cleanup,{once:true});
+      setTimeout(()=>window.print(),120);
+    }catch(error){toast(error.message||"Could not prepare the report cards for printing.","error")}
+  }
+  async function downloadReportImage(){
+    const selected=reportState.data?.learners?.find(item=>String(item.learner?.id)===String(reportState.learnerId));
+    if(!selected){toast("Choose a learner first.","error");return}
+    if(typeof window.html2canvas!=="function"){toast("The image-export library did not load. Refresh and try again.","error");return}
+    const selector=reportState.fullscreen?".rc-preview-fullscreen .rc-preview":".rc-preview-viewer:not(.rc-preview-fullscreen) .rc-preview";
+    const target=root.querySelector(selector);
+    if(!target){toast("The report card preview is not ready yet.","error");return}
+    try{
+      await Promise.all([...target.querySelectorAll("img")].map(image=>image.complete?Promise.resolve():new Promise(resolve=>{image.onload=resolve;image.onerror=resolve})));
+      const canvas=await window.html2canvas(target,{scale:2,backgroundColor:"#ffffff",useCORS:true,logging:false});
+      const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));
+      if(!blob)throw new Error("Could not encode the preview as a PNG.");
+      saveDownload(blob,`${filePart(selected.learner.full_name)}_${filePart(reportState.term)}_${filePart(reportState.year)}_report_card.png`);
+    }catch(error){toast(error.message||"Could not export the report card image.","error")}
+  }
   async function downloadReportPdf(){
     const report=reportState.data?.learners?.find(r=>String(r.learner.id)===String(reportState.learnerId));
     if(!report){toast("Load a class and choose a learner first.","error");return}
@@ -719,11 +786,12 @@
   root.addEventListener("change",e=>{const filter=e.target.closest("[data-project-filter]");if(!filter)return;projectState[filter.dataset.projectFilter]=filter.value;projectState.error="";state.data.projectRegister=null;render()});
    root.addEventListener("change",e=>{const select=e.target.closest("[data-promotion-class]");if(select){state.rm.promotionClassId=select.value;loadReviewQueue()}});
    root.addEventListener("submit",async e=>{if(e.target.id==="auth-form"){e.preventDefault();await submitAuth(e.target)}else if(e.target.id==="modal-form"){e.preventDefault();await handleModalSubmit(e.target)}else if(e.target.matches("[data-fin-form]")){e.preventDefault();await handleFinanceSubmit(e.target)}else if(e.target.id==="settings-form"){e.preventDefault();await saveSchoolSettings(e.target)}else if(e.target.id==="promotion-rules-form"){e.preventDefault();await savePromotionRules(e.target)}else if(e.target.id==="report-card-stamp-builder"){e.preventDefault();await saveStampSettings(e.target)}});
-  root.addEventListener("keydown",e=>{if(e.key==="Escape"&&state.modal){state.modal=null;render()}});
+  root.addEventListener("keydown",e=>{if(e.key==="Escape"&&reportState.fullscreen){reportState.fullscreen=false;render();return}if(e.key==="Escape"&&state.modal){state.modal=null;render()}});
   root.addEventListener("pointerdown",e=>{const c=e.target.closest("#signature-canvas");if(!c)return;drawing=true;lastPoint=canvasPoint(c,e);c.setPointerCapture?.(e.pointerId)});
   root.addEventListener("pointermove",e=>{const c=e.target.closest("#signature-canvas");if(!c||!drawing)return;const p=canvasPoint(c,e),ctx=c.getContext("2d");ctx.lineWidth=3;ctx.lineCap="round";ctx.lineJoin="round";ctx.strokeStyle="#35206f";ctx.beginPath();ctx.moveTo(lastPoint.x,lastPoint.y);ctx.lineTo(p.x,p.y);ctx.stroke();lastPoint=p});
   root.addEventListener("pointerup",()=>{drawing=false;lastPoint=null});root.addEventListener("pointercancel",()=>{drawing=false;lastPoint=null});
   root.addEventListener("keydown",e=>{const c=e.target.closest("#signature-canvas");if(!c||!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key))return;e.preventDefault();const ctx=c.getContext("2d"),x=c.width/2,y=c.height/2;ctx.lineWidth=3;ctx.lineCap="round";ctx.strokeStyle=e.shiftKey?"#ffffff":"#35206f";ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+(e.key==="ArrowRight"?14:e.key==="ArrowLeft"?-14:0),y+(e.key==="ArrowDown"?14:e.key==="ArrowUp"?-14:0));ctx.stroke()});
+  window.addEventListener("resize",()=>requestAnimationFrame(applyPreviewScale));
   async function submitAuth(form){
     if(!form.reportValidity())return;state.loading=true;const mode=state.authMode;renderAuth();
     const values=Object.fromEntries(new FormData(form).entries());
