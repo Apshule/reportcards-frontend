@@ -480,7 +480,7 @@
     }
     page.drawRectangle({ x: 28, y: 28, width: width - 56, height: 24, color: colorToPdf(accent) });
     const footerTextColor = rgb(1, 1, 1);
-    drawText(page, `Next term will begin on: ${str(report.term_dates?.next_term_begins)}`, 32, 36, fonts.bold, 4.7, footerTextColor, 125);
+    drawText(page, str(school.name || "School"), 32, 36, fonts.bold, 4.7, footerTextColor, 125);
     centered(page, `GRADING KEY: ${str(options.gradeKey || "—")}`, width / 2, 36, fonts.regular, 4.8, footerTextColor, width - 206);
     drawText(page, pageLabel, width - 87, 36, fonts.bold, 5.2, footerTextColor, 56);
   }

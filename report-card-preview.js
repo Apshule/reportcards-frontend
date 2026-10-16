@@ -180,6 +180,9 @@
       : level === "NURSERY"
         ? "GRADING KEY: Learning areas are assessed by descriptor • GR = Grade"
         : "A = Excellent (80–100) • B = Very Good (70–79) • C = Good (60–69) • D = Fair (50–59) • E = Below 50 • GR = Grade • AGGR = Aggregate";
+    const footerLead = level === "O_LEVEL" || level === "A_LEVEL"
+      ? value(school.name)
+      : `Next term will begin on: ${value(dates.next_term_begins)}`;
     return `<footer class="rc-footer">
       <div class="rc-footer-details">
         <span><b>School term / year</b> ${value(dates.current_term)} / ${value(dates.current_year)}</span>
@@ -189,7 +192,7 @@
         <span><b>Fees balance</b> ${value(fees.balance)}</span>
       </div>
       ${level === "O_LEVEL" ? `<p class="rc-secondary-footer-note">Outstanding school fees balance is UGX ${value(fees.balance)} as at ${value(report.printed_at || report.generated_at || new Date().toLocaleString())}<br>GRADES: A 100-80; B 79-70; C 69-60; D 59-40; E &lt;40<br>T = Topic; EOTI = end of term 1</p>` : ""}
-      <div class="rc-footer-band"><span>Next term will begin on: ${value(dates.next_term_begins)}</span><span class="rc-grade-key"><b>GRADING KEY:</b> ${esc(gradeText)}</span><span class="rc-page-count">Page 1 of 1</span></div>
+      <div class="rc-footer-band"><span>${footerLead}</span><span class="rc-grade-key"><b>GRADING KEY:</b> ${esc(gradeText)}</span><span class="rc-page-count">Page 1 of 1</span></div>
       <div class="rc-footer-contact"><span>${value([school.street, school.po_box, school.city, school.district].filter(Boolean).join(" · "))}</span><span>${value(school.website || school.motto || school.report_footer_text)}</span></div>
       ${school.report_footer_text ? `<p class="rc-footer-note">${value(school.report_footer_text)}</p>` : ""}
     </footer>`;
