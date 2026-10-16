@@ -35,6 +35,10 @@
       END_OF_YEAR: "END OF YEAR",
     })[key] || key.replace(/_/g, " ") || "TERM";
   };
+  const reportCardTitle = (report, level) => {
+    const term = displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3");
+    return `${value(report.class?.name || (level === "O_LEVEL" ? "O-LEVEL" : "A-LEVEL"))} ${term} ${value(report.year)} REPORT CARD`;
+  };
   const scoreValue = (mark) => number(mark?.period_score ?? mark?.pct100);
   function templateInfo(level, options = {}) {
     const id = String(options.template ?? "1").replace(/^template[_-]?/i, "");
@@ -61,7 +65,14 @@
     const school = report.school || {};
     const learner = report.learner || {};
     const address = [school.street, school.po_box, school.city, school.district].filter(Boolean).join(" · ");
-    const contact = [school.phone, school.email, school.website].filter(Boolean).join(" · ");
+    const secondary = ["O_LEVEL", "A_LEVEL"].includes(levelCode(report.class?.level));
+    const contact = secondary
+      ? [
+        school.school_id || school.school_code ? `SCH.ID: ${school.school_code || school.school_id}` : "",
+        school.phone ? `TEL: ${school.phone}` : "",
+        school.email,
+      ].filter(Boolean).join(" · ")
+      : [school.phone, school.email, school.website].filter(Boolean).join(" · ");
     const logo = imageSource(school.logo_base64);
     const photo = imageSource(learner.photo_base64);
     return `<header class="rc-head">
@@ -75,12 +86,21 @@
       <div class="rc-learner-image">${photo ? `<img src="${esc(photo)}" alt="${value(learner.full_name)}">` : `<span>Photo</span>`}</div>
     </header>
     <div class="rc-accent-rule"></div>
-    <div class="rc-report-title">${esc(displayTerm(report.term))} PROGRESS REPORT <span>${value(report.year)}</span></div>`;
+      <div class="rc-report-title">${secondary ? esc(reportCardTitle(report, levelCode(report.class?.level))) : `${esc(displayTerm(report.term))} PROGRESS REPORT`} <span>${secondary ? "" : value(report.year)}</span></div>`;
   };
-  const learnerInfo = (report) => {
+  const learnerInfo = (report, level = "") => {
     const learner = report.learner || {};
     const summary = report.summary || {};
-    const rows = [
+    const rows = level === "O_LEVEL" ? [
+      [["NAME", learner.full_name], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")], ["YEAR", report.year], ["DATE", String(report.printed_at || report.generated_at || new Date().toLocaleDateString()).slice(0, 10)]],
+      [["SCHOLAR ID", learner.scholar_id || learner.reg_no], ["CLASS", report.class?.name], ["VCODE", learner.vcode]],
+      [["LIN/AMIS.NO", learner.lin || learner.amis_no], ["STATE", learner.state], ["RESIDENCE", learner.residence]],
+    ] : level === "A_LEVEL" ? [
+      [["NAME", learner.full_name], ["GENDER", learner.gender || learner.sex]],
+      [["AGE", learner.age], ["ROLL NO", learner.roll_no || learner.reg_no]],
+      [["CLASS", report.class?.name], ["STREAM", learner.stream || report.class?.stream]],
+      [["COMBINATION", learner.combination || report.class?.combination], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")]],
+    ] : [
       [["NAME", learner.full_name], ["AD No", learner.reg_no]],
       [["CLASS", report.class?.name], ["SEX", learner.sex]],
       [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? report.absence]],
@@ -110,14 +130,14 @@
     : /principal/i.test(label) ? report.school?.principal_name
       : /head teacher|infant/i.test(label) ? report.school?.head_teacher_name
         : /department/i.test(label) ? report.school?.head_of_department_name : undefined;
-  const remarksAndSignatures = (report, labels = ["Class Teacher", "Head Teacher", "Principal"]) => {
+  const remarksAndSignatures = (report, labels = ["Class Teacher", "Head Teacher", "Principal"], count = 3) => {
     const remarks = [
       ["Class Teacher's Remarks", report.class_teacher_comment || report.suggested_comment],
       ["Head Teacher's Remarks", report.head_teacher_comment],
       ["Principal's Remarks", report.principal_comment],
-    ];
+    ].slice(0, count);
     const signature = imageSource(report.school?.report_signature_base64);
-    return `<section class="rc-remarks-signatures"><div class="rc-remarks-grid">${remarks.map(([label, text], index) => {
+    return `<section class="rc-remarks-signatures"><div class="rc-remarks-grid" data-count="${remarks.length}">${remarks.map(([label, text], index) => {
       const signer = labels[index] || ["Class Teacher", "Head Teacher", "Principal"][index];
       return `<div><b>${esc(label)}</b><span>${value(text)}</span><div class="rc-remark-signature">${signature && index === labels.length - 1 ? `<img src="${esc(signature)}" alt="School signature">` : ""}<i></i><strong>${value(signatureName(signer, report))}</strong><small>${esc(signer)}</small></div></div>`;
     }).join("")}</div></section>`;
@@ -153,7 +173,9 @@
     const school = report.school || {};
     const dates = report.term_dates || {};
     const fees = report.fees || {};
-    const gradeText = level === "A_LEVEL"
+    const gradeText = level === "O_LEVEL"
+      ? "A 100-80; B 79-70; C 69-60; D 59-40; E <40"
+      : level === "A_LEVEL"
       ? "A = Excellent (75–100) • B = Very Good (65–74) • C = Good (50–64) • D = Fair (35–49) • E = Below 35 • GR = Grade"
       : level === "NURSERY"
         ? "GRADING KEY: Learning areas are assessed by descriptor • GR = Grade"
@@ -166,16 +188,40 @@
         <span><b>Next term fees</b> ${value(dates.next_term_fees)}</span>
         <span><b>Fees balance</b> ${value(fees.balance)}</span>
       </div>
+      ${level === "O_LEVEL" ? `<p class="rc-secondary-footer-note">Outstanding school fees balance is UGX ${value(fees.balance)} as at ${value(report.printed_at || report.generated_at || new Date().toLocaleString())}<br>GRADES: A 100-80; B 79-70; C 69-60; D 59-40; E &lt;40<br>T = Topic; EOTI = end of term 1</p>` : ""}
       <div class="rc-footer-band"><span>Next term will begin on: ${value(dates.next_term_begins)}</span><span class="rc-grade-key"><b>GRADING KEY:</b> ${esc(gradeText)}</span><span class="rc-page-count">Page 1 of 1</span></div>
       <div class="rc-footer-contact"><span>${value([school.street, school.po_box, school.city, school.district].filter(Boolean).join(" · "))}</span><span>${value(school.website || school.motto || school.report_footer_text)}</span></div>
       ${school.report_footer_text ? `<p class="rc-footer-note">${value(school.report_footer_text)}</p>` : ""}
     </footer>`;
   };
-  const table = (heads, rows, className = "", total = "", title = "") => {
+  const table = (heads, rows, className = "", total = "", title = "", options = {}) => {
     const totalMarkup = Array.isArray(total)
-      ? `<tfoot><tr class="rc-totals-row">${total.map((cell) => `<td>${value(cell)}</td>`).join("")}</tr></tfoot>`
+      ? `<tfoot><tr class="rc-totals-row">${total.map((cell) => `<td>${cell === "" ? "" : value(cell)}</td>`).join("")}</tr></tfoot>`
       : total ? `<tfoot><tr class="rc-totals-row"><th colspan="${heads.length}">${esc(total)}</th></tr></tfoot>` : "";
-    return `<div class="rc-table-wrap"><table class="rc-table ${className}"><thead>${title ? `<tr class="rc-table-section-title"><th colspan="${heads.length}">${esc(title)}</th></tr>` : ""}<tr>${heads.map((head) => `<th>${esc(head)}</th>`).join("")}</tr></thead><tbody>${rows.length ? rows.join("") : `<tr><td colspan="${heads.length}" class="rc-empty">No marks recorded for this term.</td></tr>`}</tbody>${totalMarkup}</table></div>`;
+    const grouped = options.headerGroups?.length
+      ? (() => {
+        const topCells = [];
+        for (let index = 0; index < heads.length;) {
+          const group = options.headerGroups.find((item) => item.start === index);
+          if (options.rowSpanColumns.includes(index)) {
+            topCells.push(`<th rowspan="2">${esc(heads[index])}</th>`);
+            index += 1;
+          } else if (group) {
+            topCells.push(`<th colspan="${group.end - group.start + 1}">${esc(group.label)}</th>`);
+            index = group.end + 1;
+          } else {
+            topCells.push(`<th>${esc(heads[index])}</th>`);
+            index += 1;
+          }
+        }
+        return `<tr class="rc-group-header">${topCells.join("")}</tr><tr>${heads.map((head, index) => options.rowSpanColumns.includes(index) ? "" : `<th>${esc(head)}</th>`).join("")}</tr>`;
+      })()
+      : `<tr>${heads.map((head) => `<th>${esc(head)}</th>`).join("")}</tr>`;
+    const extraFooter = (options.footerRows || []).map((cells) =>
+      `<tr class="rc-totals-row">${cells.map(({ text, span = 1 }) => `<td colspan="${span}">${text === "" ? "" : value(text)}</td>`).join("")}</tr>`,
+    ).join("");
+    const totalRows = totalMarkup ? totalMarkup.slice(7, -8) : "";
+    return `<div class="rc-table-wrap"><table class="rc-table ${className}"><thead>${title ? `<tr class="rc-table-section-title"><th colspan="${heads.length}">${esc(title)}</th></tr>` : ""}${grouped}</thead><tbody>${rows.length ? rows.join("") : `<tr><td colspan="${heads.length}" class="rc-empty">No marks recorded for this term.</td></tr>`}</tbody>${totalMarkup || extraFooter ? `<tfoot>${totalRows}${extraFooter}</tfoot>` : ""}</table></div>`;
   };
   const promotionStatus = (report) => {
     const decision = report.promotion_decision || report.promotion?.promotion_decision
@@ -250,28 +296,52 @@
   }
 
   function renderSecondary(report, level, options = {}) {
-    const rows = scoreRows(report).map(({ subject, mark }) => level === "A_LEVEL"
+    const entries = scoreRows(report);
+    const mean = (key, digits = 1) => {
+      const values = entries.map(({ mark }) => Number(mark[key])).filter(Number.isFinite);
+      return values.length ? number(values.reduce((sum, item) => sum + item, 0) / values.length, digits) : "—";
+    };
+    const rows = entries.map(({ subject, mark }) => level === "A_LEVEL"
       ? `<tr><td>${value(subject.code)}</td><td>${value(subject.name)}</td><td>${value(mark.paper_number)}</td><td>${number(mark.a1)}</td><td>${number(mark.a2)}</td><td>${number(mark.a3)}</td><td>${number(mark.avg)}</td><td>${number(mark.pct20)}</td><td>${number(mark.eot)}</td><td>${number(mark.pct80)}</td><td>${scoreValue(mark)}</td><td>${value(mark.grade)}</td><td>${value(mark.descriptor)}</td><td>${value(mark.teacher_initials)}</td></tr>`
-      : `<tr><td>${value(subject.code)}</td><td>${value(subject.name)}</td><td>${number(mark.a1)}</td><td>${number(mark.a2)}</td><td>${number(mark.a3)}</td><td>${number(mark.avg)}</td><td>${number(mark.pct20)}</td><td>${number(mark.eot)}</td><td>${number(mark.pct80)}</td><td>${scoreValue(mark)}</td><td>${value(mark.grade)}</td><td>${value(mark.teacher_initials)}</td></tr>`);
+      : `<tr><td>${value(subject.name)}</td><td>${number(mark.a1)}</td><td>${number(mark.a2)}</td><td>${number(mark.a3)}</td><td>${number(mark.avg, 0)}</td><td>${number(mark.pct20)}</td><td>${number(mark.pct80)}</td><td>${scoreValue(mark)}</td><td>${value(mark.grade)}</td><td>${value(mark.descriptor)}</td><td>${value(mark.teacher_initials)}</td></tr>`);
     const heads = level === "A_LEVEL"
-      ? ["Code", "Subject", "Paper", "A1", "A2", "A3", "AVG", "20%", "EOT", "80%", "100%", "Grade", "Comment", "TR"]
-      : ["Code", "Subject", "T1", "T2", "T3", "AS", "FA (20)", "EOTI (80)", "FINAL (100)", "Grade", "TR"];
+      ? ["CODE", "SUBJECT", "PAPER", "A1", "A2", "A3", "AVG", "20%", "EOT", "80%", "100%", "GRADE", "COMMENT", "TR"]
+      : ["SUBJECT", "T1", "T2", "T3", "AS", "FA (20)", "EOTI (80)", "FINAL (100)", "GRADE", "GRADE DESCRIPTOR", "TR"];
     const summary = report.summary || {};
     const template = templateInfo(level, options);
-    const projects = (report.projects || []).map((project) => `<tr><td>${value(project.project_name)}</td><td>${number(project.score)}</td><td>${number(project.out_of)}</td><td>${project.percentage===null||project.percentage===undefined?"—":`${number(project.percentage)}%`}</td><td>${value(project.grade)}</td><td>${value(project.remarks)}</td><td>${value(project.teacher_initials)}</td></tr>`);
-    const projectRows = projects;
+    const projects = (report.projects || []).map((project) => `<tr><td>${value(project.project_name)}</td><td>${number(project.score)}</td><td>${project.percentage===null||project.percentage===undefined?"—":`${number(project.percentage)}%`}</td><td>${value(project.grade)}</td><td>${value(project.remarks)}</td><td>${value(project.teacher_initials)}</td></tr>`);
     const activities = coCurricular(report, level === "PRIMARY" || level === "NURSERY");
-    const projectHeading = level === "A_LEVEL" ? "Student's Projects Work" : "Projects";
-    const secondaryTotals = `TOTALS · Average: ${number(summary.overall_average)} · Grade: ${value(summary.overall_grade)} · Position: ${value(summary.position)} of ${value(summary.class_size)} · ${promotionStatus(report)}`;
+    const projectHeading = level === "A_LEVEL" ? "STUDENT'S PROJECTS WORK" : "Projects";
+    const averageCells = ["", "AVERAGE SCORES", "", mean("a1"), mean("a2"), mean("a3"), mean("avg"), mean("pct20"), mean("eot"), mean("pct80"), mean("period_score") === "—" ? mean("pct100") : mean("period_score"), value(summary.overall_grade), value(summary.overall_achievement ?? summary.achievement), ""];
+    const secondaryFooterRows = level === "O_LEVEL" ? [
+      [{ text: "OVERALL AVERAGE", span: 6 }, { text: number(summary.overall_average), span: 1 }, { text: "", span: 1 }, { text: "LEVEL OF ACHIEVEMENT", span: 2 }, { text: `RESULT ${value(summary.overall_identifier ?? summary.identifier)}`, span: 1 }],
+      [{ text: "NEXT TERM BEGINS", span: 2 }, { text: value(report.term_dates?.next_term_begins), span: 3 }, { text: "Ends", span: 1 }, { text: value(report.term_dates?.next_term_ends || report.term_dates?.next_term_ends_on), span: 5 }],
+    ] : [
+      [{ text: "Overall Identifier", span: 2 }, { text: value(summary.overall_identifier ?? summary.identifier), span: 1 }, { text: "Overall Achievement", span: 3 }, { text: value(summary.overall_achievement ?? summary.achievement ?? summary.overall_average), span: 3 }, { text: "Overall grade", span: 2 }, { text: value(summary.overall_grade), span: 3 }],
+    ];
+    const groupedHeaders = level === "O_LEVEL" ? {
+      rowSpanColumns: [0],
+      headerGroups: [
+        { label: "FORMATIVE ASSESSMENT", start: 1, end: 5 },
+        { label: "SUMMATIVE ASSESSMENT", start: 6, end: 10 },
+      ],
+    } : {
+      rowSpanColumns: [0, 1, 2, 11, 12, 13],
+      headerGroups: [
+        { label: "FORMATIVE", start: 3, end: 7 },
+        { label: "SUMMATIVE", start: 8, end: 10 },
+      ],
+    };
+    const title = level === "A_LEVEL" ? "A-Level Report" : "O-Level Report";
     return `<article ${previewAttrs(report, level, options)}>
       <div class="rc-preview-content">
-      ${header(report, level === "A_LEVEL" ? "A-Level Report" : "O-Level Report")}
-      ${learnerInfo(report)}
+      ${header(report, title)}
+      ${learnerInfo(report, level)}
        ${promotionBanner(report)}
-       <section class="rc-subject-section">${table(heads, rows, "rc-dense", secondaryTotals, "SUBJECTS • END OF TERM RESULTS")}</section>
+       <section class="rc-subject-section">${table(heads, rows, `rc-dense rc-secondary-${level.toLowerCase()}`, level === "A_LEVEL" ? averageCells : "", level === "A_LEVEL" ? "TERM PERFORMANCE RECORDS" : "", { ...groupedHeaders, footerRows: secondaryFooterRows })}</section>
        ${activities.length ? `<section class="rc-activities">${table(["Activity / Subject", "Progress", "Remark", "Signature"], activities, "", "", "Activities / Other Subjects")}</section>` : ""}
-       ${level === "A_LEVEL" && projects.length ? `<section class="rc-projects">${table(["Project", "Score", "Out of", "Percent", "Grade", "Remarks", "Teacher initials"], projectRows, "", "", projectHeading)}</section>` : ""}
-      ${remarksAndSignatures(report)}
+        ${level === "A_LEVEL" && projects.length ? `<section class="rc-projects">${table(["TERMLY PROJECT WORK", "AVERAGE SCORE (10)", "OUT OF 100", "GRADE", "REMARKS", "TEACHER"], projects, "", "", projectHeading)}</section>` : ""}
+       ${remarksAndSignatures(report, ["Class Teacher", "Head Teacher"], 2)}
       ${stampBlock(report, options)}
       ${footer(report, level)}
       </div>
