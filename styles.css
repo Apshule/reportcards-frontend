@@ -1,3 +1,25 @@
+.marks-register-panel.is-fullscreen{
+  position:fixed;inset:12px;z-index:10000;margin:0;overflow:auto;
+  display:flex;flex-direction:column;background:var(--surface,#fff);
+  padding:20px;box-shadow:0 18px 70px rgba(20,15,40,.28)
+}
+.marks-register-panel.is-fullscreen .marks-mobile-wrap,
+.marks-register-panel.is-fullscreen .table-wrap{flex:1;min-height:0;max-height:none;overflow:auto}
+.marks-register-panel.is-fullscreen table{width:100%;min-width:900px}
+body.marks-entry-fullscreen{overflow:hidden}
+.marks-register-panel .section-title>[data-action="toggle-mark-fullscreen"]{flex-shrink:0}
+.comment-choice-modal{max-width:620px}
+.comment-choice-options{display:grid;gap:10px;margin:4px 0 18px;padding:14px;border:1px solid var(--line,#e5e2ed);border-radius:12px}
+.comment-choice-options legend{padding:0 6px;font-weight:700}
+.comment-choice-options label{display:flex;align-items:flex-start;gap:10px;color:var(--ink,#28233a);line-height:1.45}
+.comment-choice-options input{accent-color:var(--primary,#4b2e9e);margin-top:4px}
+.comment-choice-modal textarea{min-height:95px}
+@media(max-width:680px){
+  .marks-register-panel.is-fullscreen{inset:0;border-radius:0;padding:14px}
+  .marks-register-panel.is-fullscreen .section-title{align-items:flex-start;gap:12px}
+  .marks-register-panel.is-fullscreen .section-title button{white-space:nowrap}
+  .comment-choice-modal{max-height:calc(100dvh - 24px);overflow:auto}
+}
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@500;600;700;800&display=swap');
 
 :root{--purple:#4B2E9E;--purple-deep:#35206f;--purple-soft:#f1edfb;--orange:#FF8C42;--ink:#25213b;--muted:#817d91;--line:#e8e5ef;--canvas:#f7f6fa;--surface:#fff;--green:#248768;--red:#be4c50;--font-body:'DM Sans',sans-serif;--font-display:'Manrope',sans-serif;--shadow:0 10px 32px rgba(42,28,83,.07)}
