@@ -141,12 +141,29 @@
       ["expenses", "Expenses", "fa-receipt"],
       ["schoolpay", "SchoolPay Sync", "fa-mobile-screen-button"],
       ["fee-structure", "Fee Structure", "fa-book"],
+      ...(canSync(state) ? [["fee-balances", "Fee Balances CSV", "fa-file-csv"]] : []),
       ["budget", "Budget", "fa-calendar-days"],
       ["reports", "Reports", "fa-chart-column"],
       ...(settingsManager(state) ? [["settings", "Settings", "fa-gear"]] : []),
     ];
     return `<div class="fin-tabs" role="tablist" aria-label="Finance sections">${all.map(([key, label, ico]) =>
       `<button role="tab" aria-selected="${state.finance.tab === key}" class="fin-tab ${state.finance.tab === key ? "active" : ""}" data-fin-tab="${key}">${icon(ico)}${label}</button>`).join("")}</div>`;
+  }
+
+  function feeBalances(state) {
+    const classes = lookupClasses(state);
+    const selected = state.finance.feeBalanceClass || "";
+    return `<section class="card section-card">
+      <div class="section-title"><div><h2>Bulk fee balance update</h2><p>Export one class, edit Current Balance, then upload the CSV. Registration numbers must remain unchanged.</p></div></div>
+      <div class="fin-report-tools">
+        <label>Class<select data-fin-balance-class required><option value="">Select class</option>${classes.map((item) =>
+          `<option value="${esc(item.id)}" ${String(item.id) === String(selected) ? "selected" : ""}>${esc(item.name)}</option>`).join("")}</select></label>
+        <button class="btn btn-outline" data-fin-action="download-fee-balances" ${selected ? "" : "disabled"}>${icon("fa-download")} Export CSV</button>
+        <button class="btn btn-primary" data-fin-action="upload-fee-balances" ${selected ? "" : "disabled"}>${icon("fa-file-arrow-up")} Upload edited CSV</button>
+        <input type="file" id="fee-balance-csv" accept=".csv,text/csv" class="hidden" aria-label="Choose edited fee balance CSV">
+      </div>
+      <div class="fin-notice"><div>${icon("fa-circle-info")}</div><div><strong>Safe matching</strong><span>Only Reg No and Current Balance are imported. The upload is limited to the selected class, term, and year. Existing payments remain in the ledger.</span></div></div>
+    </section>`;
   }
 
   function filterForm(state) {
@@ -347,6 +364,7 @@
       expenses: () => expenses(state),
       schoolpay: () => schoolpay(state),
       "fee-structure": () => feeStructure(state),
+      "fee-balances": () => feeBalances(state),
       budget: () => budget(state),
       reports: () => reports(state),
       settings: () => settings(state),
@@ -366,5 +384,77 @@
     setTimeout(() => URL.revokeObjectURL(url), 1200);
   }
 
-  window.ReportCardsFinance = { render, csv, helpers: { money, titleCase } };
+  function parseCsv(text) {
+    const rows = [];
+    let row = [], field = "", quoted = false;
+    for (let i = 0; i < text.length; i += 1) {
+      const char = text[i];
+      if (quoted) {
+        if (char === '"' && text[i + 1] === '"') { field += '"'; i += 1; }
+        else if (char === '"') quoted = false;
+        else field += char;
+      } else if (char === '"') quoted = true;
+      else if (char === ",") { row.push(field); field = ""; }
+      else if (char === "\n") { row.push(field.replace(/\r$/u, "")); rows.push(row); row = []; field = ""; }
+      else field += char;
+    }
+    if (field || row.length) { row.push(field.replace(/\r$/u, "")); rows.push(row); }
+    return rows.filter((line) => line.some((value) => value.trim() !== ""));
+  }
+
+  async function handleAction(action, state, api, notify) {
+    if (action === "upload-fee-balances") {
+      if (!["school_admin", "bursar"].includes(role(state))) { notify("Only school administrators and bursars can update balances.", "error"); return true; }
+      if (!state.finance.feeBalanceClass) { notify("Select a class first.", "error"); return true; }
+      document.getElementById("fee-balance-csv")?.click();
+      return true;
+    }
+    if (action !== "download-fee-balances") return false;
+    if (!["school_admin", "bursar"].includes(role(state))) { notify("Only school administrators and bursars can export balances.", "error"); return true; }
+    if (!state.finance.feeBalanceClass) { notify("Select a class first.", "error"); return true; }
+    try {
+      const query = new URLSearchParams({
+        class_id: state.finance.feeBalanceClass,
+        term: state.finance.term,
+        year: state.finance.year,
+      });
+      const result = await api(`/api/fin/fee-balances?${query}`);
+      csv([
+        ["Reg No", "Full Name", "Class", "Current Balance"],
+        ...(result.rows || []).map((item) => [item.reg_no, item.full_name, item.class_name, item.current_balance]),
+      ], `fee-balances-${state.finance.term}-${state.finance.year}.csv`);
+      notify(`Exported ${result.rows?.length || 0} learner balances.`);
+    } catch (error) { notify(error.message || "Could not export balances.", "error"); }
+    return true;
+  }
+
+  async function handleFile(file, state, api, notify) {
+    try {
+      if (!["school_admin", "bursar"].includes(role(state))) throw new Error("Only school administrators and bursars can import balances.");
+      if (!state.finance.feeBalanceClass) throw new Error("Select a class first.");
+      const table = parseCsv(await file.text());
+      if (table.length < 2) throw new Error("The CSV has no learner rows.");
+      const headers = table[0].map((value) => value.trim().toLowerCase().replace(/[^a-z0-9]/gu, ""));
+      const regIndex = headers.findIndex((value) => ["regno", "registrationnumber"].includes(value));
+      const balanceIndex = headers.findIndex((value) => ["currentbalance", "balance"].includes(value));
+      if (regIndex < 0 || balanceIndex < 0) throw new Error("CSV must include Reg No and Current Balance columns.");
+      const rows = table.slice(1).map((line) => ({
+        reg_no: line[regIndex]?.trim() || "",
+        balance: line[balanceIndex]?.trim() || "",
+      })).filter((row) => row.reg_no || row.balance !== "");
+      if (!rows.length) throw new Error("The CSV has no learner rows.");
+      const result = await api("/api/fin/fee-balances/bulk", {
+        method: "POST",
+        body: {
+          class_id: state.finance.feeBalanceClass,
+          term: state.finance.term,
+          year: Number(state.finance.year),
+          rows,
+        },
+      });
+      notify(`Updated balances for ${result.updated} learners.`);
+    } catch (error) { notify(error.message || "Could not import balances.", "error"); }
+  }
+
+  window.ReportCardsFinance = { render, csv, handleAction, handleFile, helpers: { money, titleCase } };
 })();

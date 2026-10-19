@@ -1,0 +1,12 @@
+.parent-admin-page{display:grid;gap:18px}
+.parent-admin-page textarea,.parent-admin-page select{border:1px solid var(--line);border-radius:9px;padding:10px;background:#fff;color:var(--ink)}
+.parent-announcement{padding:16px 0;border-top:1px solid var(--line)}
+.parent-announcement>div{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.parent-announcement h3{margin:0;font-size:16px}
+.parent-announcement time,.parent-announcement p,.parent-admin-empty{color:var(--muted);font-size:13px}
+.parent-feedback-status{padding:4px 8px;border-radius:999px;background:#eef0f4;text-transform:capitalize}
+.parent-feedback-status.resolved{background:#e8f6ed;color:#246746}
+.parent-feedback-status.new{background:#fff4dc;color:#805b12}
+.parent-feedback-status.read{background:#eef2ff;color:#40358a}
+.parent-admin-page td select{min-width:110px}
+@media(max-width:640px){.parent-announcement>div{align-items:flex-start;flex-direction:column}}
