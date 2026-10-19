@@ -1,6 +1,7 @@
 (() => {
   const { PDFDocument, StandardFonts, rgb } = window.PDFLib || {};
   const portrait = [595.28, 841.89];
+  const watermarkImageCache = new WeakMap();
 
   const levelCode = (level) => {
     const code = String(level || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -70,6 +71,38 @@
     } catch {
       return null;
     }
+  }
+  async function drawPageWatermark(doc, page, report) {
+    const school = report?.school || {};
+    if (school.watermark_enabled !== true) return;
+    if (!school.logo_base64) {
+      throw new Error("A school logo is required before enabling the report-card watermark.");
+    }
+    let image = watermarkImageCache.get(doc);
+    if (!image) {
+      image = await embedImage(doc, school.logo_base64);
+      if (image) watermarkImageCache.set(doc, image);
+    }
+    if (!image) {
+      throw new Error("The school logo could not be embedded as a report-card watermark.");
+    }
+    const { width, height } = page.getSize();
+    const scale = Math.min((width * 0.62) / image.width, (height * 0.62) / image.height);
+    const drawWidth = image.width * scale;
+    const drawHeight = image.height * scale;
+    const savedOpacity = school.watermark_opacity === null || school.watermark_opacity === undefined || school.watermark_opacity === ""
+      ? 10
+      : Number(school.watermark_opacity);
+    const opacity = Number.isFinite(savedOpacity)
+      ? Math.max(0, Math.min(100, savedOpacity)) / 100
+      : 0.1;
+    page.drawImage(image, {
+      x: (width - drawWidth) / 2,
+      y: (height - drawHeight) / 2,
+      width: drawWidth,
+      height: drawHeight,
+      opacity,
+    });
   }
   function fitted(text, font, size, maxWidth) {
     let value = String(text ?? "—")
@@ -357,6 +390,7 @@
       if (pageTop - sectionHeight - headerHeight - rowHeight < bottomLimit && (page !== firstPage || pageTop === top)) {
         page = doc.addPage(portrait);
         continuationPages.push(page);
+        await drawPageWatermark(doc, page, report);
         pageTop = await drawHeader(doc, page, report, fonts, theme, title);
         if (["O_LEVEL", "A_LEVEL"].includes(levelCode(report.class?.level))) pageTop = drawPromotionBanner(page, report, fonts, pageTop);
         if (meta) variantRule(page, page.getHeight() - 150, page.getWidth(), meta);
@@ -370,6 +404,7 @@
       if (offset < rows.length) {
         page = doc.addPage(portrait);
         continuationPages.push(page);
+        await drawPageWatermark(doc, page, report);
         pageTop = await drawHeader(doc, page, report, fonts, theme, title);
         if (["O_LEVEL", "A_LEVEL"].includes(levelCode(report.class?.level))) pageTop = drawPromotionBanner(page, report, fonts, pageTop);
         if (meta) variantRule(page, page.getHeight() - 150, page.getWidth(), meta);
@@ -609,6 +644,7 @@
     doc.setAuthor(str(report.school?.name));
     const size = portrait;
     const page = doc.addPage(size);
+    await drawPageWatermark(doc, page, report);
     const fonts = {
       regular: await doc.embedFont(StandardFonts.Helvetica),
       bold: await doc.embedFont(StandardFonts.HelveticaBold),
