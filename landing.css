@@ -29,7 +29,6 @@
 .asl-header{position:sticky;top:0;z-index:50;background:rgba(251,249,245,.88);backdrop-filter:blur(16px);border-bottom:1px solid rgba(75,46,158,.09)}
 .asl-nav{position:relative;display:flex;align-items:center;gap:30px;min-height:78px}
 .asl-brand{display:inline-flex;align-items:center;gap:10px;flex:none;color:var(--purple);font:800 20px/1 var(--display);letter-spacing:-.7px}
-.asl-brand-mark{display:block;width:47px;height:47px;object-fit:cover;border-radius:50%;border:2px solid rgba(75,46,158,.15);background:white}
 .asl-nav-links{display:flex;align-items:center;gap:28px;margin-left:auto;color:#625d6c;font-size:13px;font-weight:700}
 .asl-nav-links a{position:relative;padding:10px 0}
 .asl-nav-links a:not(.asl-mobile-auth):after{content:"";position:absolute;left:0;right:100%;bottom:4px;height:2px;background:var(--orange);transition:right .22s ease}
@@ -231,7 +230,6 @@
 .asl-footer:after{left:-200px;bottom:-280px;background:radial-gradient(circle,rgba(22,163,74,.16),transparent 68%)}
 .asl-footer-main{display:grid;grid-template-columns:1.3fr .8fr 1fr;gap:56px;padding:61px 0 45px}
 .asl-footer .asl-brand{color:white}
-.asl-footer .asl-brand-mark{width:51px;height:51px}
 .asl-footer-about>p{max-width:300px;color:#bcb4c8;font-size:13px}
 .asl-footer-about .asl-motto{margin:8px 0;color:#ffb47f!important;font:700 19px/1.4 var(--display)!important}
 .asl-footer-col h3{margin:5px 0 16px;color:#fff;font:800 13px var(--display)}
@@ -294,7 +292,7 @@
 }
 @media(max-width:520px){
   .asl-container{width:calc(100% - 32px)}
-  .asl-brand{font-size:18px}.asl-brand-mark{width:43px;height:43px}
+  .asl-brand{font-size:18px}
   .asl-hero{padding:48px 0 54px}.asl-hero h1{font-size:clamp(39px,10vw,47px);letter-spacing:-2.5px}
   .asl-hero .asl-kicker{font-size:9px;letter-spacing:.9px}.asl-hero-actions{display:grid}
   .asl-hero-actions .asl-button{width:100%}.asl-proofline{gap:10px 14px;font-size:11px}
