@@ -74,13 +74,11 @@
   }
   async function drawPageWatermark(doc, page, report) {
     const school = report?.school || {};
-    if (school.watermark_enabled !== true) return;
-    if (!school.logo_base64) {
-      throw new Error("A school logo is required before enabling the report-card watermark.");
-    }
+    const schoolLogoBase64 = school.logo_base64;
+    if (school.watermark_enabled !== true || !schoolLogoBase64) return;
     let image = watermarkImageCache.get(doc);
     if (!image) {
-      image = await embedImage(doc, school.logo_base64);
+      image = await embedImage(doc, schoolLogoBase64);
       if (image) watermarkImageCache.set(doc, image);
     }
     if (!image) {
@@ -189,10 +187,10 @@
       borderWidth: 1.5,
     });
     roundedPanel(page, margin + 1, height - 136, width - (margin + 1) * 2, 118, 12, headerColor);
-    const logo = await embedImage(doc, school.logo_base64);
+    const schoolLogo = await embedImage(doc, school.logo_base64);
     const photo = await embedImage(doc, learner.photo_base64);
-    placeImage(page, logo, margin + 10, height - 120, 85, 85);
-    if (!logo) {
+    placeImage(page, schoolLogo, margin + 10, height - 120, 85, 85);
+    if (!schoolLogo) {
       page.drawRectangle({ x: margin + 10, y: height - 120, width: 85, height: 85, borderColor: colorToPdf(accent), borderWidth: 1 });
       centered(page, String(school.name || "S").slice(0, 1).toUpperCase(), margin + 52.5, height - 82, fonts.bold, 20, headerText, 70);
     }
