@@ -21,6 +21,7 @@
   let schoolpayTimer=null;
   const esc = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const icon = name => `<i class="fa-solid ${name}" aria-hidden="true"></i>`;
+  const MAX_LEARNER_PHOTO_BYTES=2*1024*1024;
   const levelLabel = level => LEVELS.find(x=>x[0]===level)?.[1]||level||"—";
   const isALevel = level => /^(ALEVEL|S[56])/.test(String(level||"").toUpperCase().replace(/[^A-Z0-9]/g,""));
   const fmt = value => value===null||value===undefined||value===""?"—":esc(value);
@@ -449,6 +450,7 @@
     }
      if(m.type==="class"){title=editing?"Edit class":"Add a class";endpoint=editing?`/api/classes/${encodeURIComponent(item.id)}`:"/api/classes";body=`<div class="form-two"><div class="field wide"><label for="f-name">Class name *</label><input id="f-name" name="name" required value="${esc(item.name||"")}" maxlength="120" placeholder="P.1"></div><div class="field"><label for="f-level">Level *</label><select id="f-level" name="level" required>${levelOptions(item.level)}</select></div><div class="field"><label for="f-stream">Stream</label><input id="f-stream" name="stream" value="${esc(item.stream||"")}" maxlength="80" placeholder="A"></div><div class="field wide"><label for="f-class_teacher_id">Class teacher</label><select id="f-class_teacher_id" name="class_teacher_id">${classTeacherOptions(item.class_teacher_id)}</select><span class="field-hint">Choose a teacher marked as a class teacher to enable learner comments.</span></div></div>`}
     if(m.type==="learner"){title=editing?"Edit learner":"Register a learner";endpoint=editing?`/api/learners/${encodeURIComponent(item.id)}`:"/api/learners";body=`<div class="form-two"><div class="field wide"><label for="f-class_id">Class *</label><select name="class_id" id="f-class_id" required>${classOptions(item.class_id,false)}</select></div><div class="field"><label for="f-reg_no">Registration number *</label><input id="f-reg_no" name="reg_no" required maxlength="120" value="${esc(item.reg_no||"")}"></div><div class="field"><label for="f-full_name">Full name *</label><input id="f-full_name" name="full_name" required maxlength="200" value="${esc(item.full_name||"")}"></div><div class="field"><label for="f-gender">Gender</label><select id="f-gender" name="gender"><option value="">Not specified</option>${["Female","Male","Other"].map(v=>`<option ${item.gender===v?"selected":""}>${v}</option>`).join("")}</select></div><div class="field"><label for="f-age">Age</label><input id="f-age" name="age" type="number" min="0" max="120" value="${esc(item.age??"")}"></div><div class="field"><label for="f-parent_name">Parent / guardian</label><input id="f-parent_name" name="parent_name" maxlength="200" value="${esc(item.parent_name||"")}"></div><div class="field"><label for="f-parent_phone">Parent phone</label><input id="f-parent_phone" name="parent_phone" type="tel" maxlength="60" value="${esc(item.parent_phone||"")}"></div><div class="field wide"><label for="f-parent_email">Parent email</label><input id="f-parent_email" name="parent_email" type="email" maxlength="254" value="${esc(item.parent_email||"")}"></div></div>`}
+    if(m.type==="learner"){const photo=item.photo_base64?schoolLogoSource(item.photo_base64):"";body+=`<section class="learner-photo-section" aria-labelledby="learner-photo-label"><div class="field"><label id="learner-photo-label" for="f-learner-photo">Learner Photo</label><input id="f-learner-photo" type="file" accept="image/*" aria-describedby="learner-photo-help learner-photo-error"><span class="field-hint" id="learner-photo-help">Choose an image no larger than 2 MB. Selecting a new photo replaces the current one.</span><div class="learner-photo-preview" id="learner-photo-preview">${photo?`<img src="${esc(photo)}" alt="${esc(item.full_name||"Learner")} photo preview">`:"<span>Photo preview</span>"}</div><p class="learner-photo-error" id="learner-photo-error" role="alert" aria-live="polite"></p></div></section>`}
     if(m.type==="subject"){title=editing?"Edit subject":"Add a subject";endpoint=editing?`/api/subjects/${encodeURIComponent(item.id)}`:"/api/subjects";body=`<div class="form-two"><div class="field wide"><label for="f-name">Subject name *</label><input id="f-name" name="name" required maxlength="160" value="${esc(item.name||"")}"></div><div class="field"><label for="f-level">Level *</label><select id="f-level" name="level" required>${levelOptions(item.level)}</select></div><div class="field"><label for="f-code">Subject code</label><input id="f-code" name="code" maxlength="40" value="${esc(item.code||"")}"></div><div class="field"><label for="f-papers">Papers</label><input id="f-papers" name="papers" type="number" min="1" max="10" value="${esc(item.papers||1)}"></div></div>`}
     if(m.type==="grade"){title=editing?"Edit grade":"Add a grade";endpoint=editing?`/api/grading/${encodeURIComponent(item.id)}`:"/api/grading";body=`<div class="form-two"><div class="field"><label for="f-level">Level *</label><select id="f-level" name="level" required>${levelOptions(item.level)}</select></div><div class="field"><label for="f-grade_code">Grade code *</label><input id="f-grade_code" name="grade_code" required maxlength="30" value="${esc(item.grade_code||"")}"></div><div class="field"><label for="f-min_score">Minimum score *</label><input id="f-min_score" name="min_score" type="number" min="0" max="100" step=".01" required value="${esc(item.min_score??"")}"></div><div class="field"><label for="f-max_score">Maximum score *</label><input id="f-max_score" name="max_score" type="number" min="0" max="100" step=".01" required value="${esc(item.max_score??"")}"></div><div class="field wide"><label for="f-descriptor">Descriptor</label><input id="f-descriptor" name="descriptor" maxlength="200" value="${esc(item.descriptor||"")}"></div><div class="field wide"><label for="f-comment">Comment</label><textarea id="f-comment" name="comment" maxlength="1000">${esc(item.comment||"")}</textarea></div></div>`}
      if(m.type==="teacher"){title=editing?"Edit teacher":"Add a teacher";endpoint=editing?`/api/teachers/${encodeURIComponent(item.id)}`:"/api/teachers";body=`<div class="form-two"><div class="field wide"><label for="f-name">Teacher name *</label><input id="f-name" name="name" required maxlength="200" value="${esc(item.name||"")}"></div><div class="field"><label for="f-email">Email *</label><input id="f-email" name="email" type="email" required maxlength="254" value="${esc(item.email||"")}"></div><div class="field"><label for="f-phone">Phone</label><input id="f-phone" name="phone" type="tel" maxlength="60" value="${esc(item.phone||"")}"></div><div class="field wide"><label for="f-teacher_type">Teacher type</label><select id="f-teacher_type" name="teacher_type"><option value="regular" ${!item.teacher_type||item.teacher_type==="regular"?"selected":""}>Regular teacher</option><option value="class_teacher" ${item.teacher_type==="class_teacher"?"selected":""}>Class teacher</option></select></div></div>`}
@@ -473,9 +475,57 @@
     }
     return out;
   }
+  function readImageDataUrl(file){
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onerror=()=>reject(new Error("Could not read the selected photo."));
+      reader.onload=()=>{
+        const image=new Image();
+        image.onerror=()=>reject(new Error("This image could not be opened. Try a JPG or PNG photo."));
+        image.onload=()=>{
+          const scale=Math.min(1,1600/Math.max(image.naturalWidth,image.naturalHeight));
+          const canvas=document.createElement("canvas");
+          canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));
+          canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+          const context=canvas.getContext("2d");
+          if(!context){reject(new Error("Photo preview is unavailable in this browser."));return}
+          context.fillStyle="#fff";context.fillRect(0,0,canvas.width,canvas.height);
+          context.drawImage(image,0,0,canvas.width,canvas.height);
+          resolve(canvas.toDataURL("image/jpeg",0.88));
+        };
+        image.src=String(reader.result||"");
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  async function handleLearnerPhotoSelection(input){
+    const file=input.files?.[0];if(!file)return;
+    const error=document.getElementById("learner-photo-error");
+    const showError=message=>{if(error)error.textContent=message};
+    if(file.type&&!file.type.startsWith("image/")){input.value="";showError("Choose an image file.");return}
+    if(file.size>MAX_LEARNER_PHOTO_BYTES){input.value="";showError("Photo must be 2 MB or smaller. The current photo will be kept.");return}
+    input.dataset.processing="true";input.dataset.ready="false";
+    try{
+      const photo=await readImageDataUrl(file);
+      const payload=photo.slice(photo.indexOf(",")+1);
+      const padding=payload.endsWith("==")?2:payload.endsWith("=")?1:0;
+      if(Math.floor(payload.length*3/4)-padding>MAX_LEARNER_PHOTO_BYTES)throw new Error("The converted photo is too large. Choose a smaller image.");
+      input.dataset.photoBase64=photo;input.dataset.ready="true";
+      const preview=document.getElementById("learner-photo-preview");
+      if(preview)preview.innerHTML=`<img src="${esc(photo)}" alt="Selected learner photo preview">`;
+      showError("");
+    }catch(err){showError(err.message||"Could not prepare this photo.");input.value="";input.dataset.ready="false"}
+    finally{input.dataset.processing="false"}
+  }
   async function handleModalSubmit(form){
     const values=formValues(form), type=form.dataset.type, method=form.dataset.method;
     if(!form.reportValidity())return;
+    if(type==="learner"){
+      const photoInput=form.querySelector("#f-learner-photo");
+      if(photoInput?.dataset.processing==="true"){document.getElementById("learner-photo-error").textContent="Wait for the photo preview to finish before saving.";return}
+      if(photoInput?.files?.length&&photoInput.dataset.ready!=="true"){document.getElementById("learner-photo-error").textContent="Select a valid photo before saving.";return}
+      if(photoInput?.dataset.photoBase64)values.photo_base64=photoInput.dataset.photoBase64;
+    }
     if(type==="grade"&&values.min_score>values.max_score){document.getElementById("modal-error").innerHTML='<div class="alert error">Minimum score cannot exceed maximum score.</div>';return}
     if(type==="change-password"&&values.new_password!==values.confirm_password){document.getElementById("modal-error").innerHTML='<div class="alert error">The new passwords do not match.</div>';return}
     if(type==="change-password")delete values.confirm_password;
@@ -960,6 +1010,7 @@
   window.ReportCardsAttendance?.bind(root,api,()=>render(),toast);
   root.addEventListener("change",async e=>{
     const target=e.target;
+    if(target.id==="f-learner-photo"){await handleLearnerPhotoSelection(target);return}
     if(target.matches("[data-fin-balance-class]")){state.finance.feeBalanceClass=target.value;render();return}
     if(target.id==="fee-balance-csv"&&target.files?.[0]){
       await window.ReportCardsFinance?.handleFile?.(target.files[0],state,api,financeToast);
