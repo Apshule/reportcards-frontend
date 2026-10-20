@@ -1,10 +1,11 @@
 (() => {
   "use strict";
   const API = "https://reportcards-api.apshule-migration.workers.dev";
-  const TOKEN_KEY = "appshule_reportcards_parent_jwt";
+  const TOKEN_KEY = "appshule_reportcards_school_jwt";
+  const LEGACY_TOKEN_KEY = "appshule_reportcards_parent_jwt";
   const root = document.getElementById("parent-root");
   const state = {
-    token: localStorage.getItem(TOKEN_KEY) || "",
+    token: localStorage.getItem(TOKEN_KEY) || localStorage.getItem(LEGACY_TOKEN_KEY) || "",
     user: null,
     school: null,
     children: [],
@@ -58,10 +59,10 @@
 
   function loginView() {
     return `<main class="parent-card parent-login"><div class="parent-brand"><span class="parent-brand-mark">${icon("fa-graduation-cap")}</span><span>AppShule <small class="parent-school">Parent Portal</small></span></div>
-      <h1>Welcome back</h1><p class="parent-muted">Sign in to follow your child’s learning and school updates.</p>
+      <h1>Welcome back</h1><p class="parent-muted">Sign in with your email and password. We’ll send you to the right school workspace.</p>
       ${state.error ? `<div class="parent-alert" role="alert">${esc(state.error)}</div>` : ""}
-      <form id="parent-login-form"><label>Email<input type="email" name="email" autocomplete="username" required></label><label>Password<input type="password" name="password" autocomplete="current-password" required></label><button class="btn btn-primary" type="submit">${state.busy ? "Signing in…" : "Sign in"}</button></form>
-      <p class="parent-muted">Your school administrator can provide your parent account details.</p></main>`;
+      <form id="parent-login-form"><label>Email<input type="email" name="email" autocomplete="username" required></label><label>Password<div class="parent-password-wrap"><input id="parent-login-password" type="password" name="password" autocomplete="current-password" required><button type="button" data-parent-action="toggle-password" data-target="parent-login-password" aria-label="View password" aria-pressed="false">${icon("fa-eye")}</button></div></label><button class="btn btn-primary" type="submit" ${state.busy ? "disabled" : ""}>${state.busy ? "Signing in…" : "Sign in"}</button></form>
+      <p class="parent-muted">Parent accounts are provided by your school. Staff and school accounts will continue to their own workspace.</p></main>`;
   }
 
   function passwordView() {
@@ -129,9 +130,14 @@
     state.busy = true; state.error = ""; render();
     try {
       const values = Object.fromEntries(new FormData(form).entries());
-      const result = await api("/api/auth/login-parent", { method: "POST", auth: false, body: values });
+      const result = await api("/api/auth/login", { method: "POST", auth: false, body: values });
       state.token = result.token;
       localStorage.setItem(TOKEN_KEY, state.token);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
+      if (result.role !== "parent") {
+        location.assign("/");
+        return;
+      }
       state.user = result.user;
       state.mustChange = result.must_change_password === true;
       if (!state.mustChange) {
@@ -217,7 +223,18 @@
     const action = button.dataset.parentAction;
     if (action === "logout") {
       state.token = ""; state.user = null; state.school = null; state.children = []; state.childId = "";
-      localStorage.removeItem(TOKEN_KEY); render(); return;
+      localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(LEGACY_TOKEN_KEY); render(); return;
+    }
+    if (action === "toggle-password") {
+      const input = document.getElementById(button.dataset.target);
+      if (!input) return;
+      const visible = input.type === "password";
+      input.type = visible ? "text" : "password";
+      button.setAttribute("aria-pressed", String(visible));
+      button.setAttribute("aria-label", visible ? "Hide password" : "View password");
+      button.innerHTML = icon(visible ? "fa-eye-slash" : "fa-eye");
+      input.focus();
+      return;
     }
     if (action === "load-card") {
       try { state.busy = true; render(); await loadCard(); state.error = ""; }
@@ -225,18 +242,25 @@
       state.busy = false; render(); return;
     }
     if (action === "download-card") { await downloadCard(); return; }
-    if (action === "simulate-payment") alert("Simulation only. No payment was made and no money was charged.");
+    if (action === "simulate-payment") { state.success = "This mobile money option is a demo only. No payment was made or charged."; render(); }
   });
 
   async function restore() {
     if (!state.token) { render(); return; }
     try {
       const me = await api("/api/auth/me");
-      if (me.role !== "parent") throw new Error("This portal is for parent accounts only.");
+      if (me.role !== "parent") {
+        localStorage.setItem(TOKEN_KEY, state.token);
+        localStorage.removeItem(LEGACY_TOKEN_KEY);
+        location.replace("/");
+        return;
+      }
+      localStorage.setItem(TOKEN_KEY, state.token);
+      localStorage.removeItem(LEGACY_TOKEN_KEY);
       state.user = me.user; state.school = me.school; state.mustChange = me.must_change_password === true;
       if (!state.mustChange) await loadChildren();
     } catch (error) {
-      state.token = ""; localStorage.removeItem(TOKEN_KEY); state.error = error.message;
+      state.token = ""; localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(LEGACY_TOKEN_KEY); state.error = error.message;
     }
     render();
   }

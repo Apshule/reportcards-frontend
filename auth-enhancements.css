@@ -1,0 +1,52 @@
+.auth-password-wrap,
+.parent-password-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.auth-password-wrap input,
+.parent-password-wrap input {
+  width: 100%;
+  padding-right: 48px !important;
+}
+
+.auth-password-toggle,
+.parent-password-wrap button {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  transform: translateY(-50%);
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #625b73;
+  cursor: pointer;
+}
+
+.auth-password-toggle:hover,
+.parent-password-wrap button:hover {
+  background: #f1eef7;
+  color: #4b2e9e;
+}
+
+.auth-password-toggle:focus-visible,
+.parent-password-wrap button:focus-visible {
+  outline: 3px solid #ff8c42;
+  outline-offset: 2px;
+}
+
+.auth-password-toggle i,
+.parent-password-wrap button i {
+  pointer-events: none;
+}
+
+.parent-login label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+}
