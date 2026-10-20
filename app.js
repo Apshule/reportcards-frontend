@@ -4,10 +4,9 @@
   const TOKEN_KEY = "appshule_reportcards_school_jwt";
   const LEVELS = [["NURSERY","Nursery"],["PRIMARY","Primary"],["O_LEVEL","O Level"],["A_LEVEL","A Level"]];
   const requestedPath = location.pathname.replace(/\/+$/u,"")||"/";
-  const authHashMode = () => location.hash.match(/^#\/?(login|signup)$/u)?.[1] || "";
-  const authRequested = () => requestedPath==="/login"||requestedPath==="/signup"||Boolean(authHashMode());
-  const landingRequested = () => requestedPath==="/"&&!authRequested();
-  const authPathMode = () => requestedPath==="/signup"||authHashMode()==="signup"?"signup":"login";
+  const authRequested = () => requestedPath==="/login"||requestedPath==="/signup";
+  const landingRequested = () => requestedPath==="/";
+  const authPathMode = () => requestedPath==="/signup"?"signup":"login";
   const navItems = [
     ["dashboard","Dashboard","fa-house"],["classes","Classes","fa-chalkboard"],["learners","Learners","fa-user-graduate"],
     ["subjects","Subjects","fa-book-open"],["grading","Grading","fa-scale-balanced"],["teachers","Teachers","fa-chalkboard-user"],
@@ -681,7 +680,7 @@
   }
   async function action(button,clickEvent){
     const a=button.dataset.action,id=button.dataset.id;
-    if(a==="toggle-auth"){state.authMode=state.authMode==="signup"?"login":"signup";if(requestedPath==="/"||requestedPath==="/login"||requestedPath==="/signup")history.replaceState(null,"",`/#/${state.authMode}`);renderAuth();return}
+    if(a==="toggle-auth"){state.authMode=state.authMode==="signup"?"login":"signup";if(requestedPath==="/"||requestedPath==="/login"||requestedPath==="/signup")history.replaceState(null,"",`/${state.authMode}`);renderAuth();return}
     if(a==="toggle-password"){const input=document.getElementById(button.dataset.target);if(!input)return;const visible=input.type==="password";input.type=visible?"text":"password";button.setAttribute("aria-pressed",String(visible));button.setAttribute("aria-label",visible?"Hide password":"View password");button.innerHTML=icon(visible?"fa-eye-slash":"fa-eye");input.focus();return}
     if(a==="logout"){logout();return}
     if(a==="preview-zoom-in"){reportState.zoom=Math.min(180,(Number(reportState.zoom)||100)+10);render();return}
@@ -1013,7 +1012,7 @@
     }
     catch(error){state.loading=false;state.token="";state.user=null;state.school=null;localStorage.removeItem(TOKEN_KEY);renderAuth();document.getElementById("auth-error").innerHTML=`<div class="alert error" role="alert">${esc(error.message)}</div>`}
   }
-  window.addEventListener("hashchange",()=>{const authMode=authHashMode();if(authMode){state.authMode=authMode;if(state.token)verifySession();else renderAuth();return}if(!state.token&&requestedPath==="/"&&!root.querySelector(".asl-landing")){state.authMode="login";render();return}const route=location.hash.replace(/^#\/?/u,"");if(navItems.some(x=>x[0]===route)&&state.token&&state.route!==route)go(route)});
+  window.addEventListener("hashchange",()=>{if(!state.token&&requestedPath==="/"&&!root.querySelector(".asl-landing")){state.authMode="login";render();return}const route=location.hash.replace(/^#\/?/u,"");if(navItems.some(x=>x[0]===route)&&state.token&&state.route!==route)go(route)});
   const pathRoute=requestedPath.slice(1);
   if(navItems.some(x=>x[0]===pathRoute))state.route=pathRoute;
   if(location.hash&&navItems.some(x=>x[0]===location.hash.slice(1)))state.route=location.hash.slice(1);
