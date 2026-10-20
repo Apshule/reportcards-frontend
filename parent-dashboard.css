@@ -4,7 +4,9 @@
 .parent-brand{display:flex;align-items:center;gap:12px;color:#30205f;font-weight:800}
 .parent-brand-mark{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#4b2e9e,#7859d4);color:white}
 .parent-brand-logo{object-fit:contain;background:#fff;border:1px solid #eeebf3;padding:2px}
-.parent-school{color:#777287;font-size:12px}
+.parent-brand-copy{display:grid;gap:2px;min-width:0}
+.parent-brand-copy strong{font-size:15px;line-height:1.2}
+.parent-school{display:block;color:#777287;font-size:12px;font-weight:500}
 .parent-main{padding:22px 0}
 .parent-heading{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:18px}
 .parent-heading h1{margin:0;font-size:28px}
