@@ -4,6 +4,33 @@
   const fallbackPrimary = "#1E5EB5";
   const fallbackSecondary = "#000000";
   const hexPattern = /^#[0-9a-f]{6}$/i;
+  const schoolLogoSize = 25 * 72 / 25.4;
+  const schoolLogoGap = 6;
+
+  function imageBytes(source) {
+    if (!source) return null;
+    const value = String(source).trim().replace(/^data:image\/[^;]+;base64,/iu, "");
+    try {
+      const raw = atob(value);
+      return Uint8Array.from(raw, (character) => character.charCodeAt(0));
+    } catch {
+      return null;
+    }
+  }
+
+  async function embedSchoolLogo(document, source) {
+    const bytes = imageBytes(source);
+    if (!bytes) return null;
+    try {
+      if (bytes[0] === 0xff && bytes[1] === 0xd8) return await document.embedJpg(bytes);
+      if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
+        return await document.embedPng(bytes);
+      }
+    } catch {
+      return null;
+    }
+    return null;
+  }
 
   function safeColor(value, fallback) {
     const input = String(value || "");
@@ -36,15 +63,18 @@
     return String(value || "Bottom Right").toLowerCase().replace(/[\s_-]+/g, "");
   }
 
-  function boundsFor(page, config) {
+  function boundsFor(page, config, withSchoolLogo = false) {
     const shape = normalizedShape(config.shape);
     const width = shape === "circle" ? 62 : shape === "oval" ? 82 : 98;
     const height = shape === "circle" ? 62 : shape === "oval" ? 52 : 58;
     const margin = 27;
+    const logoSpace = withSchoolLogo ? schoolLogoSize + schoolLogoGap : 0;
+    const groupWidth = width + logoSpace;
     const position = normalizedPosition(config.position);
-    const x = position === "bottomleft" ? margin
-      : position === "bottomcenter" ? (page.getWidth() - width) / 2
-        : page.getWidth() - width - margin;
+    const groupX = position === "bottomleft" ? margin
+      : position === "bottomcenter" ? (page.getWidth() - groupWidth) / 2
+        : page.getWidth() - groupWidth - margin;
+    const x = groupX + logoSpace;
     const y = 51;
     return { x, y, width, height, cx: x + width / 2, cy: y + height / 2 };
   }
@@ -170,13 +200,24 @@
     }
   }
 
-  function drawStampOnPage(page, config, font) {
-    const bounds = boundsFor(page, config);
+  function drawStampOnPage(page, config, font, schoolLogo = null) {
+    const bounds = boundsFor(page, config, Boolean(schoolLogo));
     const alpha = opacity(config);
     const rotation = Math.max(-15, Math.min(15, Number(config.rotation_degrees) || 0));
     const primary = safeColor(config.primary_color, fallbackPrimary);
     const secondary = safeColor(config.secondary_color, fallbackSecondary);
     const angle = rotation * Math.PI / 180;
+    if (schoolLogo) {
+      const scale = Math.min(schoolLogoSize / schoolLogo.width, schoolLogoSize / schoolLogo.height);
+      const width = schoolLogo.width * scale;
+      const height = schoolLogo.height * scale;
+      page.drawImage(schoolLogo, {
+        x: bounds.x - schoolLogoGap - schoolLogoSize + (schoolLogoSize - width) / 2,
+        y: bounds.cy - height / 2,
+        width,
+        height,
+      });
+    }
     drawShape(page, bounds, config, primary, secondary, alpha, rotation);
     if (normalizedShape(config.shape) === "circle") {
       drawArcText(page, config.line_1, bounds, font, primary, alpha, rotation, true);
@@ -205,7 +246,8 @@
     if (!window.PDFLib?.PDFDocument) throw new Error("PDF stamp support is unavailable; reload and try again.");
     const document = await window.PDFLib.PDFDocument.load(bytes);
     const font = await document.embedFont(window.PDFLib.StandardFonts.Helvetica);
-    document.getPages().forEach((page) => drawStampOnPage(page, stamp, font));
+    const schoolLogo = await embedSchoolLogo(document, report?.school?.logo_base64);
+    document.getPages().forEach((page) => drawStampOnPage(page, stamp, font, schoolLogo));
     return document.save();
   }
 

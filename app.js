@@ -15,7 +15,7 @@
     ["finance","Finance","fa-coins"],["settings","School settings","fa-calendar-days"],["review","Marks review","fa-clipboard-check"]
   ];
     const state = {token:localStorage.getItem(TOKEN_KEY)||"",school:null,user:null,role:"school_admin",mustChangePassword:false,route:"dashboard",loading:false,modal:null,toast:null,filter:{level:"",class_id:"",subject_id:"",academic_year:String(new Date().getFullYear()),term:"TERM_1",search:""},data:{},authMode:authPathMode(),finance:{tab:"overview",term:"TERM_1",year:String(new Date().getFullYear()),loading:false,error:"",data:{},incomeFilters:{},expenseFilters:{},schoolpayFilters:{},reportClass:"",feeBalanceClass:""},rm:{classes:null,marks:null,submission:null,comments:{},signature:null,review:null,reviewBusy:false,promotionClassId:"",promotion:null,promotionBusy:false,promotionError:"",markEntryMode:"CBC",rawMarkMax:100,commentOptions:[]},parentAdmin:{announcements:[],feedback:[],loading:false,error:""}};
-  const reportState = {classId:"",learnerId:"",term:"TERM_1",year:String(new Date().getFullYear()),template:"1",period:"EOT",includeStamp:true,zoom:100,fullscreen:false,data:null,learners:[],busy:false,error:"",promotionError:"",promotionBusy:false};
+  const reportState = {classId:"",learnerId:"",term:"TERM_1",year:String(new Date().getFullYear()),template:"1",period:"EOT",includeStamp:true,zoom:100,fullscreen:false,data:null,learners:[],busy:false,rosterBusy:false,rosterRequestId:0,rosterError:"",error:"",promotionError:"",promotionBusy:false};
   const projectState = {classId:"",term:"TERM_1",year:String(new Date().getFullYear()),data:null,busy:false,error:""};
   const root = document.getElementById("app");
   let schoolpayTimer=null;
@@ -93,7 +93,7 @@
       else if(route==="marks"){state.data.classes=state.data.classes||((await api("/api/classes")).classes||[]);state.data.subjects=state.data.subjects||((await api("/api/subjects")).subjects||[]);await loadMarks()}
       else if(route==="projects"){state.data.classes=state.data.classes||((await api("/api/classes")).classes||[]);if(!projectState.classId)projectState.classId=state.data.classes.find(c=>isALevel(c.level))?.id||"";await loadProjectRegister()}
       else if(route==="projects"){state.data.classes=state.data.classes||((await api("/api/classes")).classes||[]);if(!projectState.classId)projectState.classId=state.data.classes.find(c=>isALevel(c.level))?.id||"";await loadProjectRegister()}
-      else if(route==="reports"){state.data.classes=state.data.classes||((await api("/api/classes")).classes||[]);if(!reportState.classId&&state.data.classes.length)reportState.classId=state.data.classes[0].id;}
+       else if(route==="reports"){state.data.classes=state.data.classes||((await api("/api/classes")).classes||[]);if(!reportState.classId&&state.data.classes.length)reportState.classId=state.data.classes[0].id;await loadReportLearners(reportState.classId);}
       else if(route==="attendance"){if(!["teacher","school_admin"].includes(state.role))throw new Error("Attendance access is not assigned to this account.");await window.ReportCardsAttendance?.load(api)}
       else if(route==="announcements"){if(state.role!=="school_admin")throw new Error("Only school administrators can publish announcements.");state.parentAdmin.error="";state.parentAdmin.announcements=(await api("/api/parents/announcements")).announcements||[]}
       else if(route==="parent-feedback"){if(state.role!=="school_admin")throw new Error("Only school administrators can view parent feedback.");state.parentAdmin.error="";state.parentAdmin.feedback=(await api("/api/parents/feedback")).feedback||[]}
@@ -296,12 +296,12 @@
     return `${heading("Report cards","Preview and download CBC report cards for a learner or the whole class.",actions)}
       <section class="card section-card"><div class="rc-tabs"><span class="rc-tab active">${icon("fa-eye")} Preview</span></div>
       <div class="period-bar report-filters"><div class="field"><label for="report-class">Class</label><select id="report-class" data-report-filter="classId">${classOptions(reportState.classId)}</select></div>
-       <div class="field"><label for="report-learner">Learner</label><select id="report-learner" data-report-filter="learnerId" ${!learners.length?"disabled":""}><option value="">Choose a learner</option>${learners.map(learner=>`<option value="${esc(learner.id)}" ${String(learner.id)===String(reportState.learnerId)?"selected":""}>${esc(learner.full_name)} · ${esc(learner.reg_no||"")}</option>`).join("")}</select></div>
+       <div class="field"><label for="report-learner">Learner</label><select id="report-learner" data-report-filter="learnerId" ${reportState.rosterBusy||!learners.length?"disabled":""}><option value="">${reportState.rosterBusy?"Loading learners…":learners.length?"Choose a learner":"No learners found for this class"}</option>${learners.map(learner=>`<option value="${esc(learner.id)}" ${String(learner.id)===String(reportState.learnerId)?"selected":""}>${esc(learner.full_name)} · ${esc(learner.reg_no||"")}</option>`).join("")}</select></div>
       <div class="field"><label for="report-year">Year</label><input id="report-year" type="number" min="2000" max="2100" value="${esc(reportState.year)}" data-report-filter="year"></div>
       <div class="field"><label for="report-term">Term</label><select id="report-term" data-report-filter="term">${["TERM_1","TERM_2","TERM_3"].map(t=>`<option value="${t}" ${reportState.term===t?"selected":""}>${t.replace("_"," ")}</option>`).join("")}</select></div>
        <button class="btn btn-primary" data-action="load-report-class" ${reportState.busy||!classes.length?"disabled":""}>${icon("fa-eye")} Load preview</button></div>
        ${templatePicker}
-       ${reportState.error?`<div class="alert error" role="alert">${esc(reportState.error)}</div>`:""}${reportState.busy?loading():""}
+        ${reportState.error?`<div class="alert error" role="alert">${esc(reportState.error)}</div>`:""}${reportState.rosterError?`<div class="alert error" role="alert">${esc(reportState.rosterError)}</div>`:""}${reportState.busy?loading():""}
        ${!classes.length?empty("No classes yet","Create a class and add learners before generating report cards."):!reportState.data?`<div class="report-empty"><strong>Choose a class and assessment period.</strong><span>The preview uses saved marks, fees, school details, and term dates for that period.</span></div>`:!learners.length?empty("No active learners in this class","Add an active learner to this class before generating report cards."):!reportState.learnerId?empty("Choose a learner","Select a learner to preview their report card."):!selected?empty("Report data unavailable","This learner is in the class register, but report-card details were not returned. Reload the preview."):preview}</section>${promotionPanel}${projectPanel}`;
   }
 
@@ -866,6 +866,26 @@
     write("avg",avg);write("pct20",pct20);write("pct80",pct80);write("pct100",pct100);write("identifier",identifier);
     const gradeEl=tr.querySelector('[data-result="grade"]');if(gradeEl)gradeEl.innerHTML=`<span class="badge">${grade?esc(grade):"—"}</span>`;
   }
+  async function loadReportLearners(classId=reportState.classId){
+    const requestId=++reportState.rosterRequestId;
+    reportState.rosterError="";
+    reportState.learners=[];
+    reportState.rosterBusy=Boolean(classId);
+    if(!classId){reportState.rosterBusy=false;render();return}
+    render();
+    try{
+      const query=new URLSearchParams({class_id:String(classId)});
+      const response=await api(`/api/learners?${query}`);
+      if(requestId!==reportState.rosterRequestId)return;
+      if(!Array.isArray(response.learners))throw new Error("The learner list could not be loaded. Please reload and try again.");
+      reportState.learners=response.learners;
+      if(!reportState.learners.some(learner=>String(learner.id)===String(reportState.learnerId)))reportState.learnerId=reportState.learners[0]?.id||"";
+    }catch(error){
+      if(requestId===reportState.rosterRequestId){reportState.learners=[];reportState.rosterError=error.message||"Could not load learners for this class."}
+    }finally{
+      if(requestId===reportState.rosterRequestId){reportState.rosterBusy=false;render()}
+    }
+  }
   async function loadReportClass(){
     if(!reportState.classId){reportState.error="Choose a class first.";render();return}
     if(!/^\d{4}$/.test(String(reportState.year))){reportState.error="Enter a valid four-digit year.";render();return}
@@ -1008,6 +1028,27 @@
     }
   }
   window.ReportCardsAttendance?.bind(root,api,()=>render(),toast);
+  root.addEventListener("change",e=>{
+    const target=e.target;
+    if(!target.matches("[data-report-filter]"))return;
+    const key=target.dataset.reportFilter;
+    if(key==="classId"){
+      e.stopImmediatePropagation();
+      reportState.classId=target.value;
+      reportState.data=null;
+      reportState.learners=[];
+      reportState.learnerId="";
+      reportState.error="";
+      reportState.rosterError="";
+      loadReportLearners(target.value);
+    }else if(key==="year"||key==="term"){
+      e.stopImmediatePropagation();
+      reportState[key]=target.value;
+      reportState.data=null;
+      reportState.error="";
+      render();
+    }
+  },true);
   root.addEventListener("change",async e=>{
     const target=e.target;
     if(target.id==="f-learner-photo"){await handleLearnerPhotoSelection(target);return}
