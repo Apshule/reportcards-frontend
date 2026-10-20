@@ -26,6 +26,30 @@
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const money = (value) => `UGX ${new Intl.NumberFormat("en-UG", { maximumFractionDigits: 0 }).format(Number(value || 0))}`;
   const icon = (name) => `<i class="fa-solid ${name}" aria-hidden="true"></i>`;
+  function imageSource(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    if (/^data:image\/(?:png|jpe?g|webp);base64,/iu.test(raw) || /^https?:\/\//iu.test(raw) || /^\/[^/]/u.test(raw)) return raw;
+    return `data:image/jpeg;base64,${raw.replace(/\s/gu, "")}`;
+  }
+  function schoolLogoMarkup() {
+    const source = imageSource(state.school?.logo_base64);
+    return source
+      ? `<img class="parent-brand-mark parent-brand-logo" src="${esc(source)}" alt="${esc(state.school?.name || "School")} logo">`
+      : `<span class="parent-brand-mark">${icon("fa-graduation-cap")}</span>`;
+  }
+  function learnerAvatarMarkup(learner) {
+    const source = imageSource(learner?.photo_base64);
+    return source
+      ? `<img class="parent-learner-avatar" src="${esc(source)}" alt="${esc(learner?.full_name || "Learner")}">`
+      : `<span class="parent-learner-avatar parent-learner-avatar-placeholder" role="img" aria-label="Learner photo unavailable">${icon("fa-user")}</span>`;
+  }
+  function announcementDate(value) {
+    if (!value) return "Date unavailable";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "Date unavailable";
+    return new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(date);
+  }
 
   async function api(path, options = {}) {
     const headers = { "Content-Type": "application/json", ...(options.auth === false ? {} : { Authorization: `Bearer ${state.token}` }) };
@@ -81,7 +105,7 @@
     return `<div class="parent-grid"><article class="parent-card parent-stat">Fee balance<small>${money(currentFee.balance)} · ${esc(currentFee.term || "No fee record")} ${esc(currentFee.year || "")}</small></article>
       <article class="parent-card parent-stat">Latest grade<small>${esc(grade.grade || "Not available")} · ${esc(grade.subject || "No subject record")}</small></article>
       <article class="parent-card parent-stat">Attendance<small>${attendance.percentage == null ? "Not recorded" : `${esc(attendance.percentage)}%`} · ${esc(attendance.attended || 0)} attended of ${esc(attendance.recorded || 0)}</small></article>
-      <section class="parent-card parent-wide"><h2>Latest school announcements</h2>${(d.announcements || []).slice(0, 4).map((item) => `<article class="parent-announcement"><strong>${esc(item.title)}</strong><small class="parent-muted"> · ${esc(item.created_at)}</small><p>${esc(item.message)}</p></article>`).join("") || `<p class="parent-empty">No announcements have been published.</p>`}</section></div>`;
+      <section class="parent-card parent-wide"><h2>Latest school announcements</h2>${(d.announcements || []).slice(0, 4).map((item) => `<article class="parent-announcement"><strong>${esc(item.title)}</strong><small class="parent-muted"> · <time datetime="${esc(item.created_at)}">${esc(announcementDate(item.created_at))}</time></small><p>${esc(item.message)}</p></article>`).join("") || `<p class="parent-empty">No announcements have been published.</p>`}</section></div>`;
   }
 
   function academics() {
@@ -105,16 +129,16 @@
 
   function communication() {
     const d = state.detail || {};
-    return `<div class="parent-grid"><section class="parent-card parent-wide"><h2>School announcements</h2>${(d.announcements || []).map((item) => `<article class="parent-announcement"><strong>${esc(item.title)}</strong><small class="parent-muted"> · ${esc(item.created_at)}</small><p>${esc(item.message)}</p></article>`).join("") || `<p class="parent-empty">No announcements have been published.</p>`}</section>
+    return `<div class="parent-grid"><section class="parent-card parent-wide"><h2>School announcements</h2>${(d.announcements || []).map((item) => `<article class="parent-announcement"><strong>${esc(item.title)}</strong><small class="parent-muted"> · <time datetime="${esc(item.created_at)}">${esc(announcementDate(item.created_at))}</time></small><p>${esc(item.message)}</p></article>`).join("") || `<p class="parent-empty">No announcements have been published.</p>`}</section>
       <section class="parent-card parent-wide"><h2>Send feedback to the school</h2><form id="parent-feedback-form"><label>Message<textarea name="message" maxlength="3000" required placeholder="Share a question or comment with the school"></textarea></label><button class="btn btn-primary" type="submit">Send feedback</button></form></section></div>`;
   }
 
   function dashboardView() {
-    if (!state.children.length) return `<div class="parent-app"><header class="parent-topbar"><div class="parent-brand"><span class="parent-brand-mark">${icon("fa-graduation-cap")}</span>AppShule Parent Portal</div><button class="btn btn-outline" data-parent-action="logout">Sign out</button></header><section class="parent-card parent-empty">No learner is linked to this parent account yet. Please contact the school office.</section></div>`;
+    if (!state.children.length) return `<div class="parent-app"><header class="parent-topbar"><div class="parent-brand">${schoolLogoMarkup()}<span>AppShule Parent Portal<small class="parent-school">${esc(state.school?.name || "School")}</small></span></div><div class="parent-account-actions">${learnerAvatarMarkup(null)}<span class="parent-muted">${esc(state.user?.name || state.user?.email || "")}</span><button class="btn btn-outline" data-parent-action="logout">Sign out</button></div></header><section class="parent-card parent-empty">No learner is linked to this parent account yet. Please contact the school office.</section></div>`;
     const child = state.children.find((item) => String(item.id) === String(state.childId)) || {};
     const tabs = [["overview","Overview"],["academics","Academics"],["finance","Finance"],["attendance","Attendance"],["communication","Communication"]];
     const content = { overview, academics, finance, attendance, communication }[state.tab]();
-    return `<div class="parent-app"><header class="parent-topbar"><div class="parent-brand"><span class="parent-brand-mark">${icon("fa-graduation-cap")}</span><span>AppShule Parent Portal<small class="parent-school">${esc(state.school?.name || "School")}</small></span></div><div class="parent-account-actions"><span class="parent-muted">${esc(state.user?.name || state.user?.email || "")}</span><button class="btn btn-outline" data-parent-action="logout">Sign out</button></div></header>
+    return `<div class="parent-app"><header class="parent-topbar"><div class="parent-brand">${schoolLogoMarkup()}<span>AppShule Parent Portal<small class="parent-school">${esc(state.school?.name || "School")}</small></span></div><div class="parent-account-actions">${learnerAvatarMarkup(child)}<span class="parent-muted">${esc(state.user?.name || state.user?.email || "")}</span><button class="btn btn-outline" data-parent-action="logout">Sign out</button></div></header>
       <main class="parent-main"><div class="parent-heading"><div><p class="parent-muted">Learner overview</p><h1>${esc(child.full_name || "My child")}</h1><p class="parent-muted">${esc(child.class_name || "")} · ${esc(child.reg_no || "")}</p></div><label class="parent-child-select">Child<select id="parent-child">${state.children.map((item) => `<option value="${esc(item.id)}" ${String(item.id) === String(state.childId) ? "selected" : ""}>${esc(item.full_name)} · ${esc(item.class_name || "")}</option>`).join("")}</select></label></div>
       ${state.error ? `<div class="parent-alert" role="alert">${esc(state.error)}</div>` : ""}${state.success ? `<div class="parent-success" role="status">${esc(state.success)}</div>` : ""}
       <nav class="parent-tabs" aria-label="Parent sections">${tabs.map(([key, label]) => `<button class="${state.tab === key ? "active" : ""}" data-parent-tab="${key}">${label}</button>`).join("")}</nav>${content}</main></div>`;

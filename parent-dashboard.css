@@ -3,6 +3,7 @@
 .parent-topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 20px;background:#fff;border-radius:16px;box-shadow:0 4px 18px #20163e0b}
 .parent-brand{display:flex;align-items:center;gap:12px;color:#30205f;font-weight:800}
 .parent-brand-mark{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#4b2e9e,#7859d4);color:white}
+.parent-brand-logo{object-fit:contain;background:#fff;border:1px solid #eeebf3;padding:2px}
 .parent-school{color:#777287;font-size:12px}
 .parent-main{padding:22px 0}
 .parent-heading{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:18px}
@@ -34,5 +35,8 @@
 .parent-empty{padding:24px;text-align:center;color:#777287}
 .parent-payment-note{font-size:12px;color:#817c8e}
 .parent-account-actions{display:flex;align-items:center;gap:12px}
+.parent-learner-avatar{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:50%;object-fit:cover;background:#eeeaf7;color:#4b2e9e}
+.parent-learner-avatar-placeholder{background:linear-gradient(135deg,#eeeaf7,#ded7f2);font-size:17px}
 .parent-account-actions button{white-space:nowrap}
 @media(max-width:740px){.parent-app{padding:12px}.parent-topbar{padding:13px}.parent-heading{align-items:stretch;flex-direction:column}.parent-child-select{min-width:0}.parent-grid{grid-template-columns:1fr}.parent-wide{grid-column:auto}.parent-card{padding:15px}.parent-card .table-wrap{overflow:auto}.parent-card table{min-width:560px}.parent-login{margin:7vh 12px;padding:24px}}
+@media(max-width:520px){.parent-topbar{flex-wrap:wrap}.parent-brand{min-width:0}.parent-account-actions{margin-left:auto;flex-wrap:wrap;gap:8px}.parent-account-actions .parent-muted{max-width:132px;overflow-wrap:anywhere}.parent-learner-avatar{flex-basis:38px;width:38px;height:38px}}
