@@ -1423,7 +1423,13 @@
       bytes = await renderVariant(themedReport, level, meta);
     }
     if (includeStamp && window.ReportCardStampRenderer) {
-      return window.ReportCardStampRenderer.apply(bytes, themedReport, stamp);
+      bytes = await window.ReportCardStampRenderer.apply(bytes, themedReport, stamp);
+    }
+    if (themedReport.authenticity_qr_data_url) {
+      if (!window.ReportCardQrRenderer?.apply) {
+        throw new Error("Report card authenticity support is unavailable. Refresh and try again.");
+      }
+      bytes = await window.ReportCardQrRenderer.apply(bytes, themedReport);
     }
     return bytes;
   }

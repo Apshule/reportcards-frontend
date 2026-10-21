@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#4B2E9E">
+  <meta name="description" content="Check the authenticity of an AppShule ReportCards report card.">
+  <title>Verify Report Card | AppShule</title>
+  <link rel="stylesheet" href="verify.css">
+</head>
+<body>
+  <main class="verify-shell">
+    <section class="verify-card" aria-labelledby="verify-title">
+      <a class="verify-brand" href="https://reportcards.appshule.com/" aria-label="AppShule ReportCards home">
+        <span class="verify-brand-mark" aria-hidden="true">A</span>
+        <span>AppShule <small>ReportCards</small></span>
+      </a>
+      <div id="verification-result" class="verification-result" role="status" aria-live="polite">
+        <span class="verification-spinner" aria-hidden="true"></span>
+        <h1 id="verify-title">Checking report card…</h1>
+        <p>Please wait while we confirm this report card.</p>
+      </div>
+      <a class="verify-home-link" href="https://reportcards.appshule.com/">Return to ReportCards</a>
+    </section>
+  </main>
+  <script src="verify.js" defer></script>
+</body>
+</html>

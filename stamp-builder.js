@@ -149,6 +149,10 @@
                   <label for="stamp-logo-rotation">Logo rotation</label>
                   <select id="stamp-logo-rotation" name="stamp_logo_rotation" data-stamp-field="stamp_logo_rotation">${logoRotationOptions}</select>
                 </div>
+                <div class="rc-stamp-builder__field rc-stamp-builder__logo-opacity">
+                  <label for="stamp-logo-opacity">Logo opacity <output data-stamp-value="stamp_logo_opacity">${values.stamp_logo_opacity}%</output></label>
+                  <input id="stamp-logo-opacity" name="stamp_logo_opacity" type="range" min="0" max="100" step="1" data-stamp-field="stamp_logo_opacity" value="${values.stamp_logo_opacity}">
+                </div>
                 <div class="rc-stamp-builder__field">
                   <label for="stamp-logo-offset-x">Offset X (mm)</label>
                   <input id="stamp-logo-offset-x" name="stamp_logo_offset_x" type="number" min="-100" max="100" step="0.5" data-stamp-field="stamp_logo_offset_x" value="${values.stamp_logo_offset_x}">
@@ -159,10 +163,6 @@
                 </div>
               </div>
               <p class="rc-stamp-builder__hint">Use negative numbers to move left or up, and positive numbers to move right or down.</p>
-              <div class="rc-stamp-builder__field rc-stamp-builder__logo-opacity">
-                <label for="stamp-logo-opacity">Logo transparency <output data-stamp-value="stamp_logo_opacity">${values.stamp_logo_opacity}%</output></label>
-                <input id="stamp-logo-opacity" name="stamp_logo_opacity" type="range" min="0" max="100" step="1" data-stamp-field="stamp_logo_opacity" value="${values.stamp_logo_opacity}">
-              </div>
             </fieldset>
             <fieldset class="rc-stamp-builder__fieldset">
               <legend>Stamp wording</legend>

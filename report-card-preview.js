@@ -26,6 +26,13 @@
     const text = String(source);
     return text.startsWith("data:image/") ? text : `data:image/png;base64,${text}`;
   };
+  const safeHexColor = (input, fallback) =>
+    /^#[0-9a-f]{6}$/i.test(String(input || "")) ? String(input) : fallback;
+  const colorWithAlpha = (hex, alpha) => {
+    const clean = safeHexColor(hex, "#4B2E9E").slice(1);
+    const [red, green, blue] = [0, 2, 4].map((index) => parseInt(clean.slice(index, index + 2), 16));
+    return `rgba(${red},${green},${blue},${alpha})`;
+  };
   const contrastText = (hex) => {
     const clean = /^#[0-9a-f]{6}$/i.test(String(hex || "")) ? String(hex).slice(1) : "D1C4E9";
     const channels = [1, 3, 5].map((start) => parseInt(clean.slice(start, start + 2), 16) / 255);
@@ -250,14 +257,54 @@
   };
   const stampBlock = (report, options = {}) => {
     if (options.includeStamp === false) return "";
-    const stamp = report.stamp_config || report.school?.stamp_config;
+    const school = report.school || {};
+    const stamp = {
+      ...(school.stamp_config && typeof school.stamp_config === "object" ? school.stamp_config : {}),
+      ...(report.stamp_config && typeof report.stamp_config === "object" ? report.stamp_config : {}),
+    };
     if (!stamp || typeof stamp !== "object" || !Object.keys(stamp).length) return "";
     const lines = [stamp.line_1, stamp.line_2, stamp.line_3, stamp.line_4, stamp.line_5].filter(Boolean);
     const shape = ["circle", "oval", "rounded_rectangle"].includes(String(stamp.shape || "").toLowerCase()) ? String(stamp.shape).toLowerCase() : "rectangle";
-    const stampColor = /^#[0-9a-f]{6}$/i.test(String(stamp.primary_color || "")) ? stamp.primary_color : "#4B2E9E";
-    const opacity = Math.max(0.1, Math.min(0.85, Number(stamp.opacity) || 0.45));
+    const primaryColor = safeHexColor(stamp.primary_color, "#4B2E9E");
+    const secondaryColor = safeHexColor(stamp.secondary_color, "#000000");
+    const transparencyValue = Number(stamp.transparency);
+    const legacyOpacity = Number(stamp.opacity);
+    const stampAlpha = Number.isFinite(transparencyValue)
+      ? Math.max(0, Math.min(100, transparencyValue)) / 100
+      : Number.isFinite(legacyOpacity)
+        ? Math.max(0, Math.min(1, legacyOpacity))
+        : 0.45;
     const rotation = Math.max(-15, Math.min(15, Number(stamp.rotation_degrees) || 0));
-    return `<div class="rc-stamp-preview rc-stamp-${shape}" style="--rc-stamp-color:${stampColor};--rc-stamp-opacity:${opacity};--rc-stamp-rotation:${rotation}deg" aria-label="Configured school stamp">${lines.map((line) => `<span>${value(line)}</span>`).join("")}</div>`;
+    const position = String(stamp.position || "Bottom Right").toLowerCase().replace(/[\s_]+/g, "-");
+    const positionClass = ["bottom-left", "bottom-center"].includes(position) ? position : "bottom-right";
+    const logoPosition = String(
+      school.stamp_logo_position ?? stamp.stamp_logo_position ?? "inside_center",
+    ).toLowerCase().replace(/[\s-]+/g, "_");
+    const validLogoPositions = [
+      "inside_center", "inside_top", "inside_bottom", "inside_left", "inside_right",
+      "outside_left", "outside_right", "hidden",
+    ];
+    const normalizedLogoPosition = validLogoPositions.includes(logoPosition) ? logoPosition : "inside_center";
+    const logo = imageSource(school.logo_base64);
+    const numericSetting = (key, fallback, min, max) => {
+      const direct = Number(report[key] ?? school[key] ?? stamp[key]);
+      return Number.isFinite(direct) ? Math.max(min, Math.min(max, direct)) : fallback;
+    };
+    const logoSize = numericSetting("stamp_logo_size", 20, 1, 100);
+    const offsetX = numericSetting("stamp_logo_offset_x", 0, -100, 100) * 96 / 25.4;
+    const offsetY = numericSetting("stamp_logo_offset_y", 0, -100, 100) * 96 / 25.4;
+    const logoRotationValue = numericSetting("stamp_logo_rotation", 0, 0, 360);
+    const logoRotation = [0, 90, 180, 270].includes(logoRotationValue) ? logoRotationValue : 0;
+    const logoOpacity = numericSetting("stamp_logo_opacity", 100, 0, 100) / 100;
+    const logoMarkup = logo && normalizedLogoPosition !== "hidden"
+      ? `<img class="rc-stamp-logo rc-stamp-logo-${normalizedLogoPosition}" src="${esc(logo)}" alt="School logo in digital stamp">`
+      : "";
+    return `<div class="rc-stamp-preview rc-stamp-${shape} rc-stamp-${positionClass}" style="--rc-stamp-text:${colorWithAlpha(primaryColor, stampAlpha)};--rc-stamp-border:${colorWithAlpha(secondaryColor, stampAlpha)};--rc-stamp-rotation:${rotation}deg;--rc-stamp-logo-size:${logoSize}mm;--rc-stamp-logo-x:${offsetX}px;--rc-stamp-logo-y:${offsetY}px;--rc-stamp-logo-rotation:${logoRotation}deg;--rc-stamp-logo-opacity:${logoOpacity}" aria-label="Configured school stamp"><div class="rc-stamp-copy">${lines.map((line) => `<span>${value(line)}</span>`).join("")}</div>${logoMarkup}</div>`;
+  };
+  const authenticityQrBlock = (report) => {
+    const image = report.authenticity_qr_data_url;
+    if (!image) return "";
+    return `<div class="rc-authenticity-qr"><img src="${esc(image)}" alt="Report card authenticity QR code"><span>Scan to Verify Authenticity</span></div>`;
   };
   const promotionBanner = (report) => {
     const endOfYear = ["TERM_3", "END_OF_YEAR"].includes(String(report.term || "").toUpperCase());
@@ -393,6 +440,7 @@
        ${periodSummary(report)}
        ${earlyYearsRemarks(report, "NURSERY")}
       ${stampBlock(report, options)}
+      ${authenticityQrBlock(report)}
        ${footer(report, "NURSERY")}
       </div>
     </article>`;
@@ -446,6 +494,7 @@
        <section class="rc-activities">${table(["SUBJECT", "GR", "TEACHER'S REMARKS", "INITIALS"], activities, "", "", "OTHER SUBJECTS / CO-CURRICULAR")}</section>
       ${earlyYearsRemarks(report, "PRIMARY")}
       ${stampBlock(report, options)}
+       ${authenticityQrBlock(report)}
       ${footer(report, "PRIMARY")}
       </div>
     </article>`;
@@ -508,6 +557,7 @@
         ${level === "A_LEVEL" && projects.length ? `<section class="rc-projects">${table(["TERMLY PROJECT WORK", "AVERAGE SCORE (10)", "OUT OF 100", "GRADE", "REMARKS", "TEACHER"], projects, "", "", projectHeading)}</section>` : ""}
        ${remarksAndSignatures(report, ["Class Teacher", "Head Teacher"], 2)}
       ${stampBlock(report, options)}
+       ${authenticityQrBlock(report)}
       ${footer(report, level)}
       </div>
     </article>`;

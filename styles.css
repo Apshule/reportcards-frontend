@@ -206,14 +206,28 @@ body.marks-entry-fullscreen{overflow:hidden}
 .rc-remarks-grid b,.rc-remarks-grid span{display:block}.rc-remarks-grid b{color:var(--rc-theme);font-size:8px;text-transform:uppercase;letter-spacing:.25px}
 .rc-remarks-grid span{margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere}
 .rc-remarks-signatures .rc-signatures{margin:0;padding:10px;background:transparent;border:0}
-.rc-stamp-preview{width:68px;min-height:54px;margin:8px 8px 0 auto;padding:7px 4px;border:2px double var(--rc-theme);border-radius:50%;display:grid;align-content:center;text-align:center;color:var(--rc-theme);font-size:6px;font-weight:800;line-height:1.25;overflow-wrap:anywhere;transform:rotate(-5deg)}
+.rc-preview{position:relative}
+.rc-stamp-preview{position:absolute;z-index:3;right:4.5mm;bottom:13mm;width:68px;height:68px;margin:0;padding:0;border:0;border-radius:50%;text-align:center;color:var(--rc-stamp-text,var(--rc-theme));font-size:6px;font-weight:800;line-height:1.25;overflow:visible}
+.rc-stamp-preview::before{content:"";position:absolute;inset:0;border:2px double var(--rc-stamp-border,#000);border-radius:inherit;transform:rotate(var(--rc-stamp-rotation,0deg));pointer-events:none}
+.rc-stamp-copy{position:absolute;z-index:1;inset:0;padding:7px 4px;display:grid;align-content:center;text-align:center;color:var(--rc-stamp-text,var(--rc-theme));overflow-wrap:anywhere;transform:rotate(var(--rc-stamp-rotation,0deg));pointer-events:none}
 .rc-learning-table h3{margin-top:0}
 .rc-preview .rc-learning-table h3,.rc-preview .rc-activities h3,.rc-preview .rc-subject-section h3,.rc-preview .rc-projects h3{display:none}
-.rc-stamp-preview{border-color:var(--rc-stamp-color,var(--rc-theme));color:var(--rc-stamp-color,var(--rc-theme));opacity:var(--rc-stamp-opacity,.45);transform:rotate(var(--rc-stamp-rotation,-5deg))}
 .rc-stamp-circle{width:68px;height:68px;border-radius:50%}
 .rc-stamp-oval{width:88px;height:54px;border-radius:50%}
 .rc-stamp-rectangle{width:98px;height:58px;border-radius:2px}
 .rc-stamp-rounded_rectangle{width:98px;height:58px;border-radius:8px}
+.rc-stamp-bottom-left{right:auto;left:2.8mm}
+.rc-stamp-bottom-center{right:auto;left:50%;transform:translateX(-50%)}
+.rc-stamp-logo{position:absolute;z-index:2;width:var(--rc-stamp-logo-size,20mm);height:var(--rc-stamp-logo-size,20mm);max-width:none;object-fit:contain;opacity:var(--rc-stamp-logo-opacity,1);transform:translate(var(--rc-stamp-logo-x,0px),var(--rc-stamp-logo-y,0px)) rotate(var(--rc-stamp-logo-rotation,0deg));pointer-events:none}
+.rc-stamp-logo-inside_center{left:50%;top:50%;transform:translate(calc(-50% + var(--rc-stamp-logo-x,0px)),calc(-50% + var(--rc-stamp-logo-y,0px))) rotate(var(--rc-stamp-logo-rotation,0deg))}
+.rc-stamp-logo-inside_top{left:50%;top:23%;transform:translate(calc(-50% + var(--rc-stamp-logo-x,0px)),calc(-50% + var(--rc-stamp-logo-y,0px))) rotate(var(--rc-stamp-logo-rotation,0deg))}
+.rc-stamp-logo-inside_bottom{left:50%;top:77%;transform:translate(calc(-50% + var(--rc-stamp-logo-x,0px)),calc(-50% + var(--rc-stamp-logo-y,0px))) rotate(var(--rc-stamp-logo-rotation,0deg))}
+.rc-stamp-logo-inside_left{left:23%;top:50%;transform:translate(calc(-50% + var(--rc-stamp-logo-x,0px)),calc(-50% + var(--rc-stamp-logo-y,0px))) rotate(var(--rc-stamp-logo-rotation,0deg))}
+.rc-stamp-logo-inside_right{left:77%;top:50%;transform:translate(calc(-50% + var(--rc-stamp-logo-x,0px)),calc(-50% + var(--rc-stamp-logo-y,0px))) rotate(var(--rc-stamp-logo-rotation,0deg))}
+.rc-stamp-logo-outside_left{left:calc(0px - var(--rc-stamp-logo-size,20mm) - 4px);top:50%;transform:translate(var(--rc-stamp-logo-x,0px),calc(-50% + var(--rc-stamp-logo-y,0px))) rotate(var(--rc-stamp-logo-rotation,0deg))}
+.rc-stamp-logo-outside_right{left:calc(100% + 4px);top:50%;transform:translate(var(--rc-stamp-logo-x,0px),calc(-50% + var(--rc-stamp-logo-y,0px))) rotate(var(--rc-stamp-logo-rotation,0deg))}
+.rc-authenticity-qr{position:absolute;z-index:4;left:50%;bottom:13mm;width:24mm;display:flex;flex-direction:column;align-items:center;gap:1mm;transform:translateX(-50%);color:#292434;font-size:5pt;font-weight:700;line-height:1.15;text-align:center}
+.rc-authenticity-qr img{display:block;width:20mm;height:20mm;max-width:none;object-fit:contain;background:#fff}
 .rc-preview .rc-head{min-height:174px;grid-template-columns:113px minmax(0,1fr) 113px;gap:12px;padding:10px 14px}
 .rc-preview .rc-brand-image{width:113px;height:113px}
 .rc-preview .rc-learner-image{width:113px;height:151px}

@@ -15,7 +15,7 @@
     ["finance","Finance","fa-coins"],["settings","School settings","fa-calendar-days"],["review","Marks review","fa-clipboard-check"]
   ];
     const state = {token:localStorage.getItem(TOKEN_KEY)||"",school:null,user:null,role:"school_admin",mustChangePassword:false,route:"dashboard",loading:false,modal:null,toast:null,filter:{level:"",class_id:"",subject_id:"",academic_year:String(new Date().getFullYear()),term:"TERM_1",search:""},data:{},authMode:authPathMode(),finance:{tab:"overview",term:"TERM_1",year:String(new Date().getFullYear()),loading:false,error:"",data:{},incomeFilters:{},expenseFilters:{},schoolpayFilters:{},reportClass:"",feeBalanceClass:""},rm:{classes:null,marks:null,submission:null,comments:{},signature:null,review:null,reviewBusy:false,promotionClassId:"",promotion:null,promotionBusy:false,promotionError:"",markEntryMode:"CBC",rawMarkMax:100,commentOptions:[]},parentAdmin:{announcements:[],feedback:[],loading:false,error:""}};
-  const reportState = {classId:"",learnerId:"",term:"TERM_1",year:String(new Date().getFullYear()),template:"1",period:"EOT",includeStamp:true,zoom:100,fullscreen:false,data:null,learners:[],busy:false,rosterBusy:false,rosterRequestId:0,rosterError:"",error:"",promotionError:"",promotionBusy:false};
+  const reportState = {classId:"",learnerId:"",term:"TERM_1",year:String(new Date().getFullYear()),template:"1",period:"EOT",includeStamp:true,zoom:100,fullscreen:false,data:null,learners:[],busy:false,rosterBusy:false,rosterRequestId:0,rosterError:"",error:"",promotionError:"",promotionBusy:false,verifications:{},verificationBusy:false,verificationError:"",verificationRequestId:0};
   const projectState = {classId:"",term:"TERM_1",year:String(new Date().getFullYear()),data:null,busy:false,error:""};
   const root = document.getElementById("app");
   let schoolpayTimer=null;
@@ -271,15 +271,15 @@
      const promotionPanel=reportState.term==="TERM_3"&&selected&&state.role==="school_admin"?`<section class="card section-card promotion-decision-card"><div class="section-title"><div><h2>Promotion decision</h2><p>Term III recommendation based on the learner’s final average.</p></div></div>${reportState.promotionError?`<div class="alert error" role="alert">${esc(reportState.promotionError)}</div>`:""}<div class="promotion-decision-summary"><span><strong>Final average</strong> ${fmt(promotion?.final_avg)}</span><span><strong>Suggested</strong> ${esc(promotionText(promotion?.suggested_decision,promotion?.current_class,promotion?.next_class))}</span></div><div class="promotion-edit-row"><div class="field"><label for="report-promotion-decision">Admin decision</label><select id="report-promotion-decision" data-promotion-decision><option value="promoted" ${(promotion?.promotion_decision||promotion?.suggested_decision)==="promoted"?"selected":""}>Promoted</option><option value="try_another" ${(promotion?.promotion_decision||promotion?.suggested_decision)==="try_another"?"selected":""}>Try another class</option><option value="repeat" ${(promotion?.promotion_decision||promotion?.suggested_decision)==="repeat"?"selected":""}>Advised to repeat</option><option value="pending" ${(promotion?.promotion_decision||promotion?.suggested_decision)==="pending"?"selected":""}>Pending</option></select></div><div class="field"><label for="report-promotion-note">Decision note <span class="field-hint">(optional)</span></label><input id="report-promotion-note" maxlength="2000" value="${esc(promotion?.promotion_note||"")}" placeholder="Add a note for the learner’s record"></div><button class="btn btn-primary" data-action="save-report-promotion" ${reportState.promotionBusy?"disabled":""}>${icon("fa-floppy-disk")} ${reportState.promotionBusy?"Saving…":"Save decision"}</button></div></section>`:"";
     const ages=reports.map(item=>Number(item.learner?.age)).filter(age=>Number.isFinite(age)&&age>0);
     const classAverageAge=ages.length?ages.reduce((sum,age)=>sum+age,0)/ages.length:null;
-    const previewReport=selected?{...selected,school:reportState.data.school,class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,term_dates:reportState.data.term_dates,level_theme:reportState.data.level_theme,stamp_config:reportState.data.stamp_config,class_average_age:classAverageAge}:null;
+     const previewReport=selected?{...selected,school:reportState.data.school,class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,term_dates:reportState.data.term_dates,level_theme:reportState.data.level_theme,stamp_config:reportState.data.stamp_config,class_average_age:classAverageAge,authenticity_qr_data_url:reportState.verifications[String(selected.learner?.id)]?.qrDataUrl}:null;
     const cardMarkup=previewReport&&window.ReportCardPreview?window.ReportCardPreview.render(previewReport,{template:reportState.template,period:reportState.period,includeStamp:reportState.includeStamp}):"";
     const previewToolbar=(fullscreen=false)=>`<div class="rc-viewer-controls" role="toolbar" aria-label="Report card preview controls">
       <div class="rc-viewer-zoom"><button class="btn btn-outline btn-small" data-action="preview-zoom-out" aria-label="Zoom out">−</button><span data-preview-zoom-label>${reportState.zoom}%</span><button class="btn btn-outline btn-small" data-action="preview-zoom-in" aria-label="Zoom in">+</button></div>
       ${fullscreen?`<button class="btn btn-outline btn-small" data-action="preview-close-fullscreen">${icon("fa-xmark")} Close</button>`:`<button class="btn btn-outline btn-small" data-action="preview-fullscreen">${icon("fa-expand")} Full screen</button>`}
-      <button class="btn btn-outline btn-small" data-action="print-report-learner">${icon("fa-print")} Print this learner</button>
-      <button class="btn btn-outline btn-small" data-action="print-report-class">${icon("fa-print")} Print whole class</button>
-      <button class="btn btn-outline btn-small" data-action="download-report-pdf">${icon("fa-file-pdf")} Download PDF</button>
-      <button class="btn btn-primary btn-small" data-action="download-report-image">${icon("fa-image")} Download as image</button>
+      <button class="btn btn-outline btn-small" data-action="print-report-learner" ${reportState.verificationBusy?"disabled":""}>${icon("fa-print")} Print this learner</button>
+      <button class="btn btn-outline btn-small" data-action="print-report-class" ${reportState.verificationBusy?"disabled":""}>${icon("fa-print")} Print whole class</button>
+      <button class="btn btn-outline btn-small" data-action="download-report-pdf" ${reportState.verificationBusy?"disabled":""}>${icon("fa-file-pdf")} Download PDF</button>
+      <button class="btn btn-primary btn-small" data-action="download-report-image" ${reportState.verificationBusy?"disabled":""}>${icon("fa-image")} Download as image</button>
     </div>`;
     const previewStage=(fullscreen=false)=>`<div class="rc-preview-stage ${fullscreen?"is-fullscreen-stage":""}"><div class="rc-preview-paper-box"><div class="rc-preview-paper">${cardMarkup}</div></div></div>`;
     const preview=cardMarkup?`<div class="rc-preview-viewer">
@@ -287,7 +287,7 @@
       ${reportState.fullscreen?`<div class="rc-preview-fullscreen" role="dialog" aria-modal="true" aria-label="Full-screen report card preview"><div class="rc-preview-fullscreen-panel">${previewToolbar(true)}${previewStage(true)}</div></div>`:""}
     </div>`:"";
     const templatePicker=window.ReportCardTemplatePicker?window.ReportCardTemplatePicker.render({level,template:reportState.template,period:reportState.period,includeStamp:reportState.includeStamp}):"";
-    const actions=`<button class="btn btn-outline" data-action="download-class-zip" ${!reports.length||reportState.busy?"disabled":""}>${icon("fa-file-zipper")} Download class ZIP</button><button class="btn btn-primary" data-action="download-report-pdf" ${!selected||reportState.busy?"disabled":""}>${icon("fa-file-pdf")} Download PDF</button>`;
+     const actions=`<button class="btn btn-outline" data-action="download-class-zip" ${!reports.length||reportState.busy||reportState.verificationBusy?"disabled":""}>${icon("fa-file-zipper")} Download class ZIP</button><button class="btn btn-primary" data-action="download-report-pdf" ${!selected||reportState.busy||reportState.verificationBusy?"disabled":""}>${icon("fa-file-pdf")} Download PDF</button>`;
     const canManageProjects=state.role==="school_admin";
     const projects=selected?.projects||[];
     const projectPanel=selected&&isALevel(reportState.data?.class?.level)&&canManageProjects?`
@@ -301,7 +301,7 @@
       <div class="field"><label for="report-term">Term</label><select id="report-term" data-report-filter="term">${["TERM_1","TERM_2","TERM_3"].map(t=>`<option value="${t}" ${reportState.term===t?"selected":""}>${t.replace("_"," ")}</option>`).join("")}</select></div>
        <button class="btn btn-primary" data-action="load-report-class" ${reportState.busy||!classes.length?"disabled":""}>${icon("fa-eye")} Load preview</button></div>
        ${templatePicker}
-        ${reportState.error?`<div class="alert error" role="alert">${esc(reportState.error)}</div>`:""}${reportState.rosterError?`<div class="alert error" role="alert">${esc(reportState.rosterError)}</div>`:""}${reportState.busy?loading():""}
+        ${reportState.error?`<div class="alert error" role="alert">${esc(reportState.error)}</div>`:""}${reportState.rosterError?`<div class="alert error" role="alert">${esc(reportState.rosterError)}</div>`:""}${reportState.verificationError?`<div class="alert error" role="alert">${esc(reportState.verificationError)} <button class="text-button" type="button" data-action="retry-report-verification">Retry</button></div>`:""}${reportState.verificationBusy?'<div class="alert info" role="status">Preparing the authenticity QR code…</div>':""}${reportState.busy?loading():""}
        ${!classes.length?empty("No classes yet","Create a class and add learners before generating report cards."):!reportState.data?`<div class="report-empty"><strong>Choose a class and assessment period.</strong><span>The preview uses saved marks, fees, school details, and term dates for that period.</span></div>`:!learners.length?empty("No active learners in this class","Add an active learner to this class before generating report cards."):!reportState.learnerId?empty("Choose a learner","Select a learner to preview their report card."):!selected?empty("Report data unavailable","This learner is in the class register, but report-card details were not returned. Reload the preview."):preview}</section>${promotionPanel}${projectPanel}`;
   }
 
@@ -733,6 +733,7 @@
     if(a==="toggle-auth"){state.authMode=state.authMode==="signup"?"login":"signup";if(requestedPath==="/"||requestedPath==="/login"||requestedPath==="/signup")history.replaceState(null,"",`/${state.authMode}`);renderAuth();return}
     if(a==="toggle-password"){const input=document.getElementById(button.dataset.target);if(!input)return;const visible=input.type==="password";input.type=visible?"text":"password";button.setAttribute("aria-pressed",String(visible));button.setAttribute("aria-label",visible?"Hide password":"View password");button.innerHTML=icon(visible?"fa-eye-slash":"fa-eye");input.focus();return}
     if(a==="logout"){logout();return}
+    if(a==="retry-report-verification"){await loadSelectedReportVerification();return}
     if(a==="preview-zoom-in"){reportState.zoom=Math.min(180,(Number(reportState.zoom)||100)+10);render();return}
     if(a==="preview-zoom-out"){reportState.zoom=Math.max(50,(Number(reportState.zoom)||100)-10);render();return}
     if(a==="preview-fullscreen"){reportState.fullscreen=true;render();return}
@@ -886,18 +887,105 @@
       if(requestId===reportState.rosterRequestId){reportState.rosterBusy=false;render()}
     }
   }
-  async function loadReportClass(){
-    if(!reportState.classId){reportState.error="Choose a class first.";render();return}
-    if(!/^\d{4}$/.test(String(reportState.year))){reportState.error="Enter a valid four-digit year.";render();return}
-    reportState.busy=true;reportState.error="";reportState.promotionError="";render();
-    const q=new URLSearchParams({term:reportState.term,year:String(reportState.year),period:window.ReportCardTemplatePicker.normalizePeriod(reportState.period),template:window.ReportCardTemplatePicker.normalizeTemplate(reportState.template)});
-    try{const classId=reportState.classId;const learnerQuery=new URLSearchParams({class_id:classId});const [,cardData,rosterData]=await Promise.all([window.ReportCardThemeEngine?.load(api),api(`/api/class/${encodeURIComponent(classId)}/card-data?${q}`),api(`/api/learners?${learnerQuery}`)]);reportState.data=cardData;reportState.learners=rosterData.learners||[];if(reportState.term==="TERM_3"){try{const promotion=await api(`/api/class/${encodeURIComponent(classId)}/promotion-suggestions?term=TERM_3&year=${encodeURIComponent(reportState.year)}`);const byLearner=new Map((promotion.suggestions||[]).map(item=>[String(item.learner.id),item]));cardData.learners=(cardData.learners||[]).map(item=>{const decision=byLearner.get(String(item.learner.id));return {...item,promotion:decision||null,promotion_decision:decision?.promotion_decision||decision?.suggested_decision||null,suggested_decision:decision?.suggested_decision||null,promotion_note:decision?.promotion_note||null,promotion_current_class:decision?.current_class||promotion.current_class||cardData.class?.name,promotion_next_class:decision?.next_class||promotion.next_class}})}catch(error){reportState.promotionError=error.message}}const reports=cardData.learners||[];const mismatches=reportState.learners.filter(learner=>!reports.some(report=>String(report.learner.id)===String(learner.id)));if(mismatches.length)reportState.error="The class register and report-card data returned different learners. Reload the preview and try again.";if(!reportState.learners.some(learner=>String(learner.id)===String(reportState.learnerId)))reportState.learnerId=reportState.learners[0]?.id||""}
-    catch(error){reportState.data=null;reportState.learners=[];reportState.error=error.message}
-    finally{reportState.busy=false;render()}
-  }
+   async function issueReportAuthenticityCodes(reports){
+     const learnerIds=[...new Set((reports||[]).map(report=>String(report.learner?.id||"")).filter(Boolean))];
+     if(!learnerIds.length)return{};
+     if(!window.ReportCardsAuthenticityQr)throw new Error("QR verification support did not load. Refresh and try again.");
+     const response=await api("/api/verify/issue",{method:"POST",body:{
+       learner_ids:learnerIds,
+       term:reportState.term,
+       year:Number(reportState.year),
+       period:window.ReportCardTemplatePicker.normalizePeriod(reportState.period),
+       template:window.ReportCardTemplatePicker.normalizeTemplate(reportState.template),
+     }});
+     const records=new Map((response.cards||[]).map(card=>[String(card.learner_id),card]));
+     const entries=await Promise.all(learnerIds.map(async learnerId=>{
+       const record=records.get(learnerId);
+       if(!record?.id)throw new Error("The authenticity record was not created for every learner.");
+       const url=window.ReportCardsAuthenticityQr.verificationUrl(record.id);
+       const qrDataUrl=await window.ReportCardsAuthenticityQr.toPngDataUrl(url);
+       return [learnerId,{id:record.id,url,qrDataUrl}];
+     }));
+     return Object.fromEntries(entries);
+   }
+   async function loadSelectedReportVerification(){
+     const report=reportState.data?.learners?.find(item=>String(item.learner?.id)===String(reportState.learnerId));
+     if(!report)return;
+     const learnerId=String(report.learner.id);
+     if(reportState.verifications[learnerId])return;
+     const requestId=++reportState.verificationRequestId;
+     reportState.verificationBusy=true;
+     reportState.verificationError="";
+     render();
+     try{
+       const codes=await issueReportAuthenticityCodes([report]);
+       if(requestId===reportState.verificationRequestId)reportState.verifications={...reportState.verifications,...codes};
+     }catch(error){
+       if(requestId===reportState.verificationRequestId)reportState.verificationError=error.message||"Could not prepare the authenticity QR code.";
+     }finally{
+       if(requestId===reportState.verificationRequestId){reportState.verificationBusy=false;render()}
+     }
+   }
+   async function loadReportClass(){
+     if(!reportState.classId){reportState.error="Choose a class first.";render();return}
+     if(!/^\d{4}$/.test(String(reportState.year))){reportState.error="Enter a valid four-digit year.";render();return}
+     reportState.busy=true;
+     reportState.error="";
+     reportState.promotionError="";
+     reportState.verificationError="";
+     reportState.verificationBusy=false;
+     reportState.verificationRequestId++;
+     reportState.verifications={};
+     render();
+     const q=new URLSearchParams({
+       term:reportState.term,
+       year:String(reportState.year),
+       period:window.ReportCardTemplatePicker.normalizePeriod(reportState.period),
+       template:window.ReportCardTemplatePicker.normalizeTemplate(reportState.template),
+     });
+     try{
+       const classId=reportState.classId;
+       const learnerQuery=new URLSearchParams({class_id:classId});
+       const [,cardData,rosterData]=await Promise.all([
+         window.ReportCardThemeEngine?.load(api),
+         api(`/api/class/${encodeURIComponent(classId)}/card-data?${q}`),
+         api(`/api/learners?${learnerQuery}`),
+       ]);
+       reportState.data=cardData;
+       reportState.learners=rosterData.learners||[];
+       if(reportState.term==="TERM_3"){
+         try{
+           const promotion=await api(`/api/class/${encodeURIComponent(classId)}/promotion-suggestions?term=TERM_3&year=${encodeURIComponent(reportState.year)}`);
+           const byLearner=new Map((promotion.suggestions||[]).map(item=>[String(item.learner.id),item]));
+           cardData.learners=(cardData.learners||[]).map(item=>{
+             const decision=byLearner.get(String(item.learner.id));
+             return {...item,promotion:decision||null,promotion_decision:decision?.promotion_decision||decision?.suggested_decision||null,suggested_decision:decision?.suggested_decision||null,promotion_note:decision?.promotion_note||null,promotion_current_class:decision?.current_class||promotion.current_class||cardData.class?.name,promotion_next_class:decision?.next_class||promotion.next_class};
+           });
+         }catch(error){reportState.promotionError=error.message}
+       }
+       const reports=cardData.learners||[];
+       const mismatches=reportState.learners.filter(learner=>!reports.some(report=>String(report.learner.id)===String(learner.id)));
+       if(mismatches.length)reportState.error="The class register and report-card data returned different learners. Reload the preview and try again.";
+       if(!reportState.learners.some(learner=>String(learner.id)===String(reportState.learnerId)))reportState.learnerId=reportState.learners[0]?.id||"";
+       const selected=reports.find(report=>String(report.learner?.id)===String(reportState.learnerId));
+       if(selected){
+         reportState.verificationBusy=true;
+         try{reportState.verifications=await issueReportAuthenticityCodes([selected])}
+         catch(error){reportState.verificationError=error.message||"Could not prepare the authenticity QR code."}
+         finally{reportState.verificationBusy=false}
+       }
+     }catch(error){
+       reportState.data=null;
+       reportState.learners=[];
+       reportState.error=error.message;
+     }finally{
+       reportState.busy=false;
+       render();
+     }
+   }
   function saveDownload(blob,name){const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
   function filePart(value){return String(value||"learner").normalize("NFKD").replace(/[^\w.-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,90)||"learner"}
-    function reportForDownload(report,stampConfig){
+    function reportForDownload(report,stampConfig,verification=reportState.verifications[String(report.learner?.id)]){
       const ages=(reportState.data?.learners||[]).map(item=>Number(item.learner?.age)).filter(age=>Number.isFinite(age)&&age>0);
       const classAverageAge=ages.length?ages.reduce((sum,age)=>sum+age,0)/ages.length:null;
       const school=reportState.data?.school||{};
@@ -910,7 +998,7 @@
       const stampLogoPosition=stampConfig?.stamp_logo_position??school.stamp_logo_position??stamp.stamp_logo_position??"inside_center";
       const defaults={stamp_logo_size:20,stamp_logo_offset_x:0,stamp_logo_offset_y:0,stamp_logo_rotation:0,stamp_logo_opacity:100};
       const logoSettings=Object.fromEntries(Object.keys(defaults).map(key=>[key,stampConfig?.[key]??school[key]??defaults[key]]));
-      return {...report,school:{...school,stamp_config:stamp,stamp_logo_position:stampLogoPosition,...logoSettings},class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,term_dates:reportState.data.term_dates,period:reportState.period,template:reportState.template,level_theme:reportState.data.level_theme,stamp_config:stamp,class_average_age:classAverageAge};
+      return {...report,school:{...school,stamp_config:stamp,stamp_logo_position:stampLogoPosition,...logoSettings},class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,term_dates:reportState.data.term_dates,period:reportState.period,template:reportState.template,level_theme:reportState.data.level_theme,stamp_config:stamp,class_average_age:classAverageAge,authenticity_qr_data_url:verification?.qrDataUrl};
     }
   async function printReportCards(wholeClass){
     const reports=reportState.data?.learners||[];
@@ -919,8 +1007,9 @@
     if(!list.length){toast(wholeClass?"Load a class first.":"Choose a learner first.","error");return}
     try{
       const stamp=reportState.includeStamp?await api("/api/schools/stamp"):undefined;
+      const verificationCodes=await issueReportAuthenticityCodes(list);
       const printRoot=document.createElement("div");printRoot.id="rc-print-root";
-      printRoot.innerHTML=list.map(item=>`<section class="rc-print-card">${window.ReportCardPreview.render(reportForDownload(item,stamp),{template:reportState.template,period:reportState.period,includeStamp:reportState.includeStamp})}</section>`).join("");
+      printRoot.innerHTML=list.map(item=>`<section class="rc-print-card">${window.ReportCardPreview.render(reportForDownload(item,stamp,verificationCodes[String(item.learner?.id)]),{template:reportState.template,period:reportState.period,includeStamp:reportState.includeStamp})}</section>`).join("");
       document.getElementById("rc-print-root")?.remove();
       document.body.append(printRoot);document.body.classList.add("printing-report-cards");
       const cleanup=()=>{document.body.classList.remove("printing-report-cards");printRoot.remove()};
@@ -947,7 +1036,7 @@
     const report=reportState.data?.learners?.find(r=>String(r.learner.id)===String(reportState.learnerId));
     if(!report){toast("Load a class and choose a learner first.","error");return}
     if(!window.ReportCardPdf||!window.PDFLib){toast("The PDF library did not load. Refresh and try again.","error");return}
-    try{const currentStamp=reportState.includeStamp?await api("/api/schools/stamp"):undefined;const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp),reportState.data.class.level,reportState.template,reportState.includeStamp);saveDownload(new Blob([bytes],{type:"application/pdf"}),`${filePart(report.learner.reg_no||report.learner.full_name)}-${reportState.data.term}-${reportState.data.year}-${filePart(reportState.period)}-template-${reportState.template}.pdf`)}
+    try{let verification=reportState.verifications[String(report.learner.id)];if(!verification){const codes=await issueReportAuthenticityCodes([report]);verification=codes[String(report.learner.id)];reportState.verifications={...reportState.verifications,...codes}}const currentStamp=reportState.includeStamp?await api("/api/schools/stamp"):undefined;const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp,verification),reportState.data.class.level,reportState.template,reportState.includeStamp);saveDownload(new Blob([bytes],{type:"application/pdf"}),`${filePart(report.learner.reg_no||report.learner.full_name)}-${reportState.data.term}-${reportState.data.year}-${filePart(reportState.period)}-template-${reportState.template}.pdf`)}
     catch(error){toast(error.message||"Could not generate the PDF.","error")}
   }
   async function downloadClassZip(){
@@ -955,7 +1044,7 @@
     if(!reports.length){toast("Load a class first.","error");return}
     if(!window.ReportCardPdf||!window.PDFLib){toast("The PDF library did not load. Refresh and try again.","error");return}
     reportState.busy=true;render();
-    try{const currentStamp=reportState.includeStamp?await api("/api/schools/stamp"):undefined;const files=[];for(const report of reports){const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp),reportState.data.class.level,reportState.template,reportState.includeStamp);files.push({name:`${filePart(report.learner.reg_no||report.learner.full_name)}-${filePart(report.learner.full_name)}.pdf`,bytes})}const zip=window.ReportCardPdf.createZip(files);saveDownload(zip,`report-cards-${filePart(reportState.data.class.name)}-${reportState.data.term}-${reportState.data.year}-${filePart(reportState.period)}-template-${reportState.template}.zip`);toast(`Downloaded ${reports.length} report cards.`)}
+    try{const [currentStamp,verificationCodes]=await Promise.all([reportState.includeStamp?api("/api/schools/stamp"):Promise.resolve(undefined),issueReportAuthenticityCodes(reports)]);const files=[];for(const report of reports){const verification=verificationCodes[String(report.learner?.id)];const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp,verification),reportState.data.class.level,reportState.template,reportState.includeStamp);files.push({name:`${filePart(report.learner.reg_no||report.learner.full_name)}-${filePart(report.learner.full_name)}.pdf`,bytes})}const zip=window.ReportCardPdf.createZip(files);saveDownload(zip,`report-cards-${filePart(reportState.data.class.name)}-${reportState.data.term}-${reportState.data.year}-${filePart(reportState.period)}-template-${reportState.template}.zip`);toast(`Downloaded ${reports.length} report cards.`)}
     catch(error){toast(error.message||"Could not create the class ZIP.","error")}
     finally{reportState.busy=false;render()}
   }
@@ -1084,7 +1173,7 @@
   });
   root.addEventListener("click",e=>{const financeTab=e.target.closest("[data-fin-tab]");if(financeTab){e.preventDefault();state.finance.tab=financeTab.dataset.finTab;loadRoute("finance");return}const financeButton=e.target.closest("[data-fin-action]");if(financeButton){e.preventDefault();financeAction(financeButton);return}const link=e.target.closest("[data-route]");if(link){e.preventDefault();go(link.dataset.route);return}const btn=e.target.closest("[data-action]");if(btn)action(btn,e)});
   root.addEventListener("input",e=>{if(e.target.matches("[data-score]"))calculateMarks(e.target.closest("tr"));if(e.target.matches("[data-watermark-opacity]")){const output=root.querySelector("#watermark-opacity-value");if(output)output.textContent=`${e.target.value}%`}});
-  root.addEventListener("change",e=>{const t=e.target;if(t.matches("[data-filter]")){state.filter[t.dataset.filter]=t.value;if(t.dataset.filter==="class_id"&&state.route==="marks"){state.filter.subject_id="";loadRoute("marks")}else if(t.dataset.filter==="level"&&["subjects","grading"].includes(state.route)){state.filter.level=t.value;loadRoute(state.route)}}if(t.matches("[data-rm-filter]")){state.filter[t.dataset.rmFilter]=t.value;if(t.dataset.rmFilter==="class_id"){const first=(state.rm.classes||[]).find(c=>String(c.class_id)===String(t.value));state.filter.subject_id=first?.subject_id||""}if(state.route==="review")loadReviewQueue();else render()}if(t.matches("[data-report-filter]")){const key=t.dataset.reportFilter;if(key==="includeStamp"){reportState.includeStamp=t.checked;render()}else{reportState[key]=t.value;if(key==="template"||key==="period"){reportState.error="";if(reportState.data)loadReportClass();else render()}else if(key==="learnerId")render();else{reportState.data=null;reportState.learners=[];reportState.learnerId="";reportState.error="";render()}}}if(t.matches("[data-fin-filter]")){state.finance[t.dataset.finFilter]=t.value;if(t.dataset.finFilter==="reportClass")state.finance.reportClass=t.value;loadRoute("finance")}if(t.matches("[data-signature-file]")&&t.files?.[0]){const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const c=document.getElementById("signature-canvas"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);const scale=Math.min(c.width/img.width,c.height/img.height);ctx.drawImage(img,(c.width-img.width*scale)/2,(c.height-img.height*scale)/2,img.width*scale,img.height*scale)};img.src=reader.result};reader.readAsDataURL(t.files[0])}if(t.id==="csv-file"&&t.files?.[0])importCsv(t.files[0]);if(t.id==="finance-csv"&&t.files?.[0])importFinanceCsv(t.files[0])});
+   root.addEventListener("change",e=>{const t=e.target;if(t.matches("[data-filter]")){state.filter[t.dataset.filter]=t.value;if(t.dataset.filter==="class_id"&&state.route==="marks"){state.filter.subject_id="";loadRoute("marks")}else if(t.dataset.filter==="level"&&["subjects","grading"].includes(state.route)){state.filter.level=t.value;loadRoute(state.route)}}if(t.matches("[data-rm-filter]")){state.filter[t.dataset.rmFilter]=t.value;if(t.dataset.rmFilter==="class_id"){const first=(state.rm.classes||[]).find(c=>String(c.class_id)===String(t.value));state.filter.subject_id=first?.subject_id||""}if(state.route==="review")loadReviewQueue();else render()}if(t.matches("[data-report-filter]")){const key=t.dataset.reportFilter;if(key==="includeStamp"){reportState.includeStamp=t.checked;render()}else{reportState[key]=t.value;if(key==="template"||key==="period"){reportState.error="";if(reportState.data)loadReportClass();else render()}else if(key==="learnerId"){reportState.verificationError="";render();loadSelectedReportVerification()}else{reportState.verificationRequestId++;reportState.verifications={};reportState.verificationBusy=false;reportState.verificationError="";reportState.data=null;reportState.learners=[];reportState.learnerId="";reportState.error="";render()}}}if(t.matches("[data-fin-filter]")){state.finance[t.dataset.finFilter]=t.value;if(t.dataset.finFilter==="reportClass")state.finance.reportClass=t.value;loadRoute("finance")}if(t.matches("[data-signature-file]")&&t.files?.[0]){const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const c=document.getElementById("signature-canvas"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);const scale=Math.min(c.width/img.width,c.height/img.height);ctx.drawImage(img,(c.width-img.width*scale)/2,(c.height-img.height*scale)/2,img.width*scale,img.height*scale)};img.src=reader.result};reader.readAsDataURL(t.files[0])}if(t.id==="csv-file"&&t.files?.[0])importCsv(t.files[0]);if(t.id==="finance-csv"&&t.files?.[0])importFinanceCsv(t.files[0])});
   root.addEventListener("change",e=>{const filter=e.target.closest("[data-project-filter]");if(!filter)return;projectState[filter.dataset.projectFilter]=filter.value;projectState.error="";state.data.projectRegister=null;render()});
    root.addEventListener("change",e=>{const select=e.target.closest("[data-promotion-class]");if(select){state.rm.promotionClassId=select.value;loadReviewQueue()}});
    root.addEventListener("submit",async e=>{if(e.target.id==="auth-form"){e.preventDefault();await submitAuth(e.target)}else if(e.target.id==="modal-form"){e.preventDefault();await handleModalSubmit(e.target)}else if(e.target.matches("[data-fin-form]")){e.preventDefault();await handleFinanceSubmit(e.target)}else if(e.target.id==="settings-form"){e.preventDefault();await saveSchoolSettings(e.target)}else if(e.target.id==="promotion-rules-form"){e.preventDefault();await savePromotionRules(e.target)}else if(e.target.id==="report-card-stamp-builder"){e.preventDefault();await saveStampSettings(e.target)}});

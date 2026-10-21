@@ -197,8 +197,26 @@
     try {
       if (!state.card) await loadCard();
       if (!window.ReportCardPdf || !window.PDFLib) throw new Error("Report card PDF library is unavailable. Refresh and try again.");
+      if (!window.ReportCardsAuthenticityQr) throw new Error("Report verification support is unavailable. Refresh and try again.");
+      const templateValue = String(state.card.template || state.template);
+      const templateId = /^template_/iu.test(templateValue) ? templateValue : `template_${templateValue}`;
+      const issued = await api("/api/verify/issue", {
+        method: "POST",
+        body: {
+          learner_id: state.card.learner?.id,
+          term: state.card.term,
+          year: Number(state.card.year),
+          period: state.card.period || state.period,
+          template: templateId,
+        },
+      });
+      const record = issued.cards?.[0];
+      if (!record?.id) throw new Error("Could not create a report authenticity record.");
+      const verificationUrl = window.ReportCardsAuthenticityQr.verificationUrl(record.id);
+      const qrDataUrl = await window.ReportCardsAuthenticityQr.toPngDataUrl(verificationUrl);
       const report = {
         ...state.card,
+        authenticity_qr_data_url: qrDataUrl,
         school: { ...state.card.school, stamp_config: state.card.stamp_config || state.card.school?.stamp_config },
         class: state.card.class,
         term: state.card.term,
