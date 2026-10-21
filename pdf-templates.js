@@ -1525,6 +1525,16 @@
     page.drawText(line, { x: drawX, y, size, font, color: fill });
   }
 
+  function a5GradeLabel(mark = {}) {
+    const grade = String(mark.grade ?? "").trim();
+    const overall = String(mark.overall_grade_code ?? "").trim();
+    const points = mark.points === null || mark.points === undefined || mark.points === ""
+      ? ""
+      : String(mark.points);
+    if (overall) return `${grade ? `${grade}/` : ""}${overall}${points ? ` (${points})` : ""}`;
+    return `${grade}${points ? ` (${points})` : ""}` || "—";
+  }
+
   async function renderA5Condensed(report, classLevel) {
     const period = assessmentPeriod(report);
     if (period.key !== "COMBINED_BM") {
@@ -1619,7 +1629,7 @@
         num(periodValue(mark, "bot", period), 1),
         num(periodValue(mark, "mid_term", period), 1),
         num(periodScore(mark, period), 1),
-        gradeLabel(mark),
+        a5GradeLabel(mark),
         mark.tr || mark.teacher_remark || mark.descriptor || mark.remark,
       ];
       currentX = x;
