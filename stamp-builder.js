@@ -11,6 +11,7 @@
     line_4: "",
     line_5: "",
     position: "Bottom Right",
+    stamp_logo_position: "inside_center",
     transparency: 100,
     rotation_degrees: 0,
   };
@@ -21,6 +22,13 @@
     ["rounded_rectangle", "Rounded Rectangle"],
   ];
   const positions = ["Bottom Right", "Bottom Left", "Bottom Center"];
+  const logoPositions = [
+    ["inside_center", "Inside Center (Default)"],
+    ["inside_top", "Inside Top"],
+    ["outside_left", "Outside Left"],
+    ["outside_right", "Outside Right"],
+    ["hidden", "Hidden"],
+  ];
   const lineFields = ["line_1", "line_2", "line_3", "line_4", "line_5"];
   const lineLabels = ["Line 1 · Top text", "Line 2", "Line 3 · Center", "Line 4 · Date line", "Line 5 · Bottom text"];
   const linePlaceholders = ["MINISTRY OF EDUCATION", "TRODAT PRIMARY SCHOOL", "Deputy Principal", "21 MAY 2033", "P.O. Box 123, Wakiso"];
@@ -65,6 +73,9 @@
     values.shape = shapes.some(([shape]) => shape === values.shape) ? values.shape : defaults.shape;
     const positionKey = String(values.position || "").toLowerCase().replace(/[\s_-]+/g, "");
     values.position = positions.find((position) => position.toLowerCase().replace(/\s+/g, "") === positionKey) || defaults.position;
+    values.stamp_logo_position = logoPositions.some(([position]) => position === values.stamp_logo_position)
+      ? values.stamp_logo_position
+      : defaults.stamp_logo_position;
     values.primary_color = safeHex(values.primary_color, defaults.primary_color);
     values.secondary_color = safeHex(values.secondary_color, defaults.secondary_color);
     values.transparency = numericValue(values.transparency, defaults.transparency, 0, 100);
@@ -72,6 +83,7 @@
 
     const shapeOptions = shapes.map(([shape, label]) => `<label class="rc-stamp-builder__shape-option"><input type="radio" name="shape" data-stamp-field="shape" value="${escapeHTML(shape)}" ${values.shape === shape ? "checked" : ""}><span>${escapeHTML(label)}</span></label>`).join("");
     const positionOptions = positions.map((position) => `<option value="${escapeHTML(position)}" ${values.position === position ? "selected" : ""}>${escapeHTML(position)}</option>`).join("");
+    const logoPositionOptions = logoPositions.map(([position, label]) => `<option value="${escapeHTML(position)}" ${values.stamp_logo_position === position ? "selected" : ""}>${escapeHTML(label)}</option>`).join("");
     const linesMarkup = lineFields.map((field, index) => `<div class="rc-stamp-builder__field rc-stamp-builder__line-field">
       <label for="stamp-${field}">${lineLabels[index]}</label>
       <input id="stamp-${field}" name="${field}" type="text" maxlength="200" autocomplete="off" data-stamp-field="${field}" value="${escapeHTML(values[field])}" placeholder="${escapeHTML(linePlaceholders[index])}">
@@ -104,6 +116,11 @@
             <div class="rc-stamp-builder__field">
               <label for="stamp-position">Stamp position</label>
               <select id="stamp-position" name="position" data-stamp-field="position">${positionOptions}</select>
+            </div>
+            <div class="rc-stamp-builder__field">
+              <label for="stamp-logo-position">Stamp Logo Position</label>
+              <select id="stamp-logo-position" name="stamp_logo_position" data-stamp-field="stamp_logo_position">${logoPositionOptions}</select>
+              <p class="rc-stamp-builder__hint">Choose where the school logo appears in relation to the digital stamp on PDFs.</p>
             </div>
             <fieldset class="rc-stamp-builder__fieldset">
               <legend>Stamp wording</legend>

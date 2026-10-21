@@ -98,7 +98,7 @@
       else if(route==="announcements"){if(state.role!=="school_admin")throw new Error("Only school administrators can publish announcements.");state.parentAdmin.error="";state.parentAdmin.announcements=(await api("/api/parents/announcements")).announcements||[]}
       else if(route==="parent-feedback"){if(state.role!=="school_admin")throw new Error("Only school administrators can view parent feedback.");state.parentAdmin.error="";state.parentAdmin.feedback=(await api("/api/parents/feedback")).feedback||[]}
       else if(route==="finance"){if(!hasFinanceAccess())throw new Error("Finance access is not assigned to this account.");await loadFinanceTab()}
-       else if(route==="settings"){if(state.role!=="school_admin")throw new Error("School settings are only available to school administrators.");state.data.schoolSettings=null;state.data.promotionSettings=null;state.data.settingsError=null;state.data.stampError="";render();const [schoolResult,stampResult,financeResult]=await Promise.all([api("/api/school/me"),api("/api/schools/stamp"),api("/api/fin/settings")]);state.data.schoolSettings=schoolResult.school||null;state.data.stampConfig=stampResult.stamp_config||{};state.data.promotionSettings=financeResult.settings||{promotion_pass_mark:50,promotion_try_another_min:40};}
+       else if(route==="settings"){if(state.role!=="school_admin")throw new Error("School settings are only available to school administrators.");state.data.schoolSettings=null;state.data.promotionSettings=null;state.data.settingsError=null;state.data.stampError="";render();const [schoolResult,stampResult,financeResult]=await Promise.all([api("/api/school/me"),api("/api/schools/stamp"),api("/api/fin/settings")]);state.data.schoolSettings=schoolResult.school||null;state.data.stampConfig={...(stampResult.stamp_config||{}),stamp_logo_position:stampResult.stamp_logo_position||"inside_center"};state.data.promotionSettings=financeResult.settings||{promotion_pass_mark:50,promotion_try_another_min:40};}
       else if(route==="review"&&state.role==="school_admin")await loadReviewQueue();
     }catch(error){if(["announcements","parent-feedback"].includes(route))state.parentAdmin.error=error.message;else state.data[route+"Error"]=error.message}
     render();
@@ -897,14 +897,14 @@
   }
   function saveDownload(blob,name){const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
   function filePart(value){return String(value||"learner").normalize("NFKD").replace(/[^\w.-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,90)||"learner"}
-  function reportForDownload(report,stampConfig){const ages=(reportState.data?.learners||[]).map(item=>Number(item.learner?.age)).filter(age=>Number.isFinite(age)&&age>0);const classAverageAge=ages.length?ages.reduce((sum,age)=>sum+age,0)/ages.length:null;const stamp=stampConfig===undefined?reportState.data.stamp_config||reportState.data.school?.stamp_config:stampConfig;return {...report,school:{...reportState.data.school,stamp_config:stamp},class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,term_dates:reportState.data.term_dates,period:reportState.period,template:reportState.template,level_theme:reportState.data.level_theme,stamp_config:stamp,class_average_age:classAverageAge}}
+  function reportForDownload(report,stampConfig){const ages=(reportState.data?.learners||[]).map(item=>Number(item.learner?.age)).filter(age=>Number.isFinite(age)&&age>0);const classAverageAge=ages.length?ages.reduce((sum,age)=>sum+age,0)/ages.length:null;const stamp=stampConfig?.stamp_config??(stampConfig===undefined?reportState.data.stamp_config||reportState.data.school?.stamp_config:stampConfig);const stampLogoPosition=stampConfig?.stamp_logo_position||reportState.data.school?.stamp_logo_position||stamp?.stamp_logo_position||"inside_center";return {...report,school:{...reportState.data.school,stamp_config:stamp,stamp_logo_position:stampLogoPosition},class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,term_dates:reportState.data.term_dates,period:reportState.period,template:reportState.template,level_theme:reportState.data.level_theme,stamp_config:stamp,class_average_age:classAverageAge}}
   async function printReportCards(wholeClass){
     const reports=reportState.data?.learners||[];
     const selected=reports.find(item=>String(item.learner?.id)===String(reportState.learnerId));
     const list=wholeClass?reports:(selected?[selected]:[]);
     if(!list.length){toast(wholeClass?"Load a class first.":"Choose a learner first.","error");return}
     try{
-      const stamp=reportState.includeStamp?(await api("/api/schools/stamp")).stamp_config:undefined;
+      const stamp=reportState.includeStamp?await api("/api/schools/stamp"):undefined;
       const printRoot=document.createElement("div");printRoot.id="rc-print-root";
       printRoot.innerHTML=list.map(item=>`<section class="rc-print-card">${window.ReportCardPreview.render(reportForDownload(item,stamp),{template:reportState.template,period:reportState.period,includeStamp:reportState.includeStamp})}</section>`).join("");
       document.getElementById("rc-print-root")?.remove();
@@ -933,7 +933,7 @@
     const report=reportState.data?.learners?.find(r=>String(r.learner.id)===String(reportState.learnerId));
     if(!report){toast("Load a class and choose a learner first.","error");return}
     if(!window.ReportCardPdf||!window.PDFLib){toast("The PDF library did not load. Refresh and try again.","error");return}
-    try{const currentStamp=reportState.includeStamp?(await api("/api/schools/stamp")).stamp_config:undefined;const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp),reportState.data.class.level,reportState.template,reportState.includeStamp);saveDownload(new Blob([bytes],{type:"application/pdf"}),`${filePart(report.learner.reg_no||report.learner.full_name)}-${reportState.data.term}-${reportState.data.year}-${filePart(reportState.period)}-template-${reportState.template}.pdf`)}
+    try{const currentStamp=reportState.includeStamp?await api("/api/schools/stamp"):undefined;const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp),reportState.data.class.level,reportState.template,reportState.includeStamp);saveDownload(new Blob([bytes],{type:"application/pdf"}),`${filePart(report.learner.reg_no||report.learner.full_name)}-${reportState.data.term}-${reportState.data.year}-${filePart(reportState.period)}-template-${reportState.template}.pdf`)}
     catch(error){toast(error.message||"Could not generate the PDF.","error")}
   }
   async function downloadClassZip(){
@@ -941,7 +941,7 @@
     if(!reports.length){toast("Load a class first.","error");return}
     if(!window.ReportCardPdf||!window.PDFLib){toast("The PDF library did not load. Refresh and try again.","error");return}
     reportState.busy=true;render();
-    try{const currentStamp=reportState.includeStamp?(await api("/api/schools/stamp")).stamp_config:undefined;const files=[];for(const report of reports){const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp),reportState.data.class.level,reportState.template,reportState.includeStamp);files.push({name:`${filePart(report.learner.reg_no||report.learner.full_name)}-${filePart(report.learner.full_name)}.pdf`,bytes})}const zip=window.ReportCardPdf.createZip(files);saveDownload(zip,`report-cards-${filePart(reportState.data.class.name)}-${reportState.data.term}-${reportState.data.year}-${filePart(reportState.period)}-template-${reportState.template}.zip`);toast(`Downloaded ${reports.length} report cards.`)}
+    try{const currentStamp=reportState.includeStamp?await api("/api/schools/stamp"):undefined;const files=[];for(const report of reports){const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp),reportState.data.class.level,reportState.template,reportState.includeStamp);files.push({name:`${filePart(report.learner.reg_no||report.learner.full_name)}-${filePart(report.learner.full_name)}.pdf`,bytes})}const zip=window.ReportCardPdf.createZip(files);saveDownload(zip,`report-cards-${filePart(reportState.data.class.name)}-${reportState.data.term}-${reportState.data.year}-${filePart(reportState.period)}-template-${reportState.template}.zip`);toast(`Downloaded ${reports.length} report cards.`)}
     catch(error){toast(error.message||"Could not create the class ZIP.","error")}
     finally{reportState.busy=false;render()}
   }
@@ -1012,13 +1012,13 @@
   async function saveStampSettings(form){
     if(!form.reportValidity())return;
     const fd=new FormData(form);
-    const body={shape:String(fd.get("shape")||"circle"),primary_color:String(fd.get("primary_color")||"#1E5EB5"),secondary_color:String(fd.get("secondary_color")||"#000000"),line_1:String(fd.get("line_1")||""),line_2:String(fd.get("line_2")||""),line_3:String(fd.get("line_3")||""),line_4:String(fd.get("line_4")||""),line_5:String(fd.get("line_5")||""),position:String(fd.get("position")||"Bottom Right"),transparency:Number(fd.get("transparency")??100),rotation_degrees:Number(fd.get("rotation_degrees")??0)};
+     const body={shape:String(fd.get("shape")||"circle"),primary_color:String(fd.get("primary_color")||"#1E5EB5"),secondary_color:String(fd.get("secondary_color")||"#000000"),line_1:String(fd.get("line_1")||""),line_2:String(fd.get("line_2")||""),line_3:String(fd.get("line_3")||""),line_4:String(fd.get("line_4")||""),line_5:String(fd.get("line_5")||""),position:String(fd.get("position")||"Bottom Right"),stamp_logo_position:String(fd.get("stamp_logo_position")||"inside_center"),transparency:Number(fd.get("transparency")??100),rotation_degrees:Number(fd.get("rotation_degrees")??0)};
     const submit=form.querySelector('button[type="submit"]');
     state.data.savingStamp=true;state.data.stampError="";
     if(submit){submit.disabled=true;submit.textContent="Saving stamp…"}
     try{
       const result=await api("/api/schools/stamp",{method:"PATCH",body});
-      state.data.stampConfig=result.stamp_config||body;
+      state.data.stampConfig={...(result.stamp_config||body),stamp_logo_position:result.stamp_logo_position||body.stamp_logo_position};
       state.data.stampError="";
       state.data.savingStamp=false;render();toast("Digital stamp settings saved.");
     }catch(error){

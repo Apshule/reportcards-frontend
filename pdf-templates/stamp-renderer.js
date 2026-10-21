@@ -63,20 +63,34 @@
     return String(value || "Bottom Right").toLowerCase().replace(/[\s_-]+/g, "");
   }
 
-  function boundsFor(page, config, withSchoolLogo = false) {
+  function normalizedLogoPosition(value) {
+    const position = String(value || "inside_center").toLowerCase().replace(/[\s_-]+/gu, "");
+    return ["insidecenter", "insidetop", "outsideleft", "outsideright", "hidden"].includes(position)
+      ? position
+      : "insidecenter";
+  }
+
+  function boundsFor(page, config, logoPosition, withSchoolLogo = false) {
     const shape = normalizedShape(config.shape);
     const width = shape === "circle" ? 62 : shape === "oval" ? 82 : 98;
     const height = shape === "circle" ? 62 : shape === "oval" ? 52 : 58;
     const margin = 27;
-    const logoSpace = withSchoolLogo ? schoolLogoSize + schoolLogoGap : 0;
+    const outside = withSchoolLogo && ["outsideleft", "outsideright"].includes(logoPosition);
+    const logoBefore = outside && logoPosition === "outsideleft";
+    const logoSpace = outside ? schoolLogoSize + schoolLogoGap : 0;
     const groupWidth = width + logoSpace;
     const position = normalizedPosition(config.position);
     const groupX = position === "bottomleft" ? margin
       : position === "bottomcenter" ? (page.getWidth() - groupWidth) / 2
         : page.getWidth() - groupWidth - margin;
-    const x = groupX + logoSpace;
+    const x = groupX + (logoBefore ? logoSpace : 0);
     const y = 51;
-    return { x, y, width, height, cx: x + width / 2, cy: y + height / 2 };
+    return {
+      x, y, width, height,
+      cx: x + width / 2,
+      cy: y + height / 2,
+      logoX: logoBefore ? groupX : x + width + schoolLogoGap,
+    };
   }
 
   function rotatedPoint(x, y, cx, cy, radians) {
@@ -170,10 +184,10 @@
     });
   }
 
-  function drawArcText(page, text, bounds, font, color, alpha, rotation, top) {
+  function drawArcText(page, text, bounds, font, color, alpha, rotation, top, inset = 8) {
     const content = cleanText(text).slice(0, 24);
     if (!content) return;
-    const radius = bounds.width / 2 - 8;
+    const radius = bounds.width / 2 - inset;
     const start = top ? 158 : 202;
     const end = top ? 22 : 338;
     const count = content.length;
@@ -201,37 +215,62 @@
   }
 
   function drawStampOnPage(page, config, font, schoolLogo = null) {
-    const bounds = boundsFor(page, config, Boolean(schoolLogo));
+    const logoPosition = normalizedLogoPosition(config.stamp_logo_position ?? config.school?.stamp_logo_position);
+    const hasLogo = Boolean(schoolLogo) && logoPosition !== "hidden";
+    const bounds = boundsFor(page, config, logoPosition, hasLogo);
     const alpha = opacity(config);
     const rotation = Math.max(-15, Math.min(15, Number(config.rotation_degrees) || 0));
     const primary = safeColor(config.primary_color, fallbackPrimary);
     const secondary = safeColor(config.secondary_color, fallbackSecondary);
     const angle = rotation * Math.PI / 180;
-    if (schoolLogo) {
-      const scale = Math.min(schoolLogoSize / schoolLogo.width, schoolLogoSize / schoolLogo.height);
+    let insideLogoBox = 0;
+    let insideLogoCy = bounds.cy;
+    if (hasLogo) {
+      const outside = logoPosition === "outsideleft" || logoPosition === "outsideright";
+      insideLogoBox = logoPosition === "insidecenter"
+        ? Math.min(18, bounds.width * 0.34, bounds.height * 0.34)
+        : logoPosition === "insidetop"
+          ? Math.min(16, bounds.width * 0.32, bounds.height * 0.32)
+          : schoolLogoSize;
+      if (logoPosition === "insidetop") insideLogoCy += bounds.height * 0.2;
+      const maxBox = outside ? schoolLogoSize : insideLogoBox;
+      const scale = Math.min(maxBox / schoolLogo.width, maxBox / schoolLogo.height);
       const width = schoolLogo.width * scale;
       const height = schoolLogo.height * scale;
       page.drawImage(schoolLogo, {
-        x: bounds.x - schoolLogoGap - schoolLogoSize + (schoolLogoSize - width) / 2,
-        y: bounds.cy - height / 2,
+        x: outside
+          ? bounds.logoX + (schoolLogoSize - width) / 2
+          : bounds.cx - width / 2,
+        y: (outside ? bounds.cy : insideLogoCy) - height / 2,
         width,
         height,
       });
     }
     drawShape(page, bounds, config, primary, secondary, alpha, rotation);
     if (normalizedShape(config.shape) === "circle") {
-      drawArcText(page, config.line_1, bounds, font, primary, alpha, rotation, true);
-      drawArcText(page, config.line_5, bounds, font, primary, alpha, rotation, false);
+      const insideLogo = hasLogo && (logoPosition === "insidecenter" || logoPosition === "insidetop");
+      drawArcText(page, config.line_1, bounds, font, primary, alpha, rotation, true, insideLogo ? 4 : 8);
+      drawArcText(page, config.line_5, bounds, font, primary, alpha, rotation, false, insideLogo ? 4 : 8);
       const lines = [config.line_2, config.line_3, config.line_4];
-      const offsets = [10, 0, -10];
+      const offsets = insideLogo
+        ? logoPosition === "insidetop" ? [-2, -10, -18] : [20, 12, -20]
+        : [10, 0, -10];
       lines.forEach((line, index) => {
         const point = rotatedPoint(bounds.cx, bounds.cy + offsets[index], bounds.cx, bounds.cy, angle);
-        drawCentered(page, line, point.x, point.y - 2.5, font, index === 1 ? 7 : 6.1, primary, alpha, rotation);
+        drawCentered(page, line, point.x, point.y - 2.5, font, insideLogo ? 4.8 : index === 1 ? 7 : 6.1, primary, alpha, rotation);
       });
       return;
     }
     const lines = [config.line_1, config.line_2, config.line_3, config.line_4, config.line_5].filter((line) => cleanText(line));
     if (!lines.length) return;
+    if (hasLogo && (logoPosition === "insidecenter" || logoPosition === "insidetop")) {
+      const offsets = logoPosition === "insidetop" ? [-1, -7, -13, -19, -25] : [24, 19, 12, -19, -24];
+      lines.forEach((line, index) => {
+        const point = rotatedPoint(bounds.cx, bounds.cy + offsets[index], bounds.cx, bounds.cy, angle);
+        drawCentered(page, line, point.x, point.y - 2, font, logoPosition === "insidetop" ? 4 : 4.2, primary, alpha, rotation);
+      });
+      return;
+    }
     const lineGap = Math.min(10, (bounds.height - 16) / Math.max(1, lines.length));
     const firstY = bounds.cy + ((lines.length - 1) * lineGap) / 2 - 2.4;
     lines.forEach((line, index) => {
@@ -247,7 +286,13 @@
     const document = await window.PDFLib.PDFDocument.load(bytes);
     const font = await document.embedFont(window.PDFLib.StandardFonts.Helvetica);
     const schoolLogo = await embedSchoolLogo(document, report?.school?.logo_base64);
-    document.getPages().forEach((page) => drawStampOnPage(page, stamp, font, schoolLogo));
+    const stampSettings = {
+      ...stamp,
+      stamp_logo_position: report?.school?.stamp_logo_position
+        ?? stamp.stamp_logo_position
+        ?? "inside_center",
+    };
+    document.getPages().forEach((page) => drawStampOnPage(page, stampSettings, font, schoolLogo));
     return document.save();
   }
 

@@ -3,6 +3,20 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[char]);
   const value = (input) => input === null || input === undefined || input === "" ? "—" : esc(input);
+  function formatReportDate(input) {
+    if (input === null || input === undefined || input === "") return value(input);
+    const isDate = input instanceof Date;
+    const text = isDate ? "" : String(input).trim();
+    if (!isDate && !/^\d{4}-\d{2}-\d{2}(?:$|T)/u.test(text)) return value(input);
+    const date = isDate ? input : new Date(text.includes("T") ? text : `${text}T00:00:00.000Z`);
+    if (Number.isNaN(date.getTime())) return value(input);
+    return esc(new Intl.DateTimeFormat("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(date));
+  }
   const number = (input, digits = 1) => {
     const parsed = input === null || input === undefined ? null : Number(input);
     return parsed === null || !Number.isFinite(parsed) ? "—" : parsed.toFixed(digits);
@@ -274,13 +288,13 @@
         ? "GRADING KEY: Learning areas are assessed by descriptor • GR = Grade"
         : "A = Excellent (80–100) • B = Very Good (70–79) • C = Good (60–69) • D = Fair (50–59) • E = Below 50 • GR = Grade • AGGR = Aggregate";
     const footerDetails = level === "NURSERY"
-      ? `<div class="rc-early-footer-line"><span><b>Date of Issue:</b> ${value(report.printed_at || report.generated_at || new Date().toLocaleDateString())}</span><span><b>Next Term Begins:</b> ${value(dates.next_term_begins)}</span></div><div class="rc-school-requirements"><b>School Requirements:</b> ${value(school.school_requirements)}</div>`
+      ? `<div class="rc-early-footer-line"><span><b>Date of Issue:</b> ${formatReportDate(report.printed_at || report.generated_at || new Date())}</span><span><b>Next Term Begins:</b> ${formatReportDate(dates.next_term_begins)}</span></div><div class="rc-school-requirements"><b>School Requirements:</b> ${value(school.school_requirements)}</div>`
       : level === "PRIMARY"
-        ? `<div class="rc-early-footer-line"><span><b>Next term will begin on:</b> ${value(dates.next_term_begins)}</span></div><div class="rc-school-requirements"><b>KEY:</b> A = Very Good; B = Good; C = Fair; D = Still Weak; GR = Grade; AGGR = Aggregate</div>`
+        ? `<div class="rc-early-footer-line"><span><b>Next term will begin on:</b> ${formatReportDate(dates.next_term_begins)}</span></div><div class="rc-school-requirements"><b>KEY:</b> A = Very Good; B = Good; C = Fair; D = Still Weak; GR = Grade; AGGR = Aggregate</div>`
         : `<div class="rc-footer-details">
           <span><b>School term / year</b> ${value(dates.current_term)} / ${value(dates.current_year)}</span>
-          <span><b>Term ended</b> ${value(dates.term_ended_on)}</span>
-          <span><b>Next term begins</b> ${value(dates.next_term_begins)}</span>
+          <span><b>Term ended</b> ${formatReportDate(dates.term_ended_on)}</span>
+          <span><b>Next term begins</b> ${formatReportDate(dates.next_term_begins)}</span>
           <span><b>Next term fees</b> ${value(dates.next_term_fees)}</span>
           <span><b>Fees balance</b> ${value(fees.balance)}</span>
         </div>`;
@@ -288,7 +302,7 @@
     const footerCenter = earlyYears ? value(school.motto) : esc(gradeText);
     return `<footer class="rc-footer">
       ${footerDetails}
-      ${level === "O_LEVEL" ? `<p class="rc-secondary-footer-note">Outstanding school fees balance is UGX ${value(fees.balance)} as at ${value(report.printed_at || report.generated_at || new Date().toLocaleString())}<br>GRADES: A 100-80; B 79-70; C 69-60; D 59-40; E &lt;40<br>T = Topic; EOTI = end of term 1</p>` : ""}
+      ${level === "O_LEVEL" ? `<p class="rc-secondary-footer-note">Outstanding school fees balance is UGX ${value(fees.balance)} as at ${formatReportDate(report.printed_at || report.generated_at || new Date())}<br>GRADES: A 100-80; B 79-70; C 69-60; D 59-40; E &lt;40<br>T = Topic; EOTI = end of term 1</p>` : ""}
       <div class="rc-footer-band"><span>${footerLead}</span><span class="rc-grade-key">${earlyYears ? footerCenter : `<b>GRADING KEY:</b> ${footerCenter}`}</span><span class="rc-page-count">Page 1 of 1</span></div>
       <div class="rc-footer-contact"><span>${value([school.street, school.po_box, school.city, school.district].filter(Boolean).join(" · "))}</span><span>${value(school.website || school.motto || school.report_footer_text)}</span></div>
       ${school.report_footer_text ? `<p class="rc-footer-note">${value(school.report_footer_text)}</p>` : ""}
@@ -480,7 +494,7 @@
     ];
     const footerRows = level === "O_LEVEL" ? [[
       { text: "NEXT TERM BEGINS", span: 2 },
-      { text: value(report.term_dates?.next_term_begins), span: Math.max(1, heads.length - 2) },
+      { text: formatReportDate(report.term_dates?.next_term_begins), span: Math.max(1, heads.length - 2) },
     ]] : [];
     const title = level === "A_LEVEL" ? "A-Level Report" : "O-Level Report";
     return `<article ${previewAttrs(report, level, options)}>
@@ -500,6 +514,7 @@
   }
 
   window.ReportCardPreview = {
+    formatReportDate,
     render(report, options = {}) {
       const level = levelCode(report.class?.level);
       if (level === "PRIMARY") return renderPrimary(report, options);
