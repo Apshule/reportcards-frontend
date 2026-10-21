@@ -386,3 +386,41 @@ body.marks-entry-fullscreen{overflow:hidden}
 .learner-photo-preview img{display:block;width:100%;height:100%;object-fit:cover}
 .learner-photo-error{min-height:0;margin:0;color:var(--danger,#b42318);font-size:12px}
 .learner-photo-error:empty{display:none}
+
+/* Report-card typography: keep the fixed A4 page legible without pagination. */
+html .rc-preview .rc-school h2,
+html .rc-preview .rc-report-title{font-size:15pt}
+html .rc-preview .rc-school .rc-motto,
+html .rc-preview h3,
+html .rc-preview .rc-nursery-panel-title,
+html .rc-preview .rc-table-section-title th{font-size:14pt}
+html .rc-preview .rc-school p,
+html .rc-preview .rc-learner-line,
+html .rc-preview .rc-info-row>div,
+html .rc-preview .rc-info-row b,
+html .rc-preview .rc-info-row span,
+html .rc-preview .rc-preview-meta,
+html .rc-preview .rc-template-info,
+html .rc-preview .rc-requirements p,
+html .rc-preview .rc-summary,
+html .rc-preview .rc-legend,
+html .rc-preview .rc-footer-details,
+html .rc-preview .rc-comments,
+html .rc-preview .rc-footer-note,
+html .rc-preview .rc-footer-contact,
+html .rc-preview .rc-secondary-footer-note,
+html .rc-preview .rc-remarks-grid,
+html .rc-preview .rc-remark-signature strong,
+html .rc-preview .rc-remark-signature small,
+html .rc-preview .rc-authenticity-qr span{font-size:12pt}
+html .rc-preview .rc-table th{font-size:14pt}
+html .rc-preview .rc-table td{font-size:11pt}
+html .rc-preview .rc-table tfoot .rc-totals-row th,
+html .rc-preview .rc-table tfoot .rc-totals-row td{font-size:11pt}
+html .rc-preview.rc-preview-level-o_level .rc-table .rc-long-descriptor,
+html .rc-preview.rc-preview-level-a_level .rc-table .rc-long-descriptor{font-size:10pt}
+html .rc-preview .rc-promotion-banner{font-size:15pt}
+html .rc-preview .rc-remarks-grid>div>b{font-size:14pt}
+html .rc-preview .rc-stamp-preview{overflow:hidden}
+html .rc-preview .rc-stamp-preview.rc-stamp-has-external-logo{overflow:visible}
+html .rc-preview .rc-stamp-logo{max-width:50%;max-height:50%}

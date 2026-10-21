@@ -90,7 +90,8 @@
     const margin = 27;
     const outside = withSchoolLogo && ["outsideleft", "outsideright"].includes(logoPosition);
     const logoBefore = outside && logoPosition === "outsideleft";
-    const logoSize = millimetersToPoints(config.stamp_logo_size ?? 20);
+    const configuredLogoSize = millimetersToPoints(config.stamp_logo_size ?? 20);
+    const logoSize = Math.min(configuredLogoSize, Math.min(width, height) * 0.5);
     const logoSpace = outside ? logoSize + schoolLogoGap : 0;
     const groupWidth = width + logoSpace;
     const position = normalizedPosition(config.position);
@@ -106,6 +107,20 @@
       logoX: logoBefore ? groupX : x + width + schoolLogoGap,
       logoSize,
     };
+  }
+
+  function constrainInsideLogoCenter(bounds, centerX, centerY, width, height) {
+    // Use the stamp's inscribed circle as the safe area. This keeps the logo
+    // within the border for circles, rounded rectangles, and rotated stamps.
+    const safeRadius = Math.max(0, Math.min(bounds.width, bounds.height) / 2 - 2);
+    const logoRadius = Math.hypot(width, height) / 2;
+    const availableRadius = Math.max(0, safeRadius - logoRadius);
+    const dx = centerX - bounds.cx;
+    const dy = centerY - bounds.cy;
+    const distance = Math.hypot(dx, dy);
+    if (distance <= availableRadius || distance === 0) return { x: centerX, y: centerY };
+    const scale = availableRadius / distance;
+    return { x: bounds.cx + dx * scale, y: bounds.cy + dy * scale };
   }
 
   function rotatedPoint(x, y, cx, cy, radians) {
@@ -266,9 +281,12 @@
       const anchorY = outside
         ? bounds.cy - height / 2
         : insideLogoCy - height / 2;
+      const constrainedCenter = outside
+        ? null
+        : constrainInsideLogoCenter(bounds, anchorX + width / 2 + logoOffsetX, anchorY + height / 2 - logoOffsetY, width, height);
       const drawOptions = {
-        x: anchorX + logoOffsetX,
-        y: anchorY - logoOffsetY,
+        x: constrainedCenter ? constrainedCenter.x - width / 2 : anchorX + logoOffsetX,
+        y: constrainedCenter ? constrainedCenter.y - height / 2 : anchorY - logoOffsetY,
         width,
         height,
         rotate: window.PDFLib.degrees(logoRotation),

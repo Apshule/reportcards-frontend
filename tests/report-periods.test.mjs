@@ -148,9 +148,11 @@ test("HTML preview shows the configured stamp and school logo settings", () => {
   assert.match(html, /rc-stamp-circle rc-stamp-bottom-right/);
   assert.match(html, /class="rc-stamp-logo rc-stamp-logo-inside_center"/);
   assert.match(html, /data:image\/png;base64,c2Nob29sLWxvZ28=/);
-  assert.match(html, /--rc-stamp-logo-size:30mm/);
-  assert.match(html, /--rc-stamp-logo-x:37\.7952\d*px/);
-  assert.match(html, /--rc-stamp-logo-y:-7\.5590\d*px/);
+  const logoSize = Number(html.match(/--rc-stamp-logo-size:([\d.]+)mm/u)?.[1]);
+  const logoX = Number(html.match(/--rc-stamp-logo-x:([-\d.]+)px/u)?.[1]);
+  const logoY = Number(html.match(/--rc-stamp-logo-y:([-\d.]+)px/u)?.[1]);
+  assert.ok(logoSize > 0 && logoSize < 30);
+  assert.ok(Math.hypot(logoX, logoY) <= 8.1);
   assert.match(html, /--rc-stamp-logo-rotation:90deg/);
   assert.match(html, /--rc-stamp-logo-opacity:0\.5/);
   assert.match(html, /--rc-stamp-text:rgba\(75,46,158,0\.8\)/);

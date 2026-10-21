@@ -156,12 +156,12 @@
       [["REG NO", learner.reg_no], ["CLASS", report.class?.name], ["FEES BAL", report.fees?.balance], ["SCHOOLPAY CODE", learner.schoolpay_code || report.school?.schoolpay_code]],
       [["NAME", learner.full_name], ["DAYS ATTENDED", report.days_attended ?? report.days_present], ["ABSENT", report.days_absent ?? report.absence], ["TOTAL", report.total_days ?? report.school_days]],
     ] : level === "PRIMARY" ? [
-      [["NAME", learner.full_name], ["AD No", learner.reg_no], ["PRINT DATE", String(report.printed_at || report.generated_at || new Date().toLocaleDateString()).slice(0, 10)]],
+      [["NAME", learner.full_name], ["AD No", learner.reg_no], ["PRINT DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
       [["CLASS", report.class?.name], ["SEX", learner.sex || learner.gender], ["AGE", learner.age]],
       [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? report.absence], ["TERM", displayTerm(report.term)], ["YEAR", report.year]],
       [["POSITION", summary.position], ["OUT OF", summary.class_size]],
     ] : level === "O_LEVEL" ? [
-      [["NAME", learner.full_name], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")], ["YEAR", report.year], ["DATE", String(report.printed_at || report.generated_at || new Date().toLocaleDateString()).slice(0, 10)]],
+      [["NAME", learner.full_name], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")], ["YEAR", report.year], ["DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
       [["SCHOLAR ID", learner.scholar_id || learner.reg_no], ["CLASS", report.class?.name], ["VCODE", learner.vcode]],
       [["LIN/AMIS.NO", learner.lin || learner.amis_no], ["STATE", learner.state], ["RESIDENCE", learner.residence]],
     ] : level === "A_LEVEL" ? [
@@ -174,7 +174,7 @@
       [["CLASS", report.class?.name], ["SEX", learner.sex]],
       [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? report.absence]],
       [["POSITION", summary.position], ["OUT OF", summary.class_size]],
-      [["TERM", displayTerm(report.term)], ["YEAR", report.year], ["PRINT DATE", new Date().toLocaleDateString()]],
+      [["TERM", displayTerm(report.term)], ["YEAR", report.year], ["PRINT DATE", formatReportDate(new Date())]],
     ];
     return `<div class="rc-learner-grid rc-learner-grid-${String(level || "general").toLowerCase()}">${rows.map((row, index) =>
       `<div class="rc-info-row rc-info-row-${row.length} ${index % 2 ? "is-tinted" : ""}">${row.map(([label, content]) =>
@@ -290,16 +290,34 @@
       const direct = Number(report[key] ?? school[key] ?? stamp[key]);
       return Number.isFinite(direct) ? Math.max(min, Math.min(max, direct)) : fallback;
     };
-    const logoSize = numericSetting("stamp_logo_size", 20, 1, 100);
-    const offsetX = numericSetting("stamp_logo_offset_x", 0, -100, 100) * 96 / 25.4;
-    const offsetY = numericSetting("stamp_logo_offset_y", 0, -100, 100) * 96 / 25.4;
+    const stampDimensions = shape === "circle" ? [68, 68] : shape === "oval" ? [88, 54] : [98, 58];
+    const maxLogoSizeMm = Math.min(...stampDimensions) * 0.5 * 25.4 / 96;
+    const logoSize = Math.min(numericSetting("stamp_logo_size", 20, 1, 100), maxLogoSizeMm);
+    let offsetX = numericSetting("stamp_logo_offset_x", 0, -100, 100) * 96 / 25.4;
+    let offsetY = numericSetting("stamp_logo_offset_y", 0, -100, 100) * 96 / 25.4;
+    if (logo && normalizedLogoPosition.startsWith("inside_")) {
+      const [stampWidth, stampHeight] = stampDimensions;
+      const baseX = stampWidth * (normalizedLogoPosition === "inside_left" ? 0.23 : normalizedLogoPosition === "inside_right" ? 0.77 : 0.5);
+      const baseY = stampHeight * (normalizedLogoPosition === "inside_top" ? 0.23 : normalizedLogoPosition === "inside_bottom" ? 0.77 : 0.5);
+      const logoRadius = logoSize * 96 / 25.4 / Math.SQRT2;
+      const availableRadius = Math.max(0, Math.min(stampWidth, stampHeight) / 2 - 2 - logoRadius);
+      const dx = baseX + offsetX - stampWidth / 2;
+      const dy = baseY + offsetY - stampHeight / 2;
+      const distance = Math.hypot(dx, dy);
+      if (distance > availableRadius && distance > 0) {
+        const scale = availableRadius / distance;
+        offsetX = stampWidth / 2 + dx * scale - baseX;
+        offsetY = stampHeight / 2 + dy * scale - baseY;
+      }
+    }
     const logoRotationValue = numericSetting("stamp_logo_rotation", 0, 0, 360);
     const logoRotation = [0, 90, 180, 270].includes(logoRotationValue) ? logoRotationValue : 0;
     const logoOpacity = numericSetting("stamp_logo_opacity", 100, 0, 100) / 100;
     const logoMarkup = logo && normalizedLogoPosition !== "hidden"
       ? `<img class="rc-stamp-logo rc-stamp-logo-${normalizedLogoPosition}" src="${esc(logo)}" alt="School logo in digital stamp">`
       : "";
-    return `<div class="rc-stamp-preview rc-stamp-${shape} rc-stamp-${positionClass}" style="--rc-stamp-text:${colorWithAlpha(primaryColor, stampAlpha)};--rc-stamp-border:${colorWithAlpha(secondaryColor, stampAlpha)};--rc-stamp-rotation:${rotation}deg;--rc-stamp-logo-size:${logoSize}mm;--rc-stamp-logo-x:${offsetX}px;--rc-stamp-logo-y:${offsetY}px;--rc-stamp-logo-rotation:${logoRotation}deg;--rc-stamp-logo-opacity:${logoOpacity}" aria-label="Configured school stamp"><div class="rc-stamp-copy">${lines.map((line) => `<span>${value(line)}</span>`).join("")}</div>${logoMarkup}</div>`;
+    const outsideLogo = ["outside_left", "outside_right"].includes(normalizedLogoPosition) ? " rc-stamp-has-external-logo" : "";
+    return `<div class="rc-stamp-preview rc-stamp-${shape} rc-stamp-${positionClass}${outsideLogo}" style="--rc-stamp-text:${colorWithAlpha(primaryColor, stampAlpha)};--rc-stamp-border:${colorWithAlpha(secondaryColor, stampAlpha)};--rc-stamp-rotation:${rotation}deg;--rc-stamp-logo-size:${logoSize}mm;--rc-stamp-logo-x:${offsetX}px;--rc-stamp-logo-y:${offsetY}px;--rc-stamp-logo-rotation:${logoRotation}deg;--rc-stamp-logo-opacity:${logoOpacity}" aria-label="Configured school stamp"><div class="rc-stamp-copy">${lines.map((line) => `<span>${value(line)}</span>`).join("")}</div>${logoMarkup}</div>`;
   };
   const authenticityQrBlock = (report) => {
     const image = report.authenticity_qr_data_url;
@@ -523,7 +541,7 @@
         value(mark.descriptor),
         value(mark.teacher_initials),
       ];
-      return `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`;
+      return `<tr>${cells.map((cell, index) => `<td${index === cells.length - 2 ? ' class="rc-long-descriptor"' : ""}>${cell}</td>`).join("")}</tr>`;
     });
     const projects = (report.projects || []).map((project) => `<tr><td>${value(project.project_name)}</td><td>${number(project.score)}</td><td>${project.percentage===null||project.percentage===undefined?"—":`${number(project.percentage)}%`}</td><td>${value(project.grade)}</td><td>${value(project.remarks)}</td><td>${value(project.teacher_initials)}</td></tr>`);
     const activities = coCurricular(report, level === "PRIMARY" || level === "NURSERY");
@@ -565,6 +583,7 @@
 
   window.ReportCardPreview = {
     formatReportDate,
+    renderStamp: stampBlock,
     render(report, options = {}) {
       const level = levelCode(report.class?.level);
       if (level === "PRIMARY") return renderPrimary(report, options);
