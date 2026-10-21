@@ -5,6 +5,7 @@
     ["BOT", "Beginning of Term (B.O.T)"],
     ["MID", "Mid-Term"],
     ["EOT", "End of Term (E.O.T)"],
+    ["COMBINED_BM", "Combined (B.O.T + Midterm)"],
     ["COMBINED_BME", "Combined (B.O.T + Mid + E.O.T)"],
     ["COMBINED_BE", "Combined (B.O.T + E.O.T)"],
     ["COMBINED_ME", "Combined (Mid + E.O.T)"],
@@ -19,6 +20,8 @@
     EOT: "EOT",
     ENDOFTERM: "EOT",
     ENDOFTERMEOT: "EOT",
+    COMBINEDBM: "COMBINED_BM",
+    COMBINEDBOTMID: "COMBINED_BM",
     COMBINEDBME: "COMBINED_BME",
     COMBINEDBOTMIDEOT: "COMBINED_BME",
     COMBINEDBE: "COMBINED_BE",
@@ -31,6 +34,11 @@
     BOT: { title: "BEGINNING OF TERM", fields: [{ key: "bot", label: "B.O.T" }], combined: false },
     MID: { title: "MID-TERM", fields: [{ key: "mid_term", label: "MID-TERM" }], combined: false },
     EOT: { title: "END OF TERM", fields: [{ key: "eot_period", label: "E.O.T" }], combined: false },
+    COMBINED_BM: {
+      title: "COMBINED (B.O.T + MIDTERM)",
+      fields: [{ key: "bot", label: "B.O.T" }, { key: "mid_term", label: "MIDTERM" }],
+      combined: true,
+    },
     COMBINED_BME: {
       title: "COMBINED (B.O.T + MID + E.O.T)",
       fields: [
@@ -135,12 +143,13 @@
     return "NURSERY";
   };
 
-  function render({ level, template, period, includeStamp } = {}) {
+  function render({ level, template, period, includeStamp, layoutFormat } = {}) {
     const key = levelKey(level);
     const palettes = paletteLabels[key];
     const selectedTemplate = String(template ?? "1");
     const selectedPeriod = String(period ?? "EOT");
     const checked = includeStamp === true || includeStamp === "true" || includeStamp === 1;
+    const selectedLayout = layoutFormat === "A5_CONDENSED" ? "A5_CONDENSED" : "A4";
     const levelLabel = escapeHTML(String(level ?? key.replace("_", " ")));
 
     return `<div class="rc-template-picker" data-report-template-picker>
@@ -159,6 +168,14 @@
           ${periods.map(([value, label]) => `<option value="${value}" ${selectedPeriod === value ? "selected" : ""}>${label}</option>`).join("")}
         </select>
       </div>
+      <div class="rc-template-picker__field">
+        <label for="report-layout-format">Layout format</label>
+        <select id="report-layout-format" data-report-filter="layoutFormat" aria-label="Layout format">
+          <option value="A4" ${selectedLayout === "A4" ? "selected" : ""}>Full Page (A4)</option>
+          <option value="A5_CONDENSED" ${selectedLayout === "A5_CONDENSED" ? "selected" : ""}>Half Page (A5) Condensed</option>
+        </select>
+        <small class="rc-template-picker__hint">A5 uses the B.O.T + Midterm period.</small>
+      </div>
       <label class="rc-template-picker__stamp" for="report-include-stamp">
         <input id="report-include-stamp" type="checkbox" data-report-filter="includeStamp" ${checked ? "checked" : ""}>
         <span class="rc-template-picker__check" aria-hidden="true"></span>
@@ -171,6 +188,7 @@
     render,
     normalizePeriod,
     normalizeTemplate,
+    normalizeLayoutFormat: (value) => value === "A5_CONDENSED" ? "A5_CONDENSED" : "A4",
     periodDefinition,
     periodValue,
     periodScore,

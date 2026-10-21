@@ -1517,12 +1517,163 @@
     return new Blob([...localParts, ...centralParts, end], { type: "application/zip" });
   }
 
-  async function render(report, classLevel, templateId = "1", includeStamp = true) {
+  function drawA5Text(page, text, x, y, font, size, fill, maxWidth, align = "left") {
+    const line = fitted(text, font, size, maxWidth);
+    const textWidth = font.widthOfTextAtSize(line, size);
+    const drawX = align === "center" ? x + Math.max(0, (maxWidth - textWidth) / 2)
+      : align === "right" ? x + Math.max(0, maxWidth - textWidth) : x;
+    page.drawText(line, { x: drawX, y, size, font, color: fill });
+  }
+
+  async function renderA5Condensed(report, classLevel) {
+    const period = assessmentPeriod(report);
+    if (period.key !== "COMBINED_BM") {
+      throw new Error("The Half Page (A5) Condensed layout requires Combined (B.O.T + Midterm).");
+    }
+    if (!PDFDocument) throw new Error("The PDF library is unavailable; check your connection and reload.");
+    const doc = await PDFDocument.create();
+    const width = 419.53;
+    const height = 595.28;
+    const page = doc.addPage([width, height]);
+    doc.setTitle(`B.O.T + Midterm Report — ${str(report.learner?.full_name)}`);
+    doc.setAuthor(str(report.school?.name));
+    const fonts = {
+      regular: await doc.embedFont(StandardFonts.Helvetica),
+      bold: await doc.embedFont(StandardFonts.HelveticaBold),
+    };
+    const theme = window.ReportCardThemeEngine?.getTheme(classLevel, report.level_theme || report.school?.level_theme) || {
+      primary_color: "#4B2E9E",
+      accent_color: "#D1C4E9",
+      table_header_color: "#F6F2FC",
+      table_header_text_color: "#4B2E9E",
+    };
+    const primary = color(theme.primary_color);
+    const accent = color(theme.accent_color);
+    const headerFill = color(theme.table_header_color || theme.accent_color);
+    const headerText = color(theme.table_header_text_color || theme.primary_color);
+    const ink = rgb(0.16, 0.16, 0.18);
+    const white = rgb(1, 1, 1);
+    const x = 18;
+    const contentWidth = width - x * 2;
+    const school = report.school || {};
+    const learner = report.learner || {};
+    const logo = await embedImage(doc, school.logo_base64);
+    if (logo) placeImage(page, logo, x, height - 48, 28, 28);
+    const headerX = logo ? x + 34 : x;
+    const headerWidth = contentWidth - (headerX - x);
+    drawA5Text(page, school.name || "School", headerX, height - 28, fonts.bold, 10, primary, headerWidth, "center");
+    drawA5Text(page, [school.phone, school.email].filter(Boolean).join(" · "), headerX, height - 39, fonts.regular, 7.5, ink, headerWidth, "center");
+    drawA5Text(page, `${str(displayTerm(report.term))} · B.O.T + MIDTERM REPORT`, headerX, height - 50, fonts.bold, 8.5, primary, headerWidth, "center");
+    page.drawLine({ start: { x, y: height - 57 }, end: { x: width - x, y: height - 57 }, thickness: 1, color: primary });
+
+    const infoTop = height - 64;
+    const infoHeight = 33;
+    page.drawRectangle({ x, y: infoTop - infoHeight, width: contentWidth, height: infoHeight, borderColor: accent, borderWidth: 0.7 });
+    const info = [
+      ["Learner", learner.full_name],
+      ["Class", report.class?.name],
+      ["Term / Year", `${displayTerm(report.term)} ${report.year ?? ""}`.trim()],
+      ["Reg. No.", learner.reg_no],
+    ];
+    const cellWidth = contentWidth / 2;
+    info.forEach(([label, value], index) => {
+      const row = Math.floor(index / 2);
+      const column = index % 2;
+      const cellX = x + column * cellWidth;
+      const cellTop = infoTop - row * (infoHeight / 2);
+      if (column) page.drawLine({ start: { x: cellX, y: cellTop }, end: { x: cellX, y: cellTop - infoHeight / 2 }, thickness: 0.5, color: accent });
+      if (row) page.drawLine({ start: { x, y: cellTop }, end: { x: width - x, y: cellTop }, thickness: 0.5, color: accent });
+      drawA5Text(page, `${label}: ${str(value)}`, cellX + 4, cellTop - 11, fonts.regular, 7.5, ink, cellWidth - 8);
+    });
+
+    const tableTop = infoTop - infoHeight - 20;
+    const headerHeight = 19;
+    const footerBottom = 99;
+    const rowHeight = entries => entries.length
+      ? Math.min(16, Math.max(9, (tableTop - footerBottom - headerHeight) / entries.length))
+      : 16;
+    const entries = marks(report);
+    const rowH = rowHeight(entries);
+    const fontSize = Math.min(8.5, Math.max(8, rowH - 2));
+    const columns = [
+      { label: "Subject", weight: 1.8, align: "left" },
+      { label: "B.O.T", weight: 0.62, align: "center" },
+      { label: "Midterm", weight: 0.72, align: "center" },
+      { label: "Average", weight: 0.8, align: "center" },
+      { label: "Grade", weight: 0.62, align: "center" },
+      { label: "Remarks", weight: 1.8, align: "left" },
+    ];
+    const totalWeight = columns.reduce((sum, column) => sum + column.weight, 0);
+    const widths = columns.map((column) => contentWidth * column.weight / totalWeight);
+    let currentX = x;
+    columns.forEach((column, index) => {
+      const cellWidth = widths[index];
+      page.drawRectangle({ x: currentX, y: tableTop - headerHeight, width: cellWidth, height: headerHeight, color: headerFill, borderColor: accent, borderWidth: 0.55 });
+      drawA5Text(page, column.label, currentX + 2, tableTop - 13, fonts.bold, 8, headerText, cellWidth - 4, column.align);
+      currentX += cellWidth;
+    });
+    let rowTop = tableTop - headerHeight;
+    entries.forEach(({ subject, mark }, rowIndex) => {
+      const values = [
+        subject.name,
+        num(periodValue(mark, "bot", period), 1),
+        num(periodValue(mark, "mid_term", period), 1),
+        num(periodScore(mark, period), 1),
+        gradeLabel(mark),
+        mark.tr || mark.teacher_remark || mark.descriptor || mark.remark,
+      ];
+      currentX = x;
+      columns.forEach((column, index) => {
+        const cellWidth = widths[index];
+        const rowY = rowTop - rowH;
+        page.drawRectangle({
+          x: currentX,
+          y: rowY,
+          width: cellWidth,
+          height: rowH,
+          color: rowIndex % 2 ? color("#FAF9FC") : white,
+          borderColor: accent,
+          borderWidth: 0.45,
+        });
+        drawA5Text(
+          page,
+          values[index],
+          currentX + 2,
+          rowY + Math.max(2, (rowH - fontSize) / 2),
+          index === 0 ? fonts.bold : fonts.regular,
+          fontSize,
+          ink,
+          cellWidth - 4,
+          column.align,
+        );
+        currentX += cellWidth;
+      });
+      rowTop -= rowH;
+    });
+
+    const comments = [
+      `Class Teacher: ${str(report.class_teacher_comment || report.suggested_comment)}`,
+      `Principal: ${str(report.principal_comment || report.head_teacher_comment)}`,
+    ].join("  ·  ");
+    const footerY = Math.max(footerBottom - 3, rowTop - 16);
+    page.drawLine({ start: { x, y: footerY + 8 }, end: { x: width - x, y: footerY + 8 }, thickness: 0.6, color: accent });
+    drawA5Text(page, comments, x + 2, footerY, fonts.regular, 7.5, ink, contentWidth - 4);
+    const key = `Grading key: ${gradeScale(classLevel, report)}`;
+    drawA5Text(page, key, x + 2, footerY - 13, fonts.regular, 7, ink, contentWidth - 4);
+    const signatureY = 27;
+    page.drawLine({ start: { x, y: signatureY + 12 }, end: { x: width - x, y: signatureY + 12 }, thickness: 0.5, color: accent });
+    page.drawLine({ start: { x, y: signatureY }, end: { x: x + 93, y: signatureY }, thickness: 0.6, color: ink });
+    drawA5Text(page, "Class Teacher's signature", x + 97, signatureY + 2, fonts.regular, 7.5, ink, contentWidth - 97);
+    return doc.save();
+  }
+
+  async function render(report, classLevel, templateId = "1", includeStamp = true, layoutFormat = null) {
     const stampSources = [report?.school?.stamp_config, report?.stamp_config]
       .filter((value) => value && typeof value === "object" && !Array.isArray(value));
     const stamp = includeStamp ? Object.assign({}, ...stampSources) : null;
     const renderReport = { ...report, __includeStamp: Boolean(stamp && typeof stamp === "object" && Object.keys(stamp).length) };
     const level = levelCode(classLevel || renderReport.class?.level);
+    if ((layoutFormat || renderReport.layout_format || "A4") === "A5_CONDENSED") return renderA5Condensed(renderReport, level);
     const id = String(templateId || "1").replace(/^template[_-]?/i, "");
     const meta = templateMeta(level, id);
     const suppliedTheme = renderReport.level_theme || renderReport.school?.level_theme;
@@ -1550,6 +1701,7 @@
 
   window.ReportCardPdf = {
     render,
+    renderA5Condensed,
     renderVariant,
     renderNursery,
     renderPrimary,

@@ -15,7 +15,7 @@
     ["finance","Finance","fa-coins"],["settings","School settings","fa-calendar-days"],["review","Marks review","fa-clipboard-check"]
   ];
     const state = {token:localStorage.getItem(TOKEN_KEY)||"",school:null,user:null,role:"school_admin",mustChangePassword:false,route:"dashboard",loading:false,modal:null,toast:null,filter:{level:"",class_id:"",subject_id:"",academic_year:String(new Date().getFullYear()),term:"TERM_1",search:""},data:{},authMode:authPathMode(),finance:{tab:"overview",term:"TERM_1",year:String(new Date().getFullYear()),loading:false,error:"",data:{},incomeFilters:{},expenseFilters:{},schoolpayFilters:{},reportClass:"",feeBalanceClass:""},rm:{classes:null,marks:null,submission:null,comments:{},signature:null,review:null,reviewBusy:false,promotionClassId:"",promotion:null,promotionBusy:false,promotionError:"",markEntryMode:"CBC",rawMarkMax:100,commentOptions:[]},parentAdmin:{announcements:[],feedback:[],loading:false,error:""}};
-  const reportState = {classId:"",learnerId:"",term:"TERM_1",year:String(new Date().getFullYear()),template:"1",period:"EOT",includeStamp:true,zoom:100,fullscreen:false,data:null,learners:[],busy:false,rosterBusy:false,rosterRequestId:0,rosterError:"",error:"",promotionError:"",promotionBusy:false,verifications:{},verificationBusy:false,verificationError:"",verificationRequestId:0};
+  const reportState = {classId:"",learnerId:"",term:"TERM_1",year:String(new Date().getFullYear()),template:"1",period:"EOT",layoutFormat:"A4",includeStamp:true,zoom:100,fullscreen:false,data:null,learners:[],busy:false,rosterBusy:false,rosterRequestId:0,rosterError:"",error:"",promotionError:"",promotionBusy:false,verifications:{},verificationBusy:false,verificationError:"",verificationRequestId:0};
   const projectState = {classId:"",term:"TERM_1",year:String(new Date().getFullYear()),data:null,busy:false,error:""};
   const root = document.getElementById("app");
   let schoolpayTimer=null;
@@ -342,8 +342,8 @@
      const promotionPanel=reportState.term==="TERM_3"&&selected&&state.role==="school_admin"?`<section class="card section-card promotion-decision-card"><div class="section-title"><div><h2>Promotion decision</h2><p>Term III recommendation based on the learner’s final average.</p></div></div>${reportState.promotionError?`<div class="alert error" role="alert">${esc(reportState.promotionError)}</div>`:""}<div class="promotion-decision-summary"><span><strong>Final average</strong> ${fmt(promotion?.final_avg)}</span><span><strong>Suggested</strong> ${esc(promotionText(promotion?.suggested_decision,promotion?.current_class,promotion?.next_class))}</span></div><div class="promotion-edit-row"><div class="field"><label for="report-promotion-decision">Admin decision</label><select id="report-promotion-decision" data-promotion-decision><option value="promoted" ${(promotion?.promotion_decision||promotion?.suggested_decision)==="promoted"?"selected":""}>Promoted</option><option value="try_another" ${(promotion?.promotion_decision||promotion?.suggested_decision)==="try_another"?"selected":""}>Try another class</option><option value="repeat" ${(promotion?.promotion_decision||promotion?.suggested_decision)==="repeat"?"selected":""}>Advised to repeat</option><option value="pending" ${(promotion?.promotion_decision||promotion?.suggested_decision)==="pending"?"selected":""}>Pending</option></select></div><div class="field"><label for="report-promotion-note">Decision note <span class="field-hint">(optional)</span></label><input id="report-promotion-note" maxlength="2000" value="${esc(promotion?.promotion_note||"")}" placeholder="Add a note for the learner’s record"></div><button class="btn btn-primary" data-action="save-report-promotion" ${reportState.promotionBusy?"disabled":""}>${icon("fa-floppy-disk")} ${reportState.promotionBusy?"Saving…":"Save decision"}</button></div></section>`:"";
     const ages=reports.map(item=>Number(item.learner?.age)).filter(age=>Number.isFinite(age)&&age>0);
     const classAverageAge=ages.length?ages.reduce((sum,age)=>sum+age,0)/ages.length:null;
-     const previewReport=selected?{...selected,school:reportState.data.school,class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,term_dates:reportState.data.term_dates,level_theme:reportState.data.level_theme,stamp_config:reportState.data.stamp_config,class_average_age:classAverageAge,authenticity_qr_data_url:reportState.verifications[String(selected.learner?.id)]?.qrDataUrl}:null;
-    const cardMarkup=previewReport&&window.ReportCardPreview?window.ReportCardPreview.render(previewReport,{template:reportState.template,period:reportState.period,includeStamp:reportState.includeStamp}):"";
+     const previewReport=selected?{...selected,school:reportState.data.school,class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,period:reportState.period,layout_format:reportState.layoutFormat,term_dates:reportState.data.term_dates,level_theme:reportState.data.level_theme,stamp_config:reportState.data.stamp_config,class_average_age:classAverageAge,authenticity_qr_data_url:reportState.verifications[String(selected.learner?.id)]?.qrDataUrl}:null;
+    const cardMarkup=previewReport&&window.ReportCardPreview?window.ReportCardPreview.render(previewReport,{template:reportState.template,period:reportState.period,includeStamp:reportState.includeStamp,layoutFormat:reportState.layoutFormat}):"";
     const previewToolbar=(fullscreen=false)=>`<div class="rc-viewer-controls" role="toolbar" aria-label="Report card preview controls">
       <div class="rc-viewer-zoom"><button class="btn btn-outline btn-small" data-action="preview-zoom-out" aria-label="Zoom out">−</button><span data-preview-zoom-label>${reportState.zoom}%</span><button class="btn btn-outline btn-small" data-action="preview-zoom-in" aria-label="Zoom in">+</button></div>
       ${fullscreen?`<button class="btn btn-outline btn-small" data-action="preview-close-fullscreen">${icon("fa-xmark")} Close</button>`:`<button class="btn btn-outline btn-small" data-action="preview-fullscreen">${icon("fa-expand")} Full screen</button>`}
@@ -352,12 +352,12 @@
       <button class="btn btn-outline btn-small" data-action="download-report-pdf" ${reportState.verificationBusy?"disabled":""}>${icon("fa-file-pdf")} Download PDF</button>
       <button class="btn btn-primary btn-small" data-action="download-report-image" ${reportState.verificationBusy?"disabled":""}>${icon("fa-image")} Download as image</button>
     </div>`;
-    const previewStage=(fullscreen=false)=>`<div class="rc-preview-stage ${fullscreen?"is-fullscreen-stage":""}"><div class="rc-preview-paper-box"><div class="rc-preview-paper">${cardMarkup}</div></div></div>`;
+    const previewStage=(fullscreen=false)=>`<div class="rc-preview-stage ${fullscreen?"is-fullscreen-stage":""}"><div class="rc-preview-paper-box"><div class="rc-preview-paper" data-layout-format="${reportState.layoutFormat}">${cardMarkup}</div></div></div>`;
     const preview=cardMarkup?`<div class="rc-preview-viewer">
       ${previewToolbar(false)}${previewStage(false)}
       ${reportState.fullscreen?`<div class="rc-preview-fullscreen" role="dialog" aria-modal="true" aria-label="Full-screen report card preview"><div class="rc-preview-fullscreen-panel">${previewToolbar(true)}${previewStage(true)}</div></div>`:""}
     </div>`:"";
-    const templatePicker=window.ReportCardTemplatePicker?window.ReportCardTemplatePicker.render({level,template:reportState.template,period:reportState.period,includeStamp:reportState.includeStamp}):"";
+    const templatePicker=window.ReportCardTemplatePicker?window.ReportCardTemplatePicker.render({level,template:reportState.template,period:reportState.period,layoutFormat:reportState.layoutFormat,includeStamp:reportState.includeStamp}):"";
      const actions=`<button class="btn btn-outline" data-action="download-class-zip" ${!reports.length||reportState.busy||reportState.verificationBusy?"disabled":""}>${icon("fa-file-zipper")} Download class ZIP</button><button class="btn btn-primary" data-action="download-report-pdf" ${!selected||reportState.busy||reportState.verificationBusy?"disabled":""}>${icon("fa-file-pdf")} Download PDF</button>`;
     const canManageProjects=state.role==="school_admin";
     const projects=selected?.projects||[];
@@ -439,10 +439,11 @@
   let previewCountSequence=0,previewCountPending="",previewCountCache=new Map();
   function applyPreviewScale(){
     if(state.route!=="reports")return;
-    const pageWidth=210*96/25.4,pageHeight=297*96/25.4;
     root.querySelectorAll(".rc-preview-stage").forEach(stage=>{
       const box=stage.querySelector(".rc-preview-paper-box"),paper=stage.querySelector(".rc-preview-paper");
       if(!box||!paper)return;
+      const pageWidth=(paper.dataset.layoutFormat==="A5_CONDENSED"?148:210)*96/25.4;
+      const pageHeight=(paper.dataset.layoutFormat==="A5_CONDENSED"?210:297)*96/25.4;
       const fit=Math.min(1,stage.clientWidth/pageWidth,stage.clientHeight/pageHeight);
       const scale=fit*Math.max(.5,Math.min(1.8,Number(reportState.zoom)||1)*.01);
       box.style.width=`${pageWidth*scale}px`;box.style.height=`${pageHeight*scale}px`;
@@ -464,7 +465,12 @@
     const report=selected;
     const level=data.class?.level||"NURSERY";
     const rowCount=[report.subjects?.length||0,report.projects?.length||0,report.activities?.length||0,report.other_subjects?.length||0];
-    const key=JSON.stringify([reportState.classId,reportState.learnerId,reportState.term,reportState.year,reportState.template,reportState.period,level,rowCount]);
+    const key=JSON.stringify([reportState.classId,reportState.learnerId,reportState.term,reportState.year,reportState.template,reportState.period,reportState.layoutFormat,level,rowCount]);
+    if(reportState.layoutFormat==="A5_CONDENSED"){
+      previewCountCache.set(key,1);
+      markers.forEach(marker=>{marker.textContent="Page 1 of 1";marker.setAttribute("aria-label","A5 condensed report is one page")});
+      return;
+    }
     if(previewCountCache.has(key)){
       const count=previewCountCache.get(key);markers.forEach(marker=>{marker.textContent=`Page 1 of ${count}`;marker.setAttribute("aria-label",`PDF report spans ${count} pages`)});return;
     }
@@ -473,10 +479,10 @@
     previewCountPending=key;
     const sequence=++previewCountSequence;
     const ages=(data.learners||[]).map(item=>Number(item.learner?.age)).filter(age=>Number.isFinite(age)&&age>0);
-    const previewReport={...report,school:data.school,class:data.class,term:data.term,year:data.year,term_dates:data.term_dates,level_theme:data.level_theme,stamp_config:data.stamp_config,class_average_age:ages.length?ages.reduce((sum,age)=>sum+age,0)/ages.length:null};
+    const previewReport={...report,school:data.school,class:data.class,term:data.term,year:data.year,period:reportState.period,layout_format:reportState.layoutFormat,term_dates:data.term_dates,level_theme:data.level_theme,stamp_config:data.stamp_config,class_average_age:ages.length?ages.reduce((sum,age)=>sum+age,0)/ages.length:null};
     Promise.resolve().then(async()=>{
       if(!window.ReportCardPdf||!window.PDFLib?.PDFDocument)throw new Error("PDF page count unavailable");
-      const bytes=await window.ReportCardPdf.render(previewReport,level,reportState.template,false);
+      const bytes=await window.ReportCardPdf.render(previewReport,level,reportState.template,false,reportState.layoutFormat);
       const pdf=await window.PDFLib.PDFDocument.load(bytes);
       if(sequence!==previewCountSequence)return;
       const count=pdf.getPageCount();
@@ -1002,15 +1008,19 @@
       if(requestId===reportState.rosterRequestId){reportState.rosterBusy=false;render()}
     }
   }
+   function apiReportPeriod(value=reportState.period){
+     const period=window.ReportCardTemplatePicker.normalizePeriod(value);
+     return period==="COMBINED_BM"?"COMBINED_BME":period;
+   }
    async function issueReportAuthenticityCodes(reports){
      const learnerIds=[...new Set((reports||[]).map(report=>String(report.learner?.id||"")).filter(Boolean))];
-     if(!learnerIds.length)return{};
+     if(!learnerIds.length||reportState.layoutFormat==="A5_CONDENSED")return{};
      if(!window.ReportCardsAuthenticityQr)throw new Error("QR verification support did not load. Refresh and try again.");
      const response=await api("/api/verify/issue",{method:"POST",body:{
        learner_ids:learnerIds,
        term:reportState.term,
        year:Number(reportState.year),
-       period:window.ReportCardTemplatePicker.normalizePeriod(reportState.period),
+       period:apiReportPeriod(reportState.period),
        template:window.ReportCardTemplatePicker.normalizeTemplate(reportState.template),
      }});
      const records=new Map((response.cards||[]).map(card=>[String(card.learner_id),card]));
@@ -1024,6 +1034,7 @@
      return Object.fromEntries(entries);
    }
    async function loadSelectedReportVerification(){
+     if(reportState.layoutFormat==="A5_CONDENSED")return;
      const report=reportState.data?.learners?.find(item=>String(item.learner?.id)===String(reportState.learnerId));
      if(!report)return;
      const learnerId=String(report.learner.id);
@@ -1055,7 +1066,7 @@
      const q=new URLSearchParams({
        term:reportState.term,
        year:String(reportState.year),
-       period:window.ReportCardTemplatePicker.normalizePeriod(reportState.period),
+       period:apiReportPeriod(reportState.period),
        template:window.ReportCardTemplatePicker.normalizeTemplate(reportState.template),
      });
      try{
@@ -1083,7 +1094,7 @@
        if(mismatches.length)reportState.error="The class register and report-card data returned different learners. Reload the preview and try again.";
        if(!reportState.learners.some(learner=>String(learner.id)===String(reportState.learnerId)))reportState.learnerId=reportState.learners[0]?.id||"";
        const selected=reports.find(report=>String(report.learner?.id)===String(reportState.learnerId));
-       if(selected){
+       if(selected&&reportState.layoutFormat!=="A5_CONDENSED"){
          reportState.verificationBusy=true;
          try{reportState.verifications=await issueReportAuthenticityCodes([selected])}
          catch(error){reportState.verificationError=error.message||"Could not prepare the authenticity QR code."}
@@ -1113,7 +1124,7 @@
       const stampLogoPosition=stampConfig?.stamp_logo_position??school.stamp_logo_position??stamp.stamp_logo_position??"inside_center";
       const defaults={stamp_logo_size:20,stamp_logo_offset_x:0,stamp_logo_offset_y:0,stamp_logo_rotation:0,stamp_logo_opacity:100};
       const logoSettings=Object.fromEntries(Object.keys(defaults).map(key=>[key,stampConfig?.[key]??school[key]??defaults[key]]));
-      return {...report,school:{...school,stamp_config:stamp,stamp_logo_position:stampLogoPosition,...logoSettings},class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,term_dates:reportState.data.term_dates,period:reportState.period,template:reportState.template,level_theme:reportState.data.level_theme,stamp_config:stamp,class_average_age:classAverageAge,authenticity_qr_data_url:verification?.qrDataUrl};
+     return {...report,school:{...school,stamp_config:stamp,stamp_logo_position:stampLogoPosition,...logoSettings},class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,term_dates:reportState.data.term_dates,period:reportState.period,layout_format:reportState.layoutFormat,template:reportState.template,level_theme:reportState.data.level_theme,stamp_config:stamp,class_average_age:classAverageAge,authenticity_qr_data_url:verification?.qrDataUrl};
     }
   async function printReportCards(wholeClass){
     const reports=reportState.data?.learners||[];
@@ -1124,6 +1135,7 @@
       const stamp=reportState.includeStamp?await api("/api/schools/stamp"):undefined;
       const verificationCodes=await issueReportAuthenticityCodes(list);
       const printRoot=document.createElement("div");printRoot.id="rc-print-root";
+      printRoot.dataset.layoutFormat=reportState.layoutFormat;
       printRoot.innerHTML=list.map(item=>`<section class="rc-print-card">${window.ReportCardPreview.render(reportForDownload(item,stamp,verificationCodes[String(item.learner?.id)]),{template:reportState.template,period:reportState.period,includeStamp:reportState.includeStamp})}</section>`).join("");
       document.getElementById("rc-print-root")?.remove();
       document.body.append(printRoot);document.body.classList.add("printing-report-cards");
@@ -1251,6 +1263,22 @@
     const target=e.target;
     if(!target.matches("[data-report-filter]"))return;
     const key=target.dataset.reportFilter;
+    if(key==="layoutFormat"||key==="period"){
+      e.stopImmediatePropagation();
+      if(key==="layoutFormat"){
+        reportState.layoutFormat=window.ReportCardTemplatePicker.normalizeLayoutFormat(target.value);
+        if(reportState.layoutFormat==="A5_CONDENSED")reportState.period="COMBINED_BM";
+      }else{
+        reportState.period=window.ReportCardTemplatePicker.normalizePeriod(target.value);
+        if(reportState.layoutFormat==="A5_CONDENSED"&&reportState.period!=="COMBINED_BM"){
+          reportState.layoutFormat="A4";
+          toast("The A5 condensed format uses Combined (B.O.T + Midterm); Full Page (A4) was restored.");
+        }
+      }
+      reportState.error="";
+      if(reportState.data)loadReportClass();else render();
+      return;
+    }
     if(key==="classId"){
       e.stopImmediatePropagation();
       reportState.classId=target.value;

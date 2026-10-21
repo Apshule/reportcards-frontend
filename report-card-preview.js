@@ -118,7 +118,9 @@
     const theme = window.ReportCardThemeEngine?.getTemplateTheme?.(level, template.definition, suppliedTheme)
       || window.ReportCardThemeEngine?.getTheme?.(level, suppliedTheme)
       || defaults;
-    return `class="rc-preview rc-preview-level-${level.toLowerCase()}" data-level="${level}" data-template="${esc(template.id)}" style="--rc-theme:${theme.primary_color};--rc-header:${theme.header_color};--rc-header-text:${theme.header_text_color};--rc-table-header:${theme.table_header_color};--rc-table-header-text:${theme.table_header_text_color};--rc-accent:${theme.accent_color};--rc-accent-text:${contrastText(theme.accent_color)};--rc-table-bg:${theme.background_color}"`;
+    const layoutFormat = options.layoutFormat || report.layout_format || "A4";
+    const layoutClass = layoutFormat === "A5_CONDENSED" ? " rc-preview-a5-condensed" : "";
+    return `class="rc-preview rc-preview-level-${level.toLowerCase()}${layoutClass}" data-level="${level}" data-template="${esc(template.id)}" data-layout-format="${esc(layoutFormat)}" style="--rc-theme:${theme.primary_color};--rc-header:${theme.header_color};--rc-header-text:${theme.header_text_color};--rc-table-header:${theme.table_header_color};--rc-table-header-text:${theme.table_header_text_color};--rc-accent:${theme.accent_color};--rc-accent-text:${contrastText(theme.accent_color)};--rc-table-bg:${theme.background_color}"`;
   }
   const scoreRows = (report) => (report.subjects || []).map((subject) => ({
     subject,
@@ -463,6 +465,61 @@
     return `${grade}${points ? ` (${points} pts)` : ""}`;
   };
 
+  function renderA5Condensed(report, options = {}) {
+    const period = assessmentPeriod(report, options);
+    if (period.key !== "COMBINED_BM") {
+      return `<article ${previewAttrs(report, levelCode(report.class?.level), options)}><div class="rc-preview-content"><p class="alert info">The Half Page (A5) Condensed layout is for Combined (B.O.T + Midterm).</p></div></article>`;
+    }
+    const level = levelCode(report.class?.level);
+    const school = report.school || {};
+    const learner = report.learner || {};
+    const logo = imageSource(school.logo_base64);
+    const entries = scoreRows(report);
+    const rows = entries.map(({ subject, mark }) => {
+      const average = periodTools().periodScore(mark, period.key);
+      return [
+        `<b>${value(subject.name)}</b>`,
+        periodCell(mark, "bot", period),
+        periodCell(mark, "mid_term", period),
+        number(average),
+        value(gradeDisplay(mark)),
+        value(mark.tr || mark.teacher_remark || mark.descriptor || mark.remark),
+      ];
+    }).map((cells) => `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`);
+    const comments = [
+      report.class_teacher_comment || report.suggested_comment,
+      report.principal_comment || report.head_teacher_comment,
+    ].filter(Boolean).map((text) => String(text).replace(/\s+/g, " ").trim());
+    const schoolContact = [school.phone, school.email].filter(Boolean).join(" · ");
+    const info = [
+      ["Learner", learner.full_name],
+      ["Class", report.class?.name],
+      ["Term / Year", `${displayTerm(report.term)} ${report.year ?? ""}`.trim()],
+      ["Reg. No.", learner.reg_no],
+    ];
+    return `<article ${previewAttrs(report, level, options)}>
+      <div class="rc-preview-content rc-a5-content">
+        <header class="rc-a5-header">
+          ${logo ? `<img src="${esc(logo)}" alt="School logo">` : `<span class="rc-a5-logo-placeholder">${esc(String(school.name || "S").slice(0, 1))}</span>`}
+          <div><h2>${value(school.name)}</h2>${schoolContact ? `<p>${value(schoolContact)}</p>` : ""}<strong>${esc(displayTerm(report.term))} · B.O.T + MIDTERM REPORT</strong></div>
+        </header>
+        <div class="rc-a5-learner-info">${info.map(([label, content]) => `<span><b>${esc(label)}:</b> ${value(content)}</span>`).join("")}</div>
+        <div class="rc-a5-table-wrap">${table(
+          ["Subject", "B.O.T", "Midterm", "Average", "Grade", "Remarks"],
+          rows,
+          "rc-a5-table",
+          "",
+          "",
+        )}</div>
+        <section class="rc-a5-bottom">
+          <p class="rc-a5-remarks"><b>Teacher / Principal:</b> ${value(comments.join(" · ") || "—")}</p>
+          <p class="rc-a5-grading-key"><b>Grading key:</b> ${esc(gradeLegend(report, level))}</p>
+          <div class="rc-a5-signature"><span></span><b>Class Teacher's signature</b></div>
+        </section>
+      </div>
+    </article>`;
+  }
+
   function renderNursery(report, options = {}) {
     const rows = scoreRows(report);
     const summary = report.summary || {};
@@ -633,6 +690,7 @@
     formatReportDate,
     renderStamp: stampBlock,
     render(report, options = {}) {
+      if ((options.layoutFormat || report.layout_format) === "A5_CONDENSED") return renderA5Condensed(report, options);
       const level = levelCode(report.class?.level);
       if (level === "PRIMARY") return renderPrimary(report, options);
       if (level === "O_LEVEL" || level === "A_LEVEL") return renderSecondary(report, level, options);
