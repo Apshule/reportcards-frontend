@@ -14,6 +14,7 @@ body.marks-entry-fullscreen{overflow:hidden}
 .comment-choice-options label{display:flex;align-items:flex-start;gap:10px;color:var(--ink,#28233a);line-height:1.45}
 .comment-choice-options input{accent-color:var(--primary,#4b2e9e);margin-top:4px}
 .comment-choice-modal textarea{min-height:95px}
+.comment-choice-modal [hidden]{display:none!important}
 @media(max-width:680px){
   .marks-register-panel.is-fullscreen{inset:0;border-radius:0;padding:14px}
   .marks-register-panel.is-fullscreen .section-title{align-items:flex-start;gap:12px}

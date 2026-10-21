@@ -488,7 +488,15 @@
     const options=state.role==="teacher"
       ?(state.rm.commentOptions||[])
       :[...new Set((state.data.grading||[]).map(grade=>String(grade.comment||"").trim()).filter(Boolean))];
-    return `<div class="modal-backdrop" data-action="backdrop"><section class="modal comment-choice-modal" role="dialog" aria-modal="true" aria-labelledby="comment-choice-title"><div class="modal-head"><div><h2 id="comment-choice-title">${modal.learnerName?`Comment for ${esc(modal.learnerName)}`:"Choose how to handle comments"}</h2><p>Choose the report-card comment behavior before saving marks.</p></div><button class="close-btn" data-action="close-modal" aria-label="Close">${icon("fa-xmark")}</button></div><fieldset class="comment-choice-options"><legend>Comment method</legend><label><input type="radio" name="comment-choice" value="auto" checked> Auto-generate each comment from the learner’s grade</label><label><input type="radio" name="comment-choice" value="saved" ${options.length?"":"disabled"}> Select a saved comment</label><label><input type="radio" name="comment-choice" value="custom"> Type a custom comment</label></fieldset><div class="field"><label for="saved-comment-choice">Saved comment</label><select id="saved-comment-choice" ${options.length?"":"disabled"}><option value="">Choose a saved comment</option>${options.map(option=>`<option value="${esc(option)}">${esc(option)}</option>`).join("")}</select>${options.length?"":'<span class="field-hint">No saved grading comments are configured yet. Add them under Grading.</span>'}</div><div class="field"><label for="custom-comment-choice">Custom comment</label><textarea id="custom-comment-choice" maxlength="1500" placeholder="Write the comment to apply">${esc(modal.customComment||"")}</textarea></div><div class="modal-actions"><button class="btn btn-outline" data-action="close-modal">Cancel</button><button class="btn btn-primary" data-action="apply-mark-comment-choice">${icon("fa-floppy-disk")} Continue</button></div></section></div>`;
+    const promptText=modal.pending==="teacher-submit"
+      ?"Choose the comment method before submitting marks for review."
+      :modal.pending==="comment-only"
+        ?"Choose Auto, Dropdown, or Custom for this learner’s report-card comment."
+        :"Choose the comment method before saving marks.";
+    const title=modal.pending==="teacher-submit"
+      ?"Choose comments before submission"
+      :modal.learnerName?`Comment for ${esc(modal.learnerName)}`:"Choose how to handle comments";
+    return `<div class="modal-backdrop" data-action="backdrop"><section class="modal comment-choice-modal" role="dialog" aria-modal="true" aria-labelledby="comment-choice-title"><div class="modal-head"><div><h2 id="comment-choice-title">${title}</h2><p>${promptText}</p></div><button class="close-btn" data-action="close-modal" aria-label="Close">${icon("fa-xmark")}</button></div><fieldset class="comment-choice-options"><legend>Comment method</legend><label><input type="radio" name="comment-choice" value="auto" checked> Auto-generate each comment from the learner’s grade</label><label><input type="radio" name="comment-choice" value="saved" ${options.length?"":"disabled"}> Dropdown — choose a saved grading comment</label><label><input type="radio" name="comment-choice" value="custom"> Custom — write a comment</label></fieldset><div class="field" data-comment-mode-panel="saved" hidden><label for="saved-comment-choice">Saved comment</label><select id="saved-comment-choice" data-has-options="${options.length>0}" disabled><option value="">Choose a saved comment</option>${options.map(option=>`<option value="${esc(option)}">${esc(option)}</option>`).join("")}</select>${options.length?"":'<span class="field-hint">No saved grading comments are configured yet. Add them under Grading.</span>'}</div><div class="field" data-comment-mode-panel="custom" hidden><label for="custom-comment-choice">Custom comment</label><textarea id="custom-comment-choice" maxlength="1500" placeholder="Write the comment to apply" disabled>${esc(modal.customComment||"")}</textarea></div><div class="modal-actions"><button class="btn btn-outline" data-action="close-modal">Cancel</button><button class="btn btn-primary" data-action="apply-mark-comment-choice">${icon("fa-floppy-disk")} Continue</button></div></section></div>`;
   };
   function formValues(form){
     const fd=new FormData(form), out={};
@@ -725,6 +733,7 @@
     const marks=isTeacher?(state.rm.marks||[]):(state.data.marks||[]);
     const rows=pending==="comment-only"?[]:collectMarkRows(isTeacher?"teacher-marks-table":"marks-table");
     const learnerIds=learnerId?[learnerId]:rows.length?rows.map(row=>row.learner_id):marks.map(row=>row.learner_id);
+    if(!learnerIds.length){toast("Load a class with learners before saving marks or submitting comments.","error");return}
     state.modal={type:"mark-comment-choice",pending,rows,learnerIds,learnerName:marks.find(row=>String(row.learner_id)===String(learnerId))?.full_name||"",customComment:field?.value||""};
     render();
   }
@@ -745,7 +754,7 @@
       }
       if(modal.pending==="comment-only"||modal.pending==="teacher-save"||modal.pending==="teacher-submit"){
         await loadTeacherMarks();
-      }
+      }else if(modal.pending==="admin-save")await loadMarks();
       if(modal.pending==="teacher-submit"){
         await api(`/api/rm/class/${encodeURIComponent(state.filter.class_id)}/submit-for-review`,{method:"POST",body:{subject_id:state.filter.subject_id,term:state.filter.term,year:Number(state.filter.academic_year)}});
         await loadTeacherMarks();toast("Marks submitted for review.");
@@ -1181,6 +1190,16 @@
   },true);
   root.addEventListener("change",async e=>{
     const target=e.target;
+     if(target.matches('input[name="comment-choice"]')){
+       root.querySelectorAll("[data-comment-mode-panel]").forEach(panel=>{
+         const active=panel.dataset.commentModePanel===target.value;
+         panel.hidden=!active;
+         panel.querySelectorAll("select,textarea").forEach(input=>{
+           input.disabled=!active||(input.matches("select")&&input.dataset.hasOptions==="false");
+         });
+       });
+       return;
+     }
     if(target.id==="f-learner-photo"){await handleLearnerPhotoSelection(target);return}
     if(target.matches("[data-fin-balance-class]")){state.finance.feeBalanceClass=target.value;render();return}
     if(target.id==="fee-balance-csv"&&target.files?.[0]){
