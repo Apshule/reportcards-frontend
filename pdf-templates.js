@@ -198,7 +198,7 @@
     const period = assessmentPeriod(report);
     return `${term} PROGRESS REPORT — ${period.title}`;
   }
-  async function drawHeader(doc, page, report, fonts, theme, title) {
+  async function drawHeader(doc, page, report, fonts, theme, title, meta = null) {
     const { width, height } = page.getSize();
     const school = report.school || {};
     const learner = report.learner || {};
@@ -253,6 +253,7 @@
     centered(page, reportCardBanner(report), width / 2, titleY - 18, fonts.bold, reportFonts.heading, contrastColor(accent), width - margin * 2 - 12);
     const infoTop = titleY - 32;
     const level = levelCode(report.class?.level);
+    const showPosition = reportPositionEnabled(report, meta);
     const infoRows = level === "NURSERY" ? [
       [["REG NO", learner.reg_no], ["CLASS", report.class?.name], ["FEES BAL", report.fees?.balance], ["SCHOOLPAY CODE", learner.schoolpay_code || school.schoolpay_code]],
       [["NAME", learner.full_name], ["DAYS ATTENDED", report.days_attended ?? report.days_present], ["ABSENT", report.days_absent ?? report.absence], ["TOTAL", report.total_days ?? report.school_days]],
@@ -280,7 +281,8 @@
     const gridX = margin;
     const gridWidth = width - margin * 2;
     const cellHeight = level === "O_LEVEL" ? 19 : 20;
-    infoRows.forEach((row, rowIndex) => row.forEach(([label, value], columnIndex) => {
+    const visibleInfoRows = infoRows.filter((row) => showPosition || !row.some(([label]) => label === "POSITION"));
+    visibleInfoRows.forEach((row, rowIndex) => row.forEach(([label, value], columnIndex) => {
       const cellWidth = gridWidth / row.length;
       const cellX = gridX + columnIndex * cellWidth;
       const cellY = infoTop - (rowIndex + 1) * cellHeight;
@@ -547,10 +549,10 @@
       const isOLevel = level === "O_LEVEL";
       const isNursery = level === "NURSERY";
       const isPrimary = level === "PRIMARY";
+      const gradeKey = options.gradeKey || gradeScale(level, report);
       if (isOLevel) {
         const asAt = formatReportDate(report.printed_at || report.generated_at || new Date());
         drawText(page, `Outstanding school fees balance is UGX ${str(fees.balance)} as at ${asAt}`, 28, 134, fonts.regular, reportFonts.body, ink, width - 56);
-        drawText(page, "GRADES: A 100-80; B 79-70; C 69-60; D 59-40; E <40", 28, 119, fonts.regular, reportFonts.body, ink, width - 56);
         drawText(page, "T = Topic; EOTI = end of term 1", 28, 104, fonts.regular, reportFonts.body, ink, width - 56);
       } else if (isNursery) {
         const issueDate = formatReportDate(report.printed_at || report.generated_at || new Date());
@@ -558,16 +560,14 @@
         drawText(page, `School Requirements: ${str(school.school_requirements)}`, 28, 119, fonts.regular, reportFonts.body, ink, width - 56);
       } else if (isPrimary) {
         drawText(page, `Next term will begin on: ${formatReportDate(dates.next_term_begins)}`, 28, 134, fonts.regular, reportFonts.body, ink, width - 56);
-        drawText(page, "KEY: A = Very Good; B = Good; C = Fair; D = Still Weak; GR = Grade; AGGR = Aggregate", 28, 119, fonts.regular, reportFonts.body, ink, width - 56);
+        drawText(page, "GR = Grade; AGGR = Aggregate", 28, 119, fonts.regular, reportFonts.body, ink, width - 56);
       } else {
         drawText(page, `School term/year: ${str(dates.current_term)} / ${str(dates.current_year)}   ·   Term ended: ${formatReportDate(dates.term_ended_on)}`, 28, 245, fonts.regular, reportFonts.body, ink, width - 56);
         drawText(page, `Next term fees: ${str(dates.next_term_fees)}   ·   Fees balance: ${str(fees.balance)}`, 28, 230, fonts.regular, reportFonts.body, ink, width - 56);
-        if (!isOLevel && options.gradeKey) {
-          wrappedLines(`GRADING KEY: ${str(options.gradeKey)}`, fonts.regular, reportFonts.body, width - 56)
-            .slice(0, 2)
-            .forEach((line, index) => drawText(page, line, 28, 126 - index * 14, fonts.regular, reportFonts.body, ink, width - 56));
-        }
       }
+      wrappedLines(`GRADING SCALE: ${str(gradeKey)}`, fonts.regular, reportFonts.body, width - 56)
+        .slice(0, 2)
+        .forEach((line, index) => drawText(page, line, 28, 91 - index * 12, fonts.regular, reportFonts.body, ink, width - 56));
 
       const remarkTop = 223;
       const remarkHeight = 80;
@@ -629,6 +629,11 @@
       mark: subject.mark || {},
     }));
   }
+  function reportPositionEnabled(report, meta = null) {
+    const setting = report?.school?.show_report_position ?? report?.show_report_position;
+    const templateHidesPosition = levelCode(report?.class?.level) === "PRIMARY" && String(meta?.id ?? "") === "3";
+    return setting !== false && setting !== "false" && !templateHidesPosition;
+  }
   const defaultOtherSubjects = ["Handwriting", "Art & Drawing", "P.E & Games", "Music", "Luganda", "Religious Education"];
   function coCurricular(report, includeDefaults = false) {
     const rows = Array.isArray(report.activities) ? report.activities
@@ -684,16 +689,27 @@
     if (decision === "try_another") return "STATUS: TRY ANOTHER CLASS";
     return "STATUS: —";
   }
-  function gradeScale(level) {
+  function gradeScale(level, report = {}) {
+    const rows = Array.isArray(report.grading_scale) ? report.grading_scale : [];
+    const custom = rows.map((row) => {
+      const code = str(row.grade_code);
+      const min = Number(row.min_score);
+      const max = Number(row.max_score);
+      if (!code || !Number.isFinite(min) || !Number.isFinite(max)) return "";
+      const score = (value) => Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
+      return `${code} ${score(min)}–${score(max)}`;
+    }).filter(Boolean);
+    if (custom.length) return custom.join(" · ");
+    if (level === "NURSERY") return "Learning areas are assessed by descriptor";
     return level === "A_LEVEL"
-      ? "Grade scale: A 75–100 · B 65–74 · C 50–64 · D 35–49 · E 0–34"
-      : "Grade scale: A >= 80 · B >= 70 · C >= 60 · D >= 50 · E < 50";
+      ? "A 75–100 · B 65–74 · C 50–64 · D 35–49 · E 0–34"
+      : "A 80–100 · B 70–79 · C 60–69 · D 50–59 · E 0–49";
   }
   const asReport = (learnerOrReport, school, marksData) =>
     school
       ? { ...(marksData || {}), learner: learnerOrReport, school }
       : learnerOrReport;
-  async function prepare(report, level, title) {
+  async function prepare(report, level, title, meta = null) {
     if (!PDFDocument) throw new Error("The PDF library is unavailable; check your connection and reload.");
     const doc = await PDFDocument.create();
     doc.setTitle(`${title} — ${str(report.learner?.full_name)}`);
@@ -713,7 +729,7 @@
     };
     const primary = color(theme.primary_color);
     const lineAccent = color(theme.accent_color);
-    const headerY = await drawHeader(doc, page, report, fonts, theme, title);
+    const headerY = await drawHeader(doc, page, report, fonts, theme, title, meta);
     const y = ["O_LEVEL", "A_LEVEL"].includes(level) ? drawPromotionBanner(page, report, fonts, headerY) : headerY;
     return { doc, page, fonts, accent: primary, primary, lineAccent, backgroundColor: theme.background_color, theme, y, size };
   }
@@ -801,7 +817,7 @@
       });
       const remarkIndex = areaWidths.length - 2;
       const remarkX = x + areaWidths.slice(0, remarkIndex).reduce((sum, item) => sum + item, 0);
-      wrappedLines(str(mark.descriptor || mark.remark || ""), fonts.italic, reportFonts.table, areaWidths[remarkIndex] - 6).slice(0, 2).forEach((line, lineIndex) => {
+      wrappedLines(str(mark.tr || mark.teacher_remark || mark.descriptor || mark.remark || ""), fonts.italic, reportFonts.table, areaWidths[remarkIndex] - 6).slice(0, 2).forEach((line, lineIndex) => {
         centeredTable(page, line, remarkX + areaWidths[remarkIndex] / 2, rowTop - 17 - lineIndex * 12, fonts.italic, reportFonts.table, color(theme.primary_color), areaWidths[remarkIndex] - 6);
       });
       const signIndex = areaWidths.length - 1;
@@ -813,9 +829,12 @@
     const totalHeight = 19;
     const totalFill = color(theme.accent_color);
     page.drawRectangle({ x, y: totalTop - totalHeight, width: panelWidth, height: totalHeight, color: totalFill, borderColor: totalFill, borderWidth: 0.5 });
-    const totals = [`TOTAL: ${num(maxScore, 0)}`, `SCORED: ${num(scored, 0)}`, `POSITION ${str(report.summary?.position)} OUT OF ${str(report.summary?.class_size)}`];
+    const showPosition = reportPositionEnabled(report, meta);
+    const totals = [`TOTAL: ${num(maxScore, 0)}`, `SCORED: ${num(scored, 0)}`, ...(showPosition ? [`POSITION ${str(report.summary?.position)} OUT OF ${str(report.summary?.class_size)}`] : [])];
     let totalX = x;
-    const totalWidths = [panelWidth * 0.31, panelWidth * 0.31, panelWidth * 0.38];
+    const totalWidths = showPosition
+      ? [panelWidth * 0.31, panelWidth * 0.31, panelWidth * 0.38]
+      : [panelWidth * 0.5, panelWidth * 0.5];
     totals.forEach((label, index) => {
       centeredTable(page, label, totalX + totalWidths[index] / 2, totalTop - 13, fonts.bold, reportFonts.table, contrastColor(theme.accent_color), totalWidths[index] - 4);
       if (index) page.drawLine({ start: { x: totalX, y: totalTop }, end: { x: totalX, y: totalTop - totalHeight }, thickness: 0.4, color: white });
@@ -853,7 +872,7 @@
     const remarks = [
       ["Class Teacher's Report", report.class_teacher_comment || report.suggested_comment],
       ["Behaviors / Cleanliness", report.behaviors_comment || report.behaviour_comment || report.cleanliness_comment],
-      ["Head Teacher's Comment", report.head_teacher_comment],
+      ["Head of Infants Remarks", report.head_of_infants_comment || report.head_teacher_comment],
     ];
     await drawAllFooters(doc, report, fonts, accent, { lineAccent, remarks, signatures: ["Class Teacher", "Behaviors", "Head Teacher"], remarkCount: 3 });
     return doc.save();
@@ -864,6 +883,7 @@
     const { doc, page, fonts, accent, lineAccent, backgroundColor, theme, y } = await prepare(report, "PRIMARY", "Primary School Report");
     const entries = marks(report);
     const period = assessmentPeriod(report);
+    const showPosition = reportPositionEnabled(report, meta);
     const ordinal = (input) => {
       if (input === null || input === undefined || input === "") return "—";
       if (typeof input === "string" && /[a-z]/i.test(input)) return input;
@@ -877,7 +897,7 @@
       ...period.fields.map(({ label }) => ({ label, weight: 0.62, align: "center" })),
       ...(period.combined ? [{ label: "FINAL", weight: 0.68, align: "center" }] : []),
       { label: "GR.", weight: 0.58, align: "center" },
-      { label: "POS.", weight: 0.88, align: "center" },
+      ...(showPosition ? [{ label: "POS.", weight: 0.88, align: "center" }] : []),
       { label: "REMARKS", weight: 1.7 },
       { label: "INIT.", weight: 0.62, align: "center" },
     ];
@@ -888,7 +908,7 @@
           ...period.fields.map(() => "________"),
           ...(period.combined ? ["________"] : []),
           "___",
-          "________",
+          ...(showPosition ? ["________"] : []),
           "________________",
           "___",
         ];
@@ -898,8 +918,8 @@
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
         str(mark.grade),
-        mark.position ? `${ordinal(mark.position)} of ${str(mark.class_size)}` : "—",
-        str(mark.descriptor || mark.teacher_remark),
+        ...(showPosition ? [mark.position ? `${ordinal(mark.position)} of ${str(mark.class_size)}` : "—"] : []),
+        str(mark.tr || mark.teacher_remark || mark.descriptor),
         str(mark.teacher_initials),
       ];
     });
@@ -910,7 +930,7 @@
       backgroundColor, accentColor: lineAccent, headerColor: theme.table_header_color, headerTextColor: theme.table_header_text_color,
       bottomLimit: 275,
       boldColumns: [0], italicColumns: [columns.length - 2],
-      centerColumns: [...period.fields.map((_, index) => index + 1), ...(period.combined ? [period.fields.length + 1] : []), columns.length - 4, columns.length - 1],
+      centerColumns: [...period.fields.map((_, index) => index + 1), ...(period.combined ? [period.fields.length + 1] : []), columns.length - (showPosition ? 4 : 3), columns.length - 1],
       wrappedColumns: [0, columns.length - 2],
       columnFontSizes: { 0: 7.2, [columns.length - 2]: 6.1 },
     }, meta);
@@ -921,13 +941,13 @@
       ...period.fields.map(({ key }) => num(periodSum(entries, key, period), 0)),
       ...(period.combined ? [num(summary.total_score, 0)] : []),
       str(summary.overall_grade),
-      `${ordinal(summary.position)} OUT OF ${str(summary.class_size)}`,
+      ...(showPosition ? [`${ordinal(summary.position)} OUT OF ${str(summary.class_size)}`] : []),
       promotionStatus(report).replace(/^STATUS:\s*/, ""),
       initials,
     ];
     const totalsY = drawTableTotals(flow.page, totalCells, 28, flow.y, width, columns, fonts, lineAccent, 5.8);
     drawCompactSummary(flow.page, [
-      ["Overall position", `${ordinal(summary.position)} of ${str(summary.class_size)}`],
+      ...(showPosition ? [["Overall position", `${ordinal(summary.position)} of ${str(summary.class_size)}`]] : []),
       ["Average", num(summary.overall_average)],
       ["Grade", str(summary.overall_grade)],
     ], 28, totalsY - 1, width, fonts, accent);
@@ -943,10 +963,10 @@
     }, meta);
     const remarks = [
       ["Class Teacher's Remarks", report.class_teacher_comment || report.suggested_comment],
-      ["Head of Infants Remarks", report.head_teacher_comment || report.head_of_infants_comment],
+      ["Head Teacher's Remarks", report.head_teacher_comment || report.head_of_infants_comment],
       ["Principal's Remarks", report.principal_comment],
     ];
-    await drawAllFooters(doc, report, fonts, accent, { lineAccent, remarks, signatures: ["Class Teacher", "Head of Infants", "Principal"], remarkCount: 3 });
+    await drawAllFooters(doc, report, fonts, accent, { lineAccent, remarks, signatures: ["Class Teacher", "Head Teacher", "Principal"], remarkCount: 3 });
     return doc.save();
   }
 
@@ -982,7 +1002,7 @@
       ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
       ...(period.combined ? [num(periodScore(mark, period))] : []),
       str(mark.grade),
-      str(mark.descriptor),
+      str(mark.tr || mark.teacher_remark || mark.descriptor),
       str(mark.teacher_initials),
     ]);
     const subjectIndex = isALevel ? 1 : 0;
@@ -1019,7 +1039,7 @@
     ];
     let totalsY = drawTableTotals(flow.page, averages, 28, flow.y - 2, page.getWidth() - 56, columns, fonts, lineAccent, 5.3);
     drawSummary(flow.page, [
-      ["Overall position", `${str(summary.position)} of ${str(summary.class_size)}`],
+      ...(reportPositionEnabled(report) ? [["Overall position", `${str(summary.position)} of ${str(summary.class_size)}`]] : []),
       ["Average", num(summary.overall_average)],
       ["Grade", overallGrade],
       ["Identifier", str(summary.overall_identifier ?? summary.identifier)],
@@ -1057,7 +1077,7 @@
     }
     await drawAllFooters(doc, report, fonts, accent, {
       lineAccent, remarkCount: 2, signatures: ["Class Teacher", "Head Teacher"],
-      gradeKey: level === "O_LEVEL" ? "A 100-80 · B 79-70 · C 69-60 · D 59-40 · E <40" : gradeScale(level),
+      gradeKey: gradeScale(level, report),
     });
     return doc.save();
   }
@@ -1095,8 +1115,12 @@
 
   function signatureLabels(meta, report) {
     if (meta.signatures && meta.signatures.some((label) => /behaviors/i.test(label))) return ["Class Teacher", "Head Teacher", "Principal"];
-    if (meta.signatures) return meta.signatures;
-    if (meta.lowerPrimarySignature && isLowerPrimary(report)) return ["Class Teacher", "Head of Infants", "Principal"];
+    if (meta.signatures) {
+      return levelCode(report.class?.level) === "PRIMARY"
+        ? meta.signatures.map((label) => /head of infants|infant/i.test(label) ? "Head Teacher" : label)
+        : meta.signatures;
+    }
+    if (meta.lowerPrimarySignature && isLowerPrimary(report)) return ["Class Teacher", "Head Teacher", "Principal"];
     if (meta.variant === "primary_silver") return ["Class Teacher", "Head of Department", "Principal"];
     return ["Class Teacher", "Head Teacher", "Principal"];
   }
@@ -1124,10 +1148,11 @@
     const title = level === "NURSERY" ? "Nursery Learning Report"
       : level === "PRIMARY" ? "Primary School Report"
         : level === "O_LEVEL" ? "O-Level Report" : "A-Level Report";
-    const { doc, page, fonts, accent, lineAccent, backgroundColor, theme, y: headerY } = await prepare(report, level, title);
+    const { doc, page, fonts, accent, lineAccent, backgroundColor, theme, y: headerY } = await prepare(report, level, title, meta);
     const width = page.getWidth();
     variantRule(page, page.getHeight() - 150, width, meta);
     const entries = marks(report);
+    const showPositionInVariant = reportPositionEnabled(report, meta);
     let top = headerY - 4;
 
     if (level === "NURSERY") {
@@ -1137,7 +1162,7 @@
         subject.name,
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
-        str(mark.descriptor),
+        str(mark.tr || mark.teacher_remark || mark.descriptor),
         str(mark.teacher_initials),
       ]);
       const x = 31;
@@ -1154,7 +1179,7 @@
       const summary = report.summary || {};
       drawTotalsRow(flow.page, "Score", num(summary.total_score, 0), x, nextY - 1, panelWidth, fonts, lineAccent, theme.background_color);
       drawSummary(flow.page, [
-        ["Position", `${str(summary.position)} of ${str(summary.class_size)}`],
+        ...(showPositionInVariant ? [["Position", `${str(summary.position)} of ${str(summary.class_size)}`]] : []),
         ["Average", num(summary.overall_average)],
         ["Grade", str(summary.overall_grade)],
       ], x, nextY - 33, panelWidth, fonts, accent);
@@ -1172,7 +1197,7 @@
         ], activities, x, nextY, panelWidth, { fontSize: 7.8, headerFontSize: 8.4, headerHeight: 27, rowHeight: 18, backgroundColor, accentColor: lineAccent, headerColor: theme.table_header_color, headerTextColor: theme.table_header_text_color, bottomLimit: 260 }, meta);
       }
     } else if (level === "PRIMARY") {
-      const showPosition = String(meta.id) !== "3";
+      const showPosition = showPositionInVariant;
       const period = assessmentPeriod(report);
       const columns = [
         { label: "Subject", weight: 1.7 },
@@ -1190,7 +1215,7 @@
           ...(period.combined ? [num(periodScore(mark, period))] : []),
           str(mark.grade),
           ...(showPosition ? [mark.position ? `${mark.position} of ${str(mark.class_size)}` : "—"] : []),
-          str(mark.descriptor),
+          str(mark.tr || mark.teacher_remark || mark.descriptor),
           str(mark.teacher_initials),
         ];
         if (meta.blankForm) return [
@@ -1241,7 +1266,7 @@
       ];
       const totalsY = drawTableTotals(flow.page, totalCells, 28, flow.y - 2, width - 56, columns, fonts, lineAccent);
       drawSummary(flow.page, [
-        ["Overall position", `${str(summary.position)} of ${str(summary.class_size)}`],
+        ...(showPosition ? [["Overall position", `${str(summary.position)} of ${str(summary.class_size)}`]] : []),
         ["Average", num(summary.overall_average)],
         ["Grade", str(summary.overall_grade)],
       ], 28, totalsY - 8, width - 56, fonts, accent);
@@ -1269,7 +1294,7 @@
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
         str(mark.grade),
-        str(mark.descriptor),
+        str(mark.tr || mark.teacher_remark || mark.descriptor),
         str(mark.teacher_initials),
       ]);
       let flow = await drawTableFlow(doc, page, report, fonts, theme, title, `TERM PERFORMANCE RECORDS — ${period.title}`, columns, rows, 28, nextY, width - 56, {
@@ -1296,7 +1321,7 @@
       ];
       const totalsY = drawTableTotals(flow.page, averages, 28, flow.y - 2, width - 56, columns, fonts, lineAccent, 5.3);
       drawSummary(flow.page, [
-        ["Overall position", `${str(summary.position)} of ${str(summary.class_size)}`],
+        ...(showPositionInVariant ? [["Overall position", `${str(summary.position)} of ${str(summary.class_size)}`]] : []),
         ["Average", num(summary.overall_average)],
         ["Grade", str(summary.overall_grade)],
         ["Identifier", str(summary.overall_identifier ?? summary.identifier)],
@@ -1338,7 +1363,7 @@
         subject.code, subject.name, str(mark.paper_number),
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
-        str(mark.grade), str(mark.descriptor), str(mark.teacher_initials),
+        str(mark.grade), str(mark.tr || mark.teacher_remark || mark.descriptor), str(mark.teacher_initials),
       ]);
       let flow = await drawTableFlow(doc, page, report, fonts, theme, title, `TERM PERFORMANCE RECORDS — ${period.title}`, columns, rows, 28, nextY, width - 56, {
         rowHeight: 18, fontSize: 5.9, headerFontSize: 6.1, headerHeight: 23, backgroundColor,
@@ -1357,7 +1382,7 @@
       ];
       const totalsY = drawTableTotals(flow.page, averages, 28, flow.y - 2, width - 56, columns, fonts, lineAccent, 5.3);
       drawSummary(flow.page, [
-        ["Overall position", `${str(summary.position)} of ${str(summary.class_size)}`],
+        ...(showPositionInVariant ? [["Overall position", `${str(summary.position)} of ${str(summary.class_size)}`]] : []),
         ["Average", num(summary.overall_average)],
         ["Grade", str(summary.overall_grade)],
         ["Identifier", str(summary.overall_identifier ?? summary.identifier)],
@@ -1386,7 +1411,7 @@
       lineAccent,
       remarkCount: level === "O_LEVEL" || level === "A_LEVEL" ? 2 : 3,
       signatures: level === "O_LEVEL" || level === "A_LEVEL" ? ["Class Teacher", "Head Teacher"] : signatureLabels(meta, report),
-      gradeKey: level === "NURSERY" ? "—" : level === "PRIMARY" ? "Very Good — B  ·  Good — C  ·  Fair — D  ·  Still Weak — E" : gradeScale(level),
+      gradeKey: gradeScale(level, report),
     });
     return doc.save();
   }
