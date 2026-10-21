@@ -897,7 +897,21 @@
   }
   function saveDownload(blob,name){const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
   function filePart(value){return String(value||"learner").normalize("NFKD").replace(/[^\w.-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,90)||"learner"}
-   function reportForDownload(report,stampConfig){const ages=(reportState.data?.learners||[]).map(item=>Number(item.learner?.age)).filter(age=>Number.isFinite(age)&&age>0);const classAverageAge=ages.length?ages.reduce((sum,age)=>sum+age,0)/ages.length:null;const stamp=stampConfig?.stamp_config??(stampConfig===undefined?reportState.data.stamp_config||reportState.data.school?.stamp_config:stampConfig);const stampLogoPosition=stampConfig?.stamp_logo_position||reportState.data.school?.stamp_logo_position||stamp?.stamp_logo_position||"inside_center";const logoSettings=Object.fromEntries(["stamp_logo_size","stamp_logo_offset_x","stamp_logo_offset_y","stamp_logo_rotation","stamp_logo_opacity"].map(key=>[key,stampConfig?.[key]??reportState.data.school?.[key]??({stamp_logo_size:20,stamp_logo_offset_x:0,stamp_logo_offset_y:0,stamp_logo_rotation:0,stamp_logo_opacity:100}[key])]));return {...report,school:{...reportState.data.school,stamp_config:stamp,stamp_logo_position:stampLogoPosition,...logoSettings},class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,term_dates:reportState.data.term_dates,period:reportState.period,template:reportState.template,level_theme:reportState.data.level_theme,stamp_config:stamp,class_average_age:classAverageAge}}
+    function reportForDownload(report,stampConfig){
+      const ages=(reportState.data?.learners||[]).map(item=>Number(item.learner?.age)).filter(age=>Number.isFinite(age)&&age>0);
+      const classAverageAge=ages.length?ages.reduce((sum,age)=>sum+age,0)/ages.length:null;
+      const school=reportState.data?.school||{};
+      const apiStamp=stampConfig?.stamp_config;
+      const classStamp={...(school.stamp_config&&typeof school.stamp_config==="object"?school.stamp_config:{}),...(reportState.data?.stamp_config&&typeof reportState.data.stamp_config==="object"?reportState.data.stamp_config:{})};
+      const stamp={
+        ...(classStamp&&typeof classStamp==="object"?classStamp:{}),
+        ...(apiStamp&&typeof apiStamp==="object"?apiStamp:stampConfig&&typeof stampConfig==="object"&&!Object.hasOwn(stampConfig,"stamp_config")?stampConfig:{}),
+      };
+      const stampLogoPosition=stampConfig?.stamp_logo_position??school.stamp_logo_position??stamp.stamp_logo_position??"inside_center";
+      const defaults={stamp_logo_size:20,stamp_logo_offset_x:0,stamp_logo_offset_y:0,stamp_logo_rotation:0,stamp_logo_opacity:100};
+      const logoSettings=Object.fromEntries(Object.keys(defaults).map(key=>[key,stampConfig?.[key]??school[key]??defaults[key]]));
+      return {...report,school:{...school,stamp_config:stamp,stamp_logo_position:stampLogoPosition,...logoSettings},class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,term_dates:reportState.data.term_dates,period:reportState.period,template:reportState.template,level_theme:reportState.data.level_theme,stamp_config:stamp,class_average_age:classAverageAge};
+    }
   async function printReportCards(wholeClass){
     const reports=reportState.data?.learners||[];
     const selected=reports.find(item=>String(item.learner?.id)===String(reportState.learnerId));

@@ -1404,7 +1404,9 @@
   }
 
   async function render(report, classLevel, templateId = "1", includeStamp = true) {
-    const stamp = includeStamp ? report?.stamp_config || report?.school?.stamp_config : null;
+    const stampSources = [report?.school?.stamp_config, report?.stamp_config]
+      .filter((value) => value && typeof value === "object" && !Array.isArray(value));
+    const stamp = includeStamp ? Object.assign({}, ...stampSources) : null;
     const renderReport = { ...report, __includeStamp: Boolean(stamp && typeof stamp === "object" && Object.keys(stamp).length) };
     const level = levelCode(classLevel || renderReport.class?.level);
     const id = String(templateId || "1").replace(/^template[_-]?/i, "");

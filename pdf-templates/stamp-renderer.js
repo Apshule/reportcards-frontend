@@ -11,12 +11,15 @@
     if (!source) return null;
     const value = String(source)
       .trim()
+      .replace(/^["']|["']$/gu, "")
       .replace(/^data:[^,]*,/iu, "")
       .replace(/\s+/gu, "")
       .replace(/-/gu, "+")
       .replace(/_/gu, "/");
+    if (!value) return null;
     try {
-      const raw = atob(value);
+      const padded = value + "=".repeat((4 - value.length % 4) % 4);
+      const raw = atob(padded);
       return Uint8Array.from(raw, (character) => character.charCodeAt(0));
     } catch {
       return null;
@@ -31,7 +34,12 @@
       if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
         return await document.embedPng(bytes);
       }
-    } catch {
+      console.warn("[ReportCards PDF] School logo data is not a supported PNG or JPEG.");
+    } catch (error) {
+      console.warn(
+        "[ReportCards PDF] Could not embed the school logo:",
+        error instanceof Error ? error.message : String(error),
+      );
       return null;
     }
     return null;
@@ -258,14 +266,34 @@
       const anchorY = outside
         ? bounds.cy - height / 2
         : insideLogoCy - height / 2;
-      page.drawImage(schoolLogo, {
+      const drawOptions = {
         x: anchorX + logoOffsetX,
         y: anchorY - logoOffsetY,
         width,
         height,
         rotate: window.PDFLib.degrees(logoRotation),
         opacity: logoOpacity,
+      };
+      console.log("[ReportCards PDF] Drawing school logo in stamp", {
+        position: logoPosition,
+        x: drawOptions.x,
+        y: drawOptions.y,
+        width: drawOptions.width,
+        height: drawOptions.height,
+        rotation: logoRotation,
+        opacity: logoOpacity,
+        settings: {
+          stamp_logo_position: logoPosition,
+          stamp_logo_size: config.stamp_logo_size ?? 20,
+          stamp_logo_offset_x: config.stamp_logo_offset_x ?? 0,
+          stamp_logo_offset_y: config.stamp_logo_offset_y ?? 0,
+          stamp_logo_rotation: logoRotation,
+          stamp_logo_opacity: config.stamp_logo_opacity ?? 100,
+        },
       });
+      // pdf-lib's drawImage emits its own pushGraphicsState/popGraphicsState
+      // operators around the image transform, so its rotation stays isolated.
+      page.drawImage(schoolLogo, drawOptions);
     }
     drawShape(page, bounds, config, primary, secondary, alpha, rotation);
     if (normalizedShape(config.shape) === "circle") {
@@ -301,22 +329,36 @@
   }
 
   async function apply(bytes, report, configuredStamp) {
-    const stamp = configuredStamp || report?.stamp_config || report?.school?.stamp_config;
-    if (!stamp || typeof stamp !== "object" || Object.keys(stamp).length === 0) return bytes;
+    const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
+    const configuredStampValues = isObject(configuredStamp) ? configuredStamp : {};
+    const stampConfigs = [
+      report?.school?.stamp_config,
+      report?.stamp_config,
+      configuredStampValues.stamp_config,
+      Object.hasOwn(configuredStampValues, "stamp_config") ? null : configuredStampValues,
+    ].filter(isObject);
+    const stamp = Object.assign({}, ...stampConfigs);
+    if (Object.keys(stamp).length === 0 && report?.__includeStamp !== true) return bytes;
     if (!window.PDFLib?.PDFDocument) throw new Error("PDF stamp support is unavailable; reload and try again.");
     const document = await window.PDFLib.PDFDocument.load(bytes);
     const font = await document.embedFont(window.PDFLib.StandardFonts.Helvetica);
-    const schoolLogo = await embedSchoolLogo(document, report?.school?.logo_base64);
+    const schoolLogoSource = report?.school?.logo_base64;
+    const schoolLogo = await embedSchoolLogo(document, schoolLogoSource);
+    if (schoolLogoSource && !schoolLogo) {
+      console.warn("[ReportCards PDF] The school logo was not embedded; check the PNG/JPEG data saved in School Settings.");
+      throw new Error("The school's saved logo could not be decoded as a PNG or JPEG for the PDF.");
+    }
+    const values = { ...report?.school, ...configuredStampValues };
     const stampSettings = {
       ...stamp,
-      stamp_logo_position: report?.school?.stamp_logo_position
+      stamp_logo_position: values.stamp_logo_position
         ?? stamp.stamp_logo_position
         ?? "inside_center",
-      stamp_logo_size: report?.school?.stamp_logo_size ?? stamp.stamp_logo_size ?? 20,
-      stamp_logo_offset_x: report?.school?.stamp_logo_offset_x ?? stamp.stamp_logo_offset_x ?? 0,
-      stamp_logo_offset_y: report?.school?.stamp_logo_offset_y ?? stamp.stamp_logo_offset_y ?? 0,
-      stamp_logo_rotation: report?.school?.stamp_logo_rotation ?? stamp.stamp_logo_rotation ?? 0,
-      stamp_logo_opacity: report?.school?.stamp_logo_opacity ?? stamp.stamp_logo_opacity ?? 100,
+      stamp_logo_size: values.stamp_logo_size ?? stamp.stamp_logo_size ?? 20,
+      stamp_logo_offset_x: values.stamp_logo_offset_x ?? stamp.stamp_logo_offset_x ?? 0,
+      stamp_logo_offset_y: values.stamp_logo_offset_y ?? stamp.stamp_logo_offset_y ?? 0,
+      stamp_logo_rotation: values.stamp_logo_rotation ?? stamp.stamp_logo_rotation ?? 0,
+      stamp_logo_opacity: values.stamp_logo_opacity ?? stamp.stamp_logo_opacity ?? 100,
     };
     document.getPages().forEach((page) => drawStampOnPage(page, stampSettings, font, schoolLogo));
     return document.save();
