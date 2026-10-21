@@ -424,14 +424,43 @@
       const max = Number(band.max_score);
       if (!grade || !Number.isFinite(min) || !Number.isFinite(max)) return "";
       const score = (value) => Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
-      return `${grade} ${score(min)}–${score(max)}`;
+      const points = band.points === null || band.points === undefined || band.points === ""
+        ? ""
+        : ` · ${String(band.points)} pts`;
+      const description = String(band.descriptor || "").trim();
+      return `${grade} ${score(min)}–${score(max)}${points}${description ? ` ${description}` : ""}`;
     }).filter(Boolean);
-    if (bands.length) return bands.join(" · ");
+    if (bands.length) {
+      const scheme = report.grading_points_scheme || {};
+      const mapText = (key) => {
+        const map = scheme[key] || {};
+        return ["A", "B", "C", "D", "E", "O", "F"]
+          .filter((grade) => map[grade] !== undefined)
+          .map((grade) => `${grade}=${map[grade]}`)
+          .join(", ");
+      };
+      const points = report.grading_scale_preset_key === "a_level_legacy"
+        ? ` · Principal points ${mapText("principal")} · Subsidiary points ${mapText("subsidiary")}`
+        : "";
+      const composition = report.grading_scale_preset_key === "a_level_uace_cbc"
+        ? " · 20% CA + 80% Exams"
+        : "";
+      return `${bands.join(" · ")}${points}${composition}`;
+    }
     return level === "A_LEVEL"
       ? "A 75–100 · B 65–74 · C 50–64 · D 35–49 · E 0–34"
       : level === "NURSERY"
         ? "Learning areas are assessed by descriptor"
         : "A 80–100 · B 70–79 · C 60–69 · D 50–59 · E 0–49";
+  };
+  const gradeDisplay = (mark = {}) => {
+    const grade = String(mark.grade || "").trim();
+    const overall = String(mark.overall_grade_code || "").trim();
+    const points = mark.points === null || mark.points === undefined || mark.points === ""
+      ? ""
+      : String(mark.points);
+    if (overall) return `${grade ? `${grade}/` : ""}${overall}${points ? ` (${points} pts)` : ""}`;
+    return `${grade}${points ? ` (${points} pts)` : ""}`;
   };
 
   function renderNursery(report, options = {}) {
@@ -494,7 +523,7 @@
           `<b>${value(subject.name)}</b>`,
           ...period.fields.map(({ key }) => periodCell(mark, key, period)),
           ...(period.combined ? [periodFinal(mark, period)] : []),
-          value(mark.grade),
+          value(gradeDisplay(mark)),
           ...(showPosition ? [mark.position ? `${value(mark.position)} of ${value(mark.class_size)}` : "—"] : []),
           `<em>${value(mark.tr || mark.teacher_remark || mark.descriptor)}</em>`,
           value(mark.teacher_initials),
@@ -556,7 +585,7 @@
         ...(level === "A_LEVEL" ? [value(subject.code), value(subject.name), value(mark.paper_number)] : [value(subject.name)]),
         ...period.fields.map(({ key }) => periodCell(mark, key, period)),
         ...(period.combined ? [periodFinal(mark, period)] : []),
-        value(mark.grade),
+        value(gradeDisplay(mark)),
           value(mark.tr || mark.teacher_remark || mark.descriptor),
         value(mark.teacher_initials),
       ];

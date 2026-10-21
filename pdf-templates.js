@@ -697,13 +697,42 @@
       const max = Number(row.max_score);
       if (!code || !Number.isFinite(min) || !Number.isFinite(max)) return "";
       const score = (value) => Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
-      return `${code} ${score(min)}–${score(max)}`;
+      const points = row.points === null || row.points === undefined || row.points === ""
+        ? ""
+        : ` · ${str(row.points)} pts`;
+      const description = str(row.descriptor);
+      return `${code} ${score(min)}–${score(max)}${points}${description ? ` ${description}` : ""}`;
     }).filter(Boolean);
-    if (custom.length) return custom.join(" · ");
+    if (custom.length) {
+      const pointsScheme = report.grading_points_scheme || {};
+      const mapText = (key) => {
+        const values = pointsScheme[key] || {};
+        return ["A", "B", "C", "D", "E", "O", "F"]
+          .filter((grade) => values[grade] !== undefined)
+          .map((grade) => `${grade}${str(values[grade])}`)
+          .join("/");
+      };
+      const legacyPoints = report.grading_scale_preset_key === "a_level_legacy"
+        ? ` · Principal ${mapText("principal")} · Subsidiary ${mapText("subsidiary")}`
+        : "";
+      const composition = report.grading_scale_preset_key === "a_level_uace_cbc"
+        ? " · 20% CA + 80% Exams"
+        : "";
+      return `${custom.join(" · ")}${legacyPoints}${composition}`;
+    }
     if (level === "NURSERY") return "Learning areas are assessed by descriptor";
     return level === "A_LEVEL"
       ? "A 75–100 · B 65–74 · C 50–64 · D 35–49 · E 0–34"
       : "A 80–100 · B 70–79 · C 60–69 · D 50–59 · E 0–49";
+  }
+  function gradeLabel(mark = {}) {
+    const grade = str(mark.grade);
+    const overall = str(mark.overall_grade_code);
+    const points = mark.points === null || mark.points === undefined || mark.points === ""
+      ? ""
+      : str(mark.points);
+    if (overall) return `${grade ? `${grade}/` : ""}${overall}${points ? ` (${points})` : ""}`;
+    return `${grade}${points ? ` (${points})` : ""}`;
   }
   const asReport = (learnerOrReport, school, marksData) =>
     school
@@ -917,7 +946,7 @@
         subject.name,
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
-        str(mark.grade),
+        gradeLabel(mark),
         ...(showPosition ? [mark.position ? `${ordinal(mark.position)} of ${str(mark.class_size)}` : "—"] : []),
         str(mark.tr || mark.teacher_remark || mark.descriptor),
         str(mark.teacher_initials),
@@ -1001,7 +1030,7 @@
       ...prefixValues(subject, mark),
       ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
       ...(period.combined ? [num(periodScore(mark, period))] : []),
-      str(mark.grade),
+      gradeLabel(mark),
       str(mark.tr || mark.teacher_remark || mark.descriptor),
       str(mark.teacher_initials),
     ]);
@@ -1213,7 +1242,7 @@
           subject.name,
           ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
           ...(period.combined ? [num(periodScore(mark, period))] : []),
-          str(mark.grade),
+          gradeLabel(mark),
           ...(showPosition ? [mark.position ? `${mark.position} of ${str(mark.class_size)}` : "—"] : []),
           str(mark.tr || mark.teacher_remark || mark.descriptor),
           str(mark.teacher_initials),
@@ -1293,7 +1322,7 @@
         subject.name,
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
-        str(mark.grade),
+        gradeLabel(mark),
         str(mark.tr || mark.teacher_remark || mark.descriptor),
         str(mark.teacher_initials),
       ]);
@@ -1363,7 +1392,7 @@
         subject.code, subject.name, str(mark.paper_number),
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
-        str(mark.grade), str(mark.tr || mark.teacher_remark || mark.descriptor), str(mark.teacher_initials),
+        gradeLabel(mark), str(mark.tr || mark.teacher_remark || mark.descriptor), str(mark.teacher_initials),
       ]);
       let flow = await drawTableFlow(doc, page, report, fonts, theme, title, `TERM PERFORMANCE RECORDS — ${period.title}`, columns, rows, 28, nextY, width - 56, {
         rowHeight: 18, fontSize: 5.9, headerFontSize: 6.1, headerHeight: 23, backgroundColor,
