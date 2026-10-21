@@ -4,12 +4,17 @@
   const fallbackPrimary = "#1E5EB5";
   const fallbackSecondary = "#000000";
   const hexPattern = /^#[0-9a-f]{6}$/i;
-  const schoolLogoSize = 25 * 72 / 25.4;
+  const millimetersToPoints = (value) => Number(value) * 72 / 25.4;
   const schoolLogoGap = 6;
 
   function imageBytes(source) {
     if (!source) return null;
-    const value = String(source).trim().replace(/^data:image\/[^;]+;base64,/iu, "");
+    const value = String(source)
+      .trim()
+      .replace(/^data:[^,]*,/iu, "")
+      .replace(/\s+/gu, "")
+      .replace(/-/gu, "+")
+      .replace(/_/gu, "/");
     try {
       const raw = atob(value);
       return Uint8Array.from(raw, (character) => character.charCodeAt(0));
@@ -65,7 +70,7 @@
 
   function normalizedLogoPosition(value) {
     const position = String(value || "inside_center").toLowerCase().replace(/[\s_-]+/gu, "");
-    return ["insidecenter", "insidetop", "outsideleft", "outsideright", "hidden"].includes(position)
+    return ["insidecenter", "insidetop", "insidebottom", "insideleft", "insideright", "outsideleft", "outsideright", "hidden"].includes(position)
       ? position
       : "insidecenter";
   }
@@ -77,7 +82,8 @@
     const margin = 27;
     const outside = withSchoolLogo && ["outsideleft", "outsideright"].includes(logoPosition);
     const logoBefore = outside && logoPosition === "outsideleft";
-    const logoSpace = outside ? schoolLogoSize + schoolLogoGap : 0;
+    const logoSize = millimetersToPoints(config.stamp_logo_size ?? 20);
+    const logoSpace = outside ? logoSize + schoolLogoGap : 0;
     const groupWidth = width + logoSpace;
     const position = normalizedPosition(config.position);
     const groupX = position === "bottomleft" ? margin
@@ -90,6 +96,7 @@
       cx: x + width / 2,
       cy: y + height / 2,
       logoX: logoBefore ? groupX : x + width + schoolLogoGap,
+      logoSize,
     };
   }
 
@@ -223,27 +230,41 @@
     const primary = safeColor(config.primary_color, fallbackPrimary);
     const secondary = safeColor(config.secondary_color, fallbackSecondary);
     const angle = rotation * Math.PI / 180;
+    const logoOffsetX = millimetersToPoints(Number(config.stamp_logo_offset_x) || 0);
+    const logoOffsetY = millimetersToPoints(Number(config.stamp_logo_offset_y) || 0);
+    const logoRotation = [0, 90, 180, 270].includes(Number(config.stamp_logo_rotation))
+      ? Number(config.stamp_logo_rotation)
+      : 0;
+    const logoOpacityValue = Number(config.stamp_logo_opacity);
+    const logoOpacity = Number.isFinite(logoOpacityValue)
+      ? Math.max(0, Math.min(100, logoOpacityValue)) / 100
+      : 1;
     let insideLogoBox = 0;
     let insideLogoCy = bounds.cy;
+    let insideLogoCx = bounds.cx;
     if (hasLogo) {
       const outside = logoPosition === "outsideleft" || logoPosition === "outsideright";
-      insideLogoBox = logoPosition === "insidecenter"
-        ? Math.min(18, bounds.width * 0.34, bounds.height * 0.34)
-        : logoPosition === "insidetop"
-          ? Math.min(16, bounds.width * 0.32, bounds.height * 0.32)
-          : schoolLogoSize;
-      if (logoPosition === "insidetop") insideLogoCy += bounds.height * 0.2;
-      const maxBox = outside ? schoolLogoSize : insideLogoBox;
-      const scale = Math.min(maxBox / schoolLogo.width, maxBox / schoolLogo.height);
+      insideLogoBox = bounds.logoSize;
+      if (logoPosition === "insidetop") insideLogoCy += bounds.height * 0.27;
+      if (logoPosition === "insidebottom") insideLogoCy -= bounds.height * 0.27;
+      if (logoPosition === "insideleft") insideLogoCx -= bounds.width * 0.27;
+      if (logoPosition === "insideright") insideLogoCx += bounds.width * 0.27;
+      const scale = Math.min(insideLogoBox / schoolLogo.width, insideLogoBox / schoolLogo.height);
       const width = schoolLogo.width * scale;
       const height = schoolLogo.height * scale;
+      const anchorX = outside
+        ? bounds.logoX + (bounds.logoSize - width) / 2
+        : insideLogoCx - width / 2;
+      const anchorY = outside
+        ? bounds.cy - height / 2
+        : insideLogoCy - height / 2;
       page.drawImage(schoolLogo, {
-        x: outside
-          ? bounds.logoX + (schoolLogoSize - width) / 2
-          : bounds.cx - width / 2,
-        y: (outside ? bounds.cy : insideLogoCy) - height / 2,
+        x: anchorX + logoOffsetX,
+        y: anchorY - logoOffsetY,
         width,
         height,
+        rotate: window.PDFLib.degrees(logoRotation),
+        opacity: logoOpacity,
       });
     }
     drawShape(page, bounds, config, primary, secondary, alpha, rotation);
@@ -291,6 +312,11 @@
       stamp_logo_position: report?.school?.stamp_logo_position
         ?? stamp.stamp_logo_position
         ?? "inside_center",
+      stamp_logo_size: report?.school?.stamp_logo_size ?? stamp.stamp_logo_size ?? 20,
+      stamp_logo_offset_x: report?.school?.stamp_logo_offset_x ?? stamp.stamp_logo_offset_x ?? 0,
+      stamp_logo_offset_y: report?.school?.stamp_logo_offset_y ?? stamp.stamp_logo_offset_y ?? 0,
+      stamp_logo_rotation: report?.school?.stamp_logo_rotation ?? stamp.stamp_logo_rotation ?? 0,
+      stamp_logo_opacity: report?.school?.stamp_logo_opacity ?? stamp.stamp_logo_opacity ?? 100,
     };
     document.getPages().forEach((page) => drawStampOnPage(page, stampSettings, font, schoolLogo));
     return document.save();

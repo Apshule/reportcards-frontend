@@ -113,10 +113,15 @@
 }
 
 .rc-stamp-builder__color-row,
-.rc-stamp-builder__tuning {
+.rc-stamp-builder__tuning,
+.rc-stamp-builder__logo-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.rc-stamp-builder__logo-opacity {
+  margin-top: 12px;
 }
 
 .rc-stamp-builder__color-control {
@@ -347,6 +352,7 @@
 
   .rc-stamp-builder__lines,
   .rc-stamp-builder__color-row,
+  .rc-stamp-builder__logo-grid,
   .rc-stamp-builder__tuning {
     grid-template-columns: minmax(0, 1fr);
   }

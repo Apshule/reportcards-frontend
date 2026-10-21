@@ -12,6 +12,11 @@
     line_5: "",
     position: "Bottom Right",
     stamp_logo_position: "inside_center",
+    stamp_logo_size: 20,
+    stamp_logo_offset_x: 0,
+    stamp_logo_offset_y: 0,
+    stamp_logo_rotation: 0,
+    stamp_logo_opacity: 100,
     transparency: 100,
     rotation_degrees: 0,
   };
@@ -25,6 +30,9 @@
   const logoPositions = [
     ["inside_center", "Inside Center (Default)"],
     ["inside_top", "Inside Top"],
+    ["inside_bottom", "Inside Bottom"],
+    ["inside_left", "Inside Left"],
+    ["inside_right", "Inside Right"],
     ["outside_left", "Outside Left"],
     ["outside_right", "Outside Right"],
     ["hidden", "Hidden"],
@@ -80,10 +88,18 @@
     values.secondary_color = safeHex(values.secondary_color, defaults.secondary_color);
     values.transparency = numericValue(values.transparency, defaults.transparency, 0, 100);
     values.rotation_degrees = numericValue(values.rotation_degrees, defaults.rotation_degrees, -15, 15);
+    values.stamp_logo_size = numericValue(values.stamp_logo_size, defaults.stamp_logo_size, 1, 100);
+    values.stamp_logo_offset_x = numericValue(values.stamp_logo_offset_x, defaults.stamp_logo_offset_x, -100, 100);
+    values.stamp_logo_offset_y = numericValue(values.stamp_logo_offset_y, defaults.stamp_logo_offset_y, -100, 100);
+    values.stamp_logo_rotation = [0, 90, 180, 270].includes(Number(values.stamp_logo_rotation))
+      ? Number(values.stamp_logo_rotation)
+      : defaults.stamp_logo_rotation;
+    values.stamp_logo_opacity = numericValue(values.stamp_logo_opacity, defaults.stamp_logo_opacity, 0, 100);
 
     const shapeOptions = shapes.map(([shape, label]) => `<label class="rc-stamp-builder__shape-option"><input type="radio" name="shape" data-stamp-field="shape" value="${escapeHTML(shape)}" ${values.shape === shape ? "checked" : ""}><span>${escapeHTML(label)}</span></label>`).join("");
     const positionOptions = positions.map((position) => `<option value="${escapeHTML(position)}" ${values.position === position ? "selected" : ""}>${escapeHTML(position)}</option>`).join("");
     const logoPositionOptions = logoPositions.map(([position, label]) => `<option value="${escapeHTML(position)}" ${values.stamp_logo_position === position ? "selected" : ""}>${escapeHTML(label)}</option>`).join("");
+    const logoRotationOptions = [0, 90, 180, 270].map((angle) => `<option value="${angle}" ${values.stamp_logo_rotation === angle ? "selected" : ""}>${angle}°</option>`).join("");
     const linesMarkup = lineFields.map((field, index) => `<div class="rc-stamp-builder__field rc-stamp-builder__line-field">
       <label for="stamp-${field}">${lineLabels[index]}</label>
       <input id="stamp-${field}" name="${field}" type="text" maxlength="200" autocomplete="off" data-stamp-field="${field}" value="${escapeHTML(values[field])}" placeholder="${escapeHTML(linePlaceholders[index])}">
@@ -118,10 +134,36 @@
               <select id="stamp-position" name="position" data-stamp-field="position">${positionOptions}</select>
             </div>
             <div class="rc-stamp-builder__field">
-              <label for="stamp-logo-position">Stamp Logo Position</label>
+              <label for="stamp-logo-position">Logo anchor position</label>
               <select id="stamp-logo-position" name="stamp_logo_position" data-stamp-field="stamp_logo_position">${logoPositionOptions}</select>
-              <p class="rc-stamp-builder__hint">Choose where the school logo appears in relation to the digital stamp on PDFs.</p>
+              <p class="rc-stamp-builder__hint">Choose where the school logo sits within or beside the digital stamp.</p>
             </div>
+            <fieldset class="rc-stamp-builder__fieldset">
+              <legend>School logo design</legend>
+              <div class="rc-stamp-builder__logo-grid">
+                <div class="rc-stamp-builder__field">
+                  <label for="stamp-logo-size">Logo size (mm)</label>
+                  <input id="stamp-logo-size" name="stamp_logo_size" type="number" min="1" max="100" step="0.5" data-stamp-field="stamp_logo_size" value="${values.stamp_logo_size}">
+                </div>
+                <div class="rc-stamp-builder__field">
+                  <label for="stamp-logo-rotation">Logo rotation</label>
+                  <select id="stamp-logo-rotation" name="stamp_logo_rotation" data-stamp-field="stamp_logo_rotation">${logoRotationOptions}</select>
+                </div>
+                <div class="rc-stamp-builder__field">
+                  <label for="stamp-logo-offset-x">Offset X (mm)</label>
+                  <input id="stamp-logo-offset-x" name="stamp_logo_offset_x" type="number" min="-100" max="100" step="0.5" data-stamp-field="stamp_logo_offset_x" value="${values.stamp_logo_offset_x}">
+                </div>
+                <div class="rc-stamp-builder__field">
+                  <label for="stamp-logo-offset-y">Offset Y (mm)</label>
+                  <input id="stamp-logo-offset-y" name="stamp_logo_offset_y" type="number" min="-100" max="100" step="0.5" data-stamp-field="stamp_logo_offset_y" value="${values.stamp_logo_offset_y}">
+                </div>
+              </div>
+              <p class="rc-stamp-builder__hint">Use negative numbers to move left or up, and positive numbers to move right or down.</p>
+              <div class="rc-stamp-builder__field rc-stamp-builder__logo-opacity">
+                <label for="stamp-logo-opacity">Logo transparency <output data-stamp-value="stamp_logo_opacity">${values.stamp_logo_opacity}%</output></label>
+                <input id="stamp-logo-opacity" name="stamp_logo_opacity" type="range" min="0" max="100" step="1" data-stamp-field="stamp_logo_opacity" value="${values.stamp_logo_opacity}">
+              </div>
+            </fieldset>
             <fieldset class="rc-stamp-builder__fieldset">
               <legend>Stamp wording</legend>
               <div class="rc-stamp-builder__lines">${linesMarkup}</div>
@@ -165,6 +207,7 @@
     const previewLines = Array.from(root.querySelectorAll("[data-stamp-preview-line]"));
     const transparencyValue = root.querySelector('[data-stamp-value="transparency"]');
     const rotationValue = root.querySelector('[data-stamp-value="rotation_degrees"]');
+    const logoOpacityValue = root.querySelector('[data-stamp-value="stamp_logo_opacity"]');
     const positionValue = root.querySelector("[data-stamp-preview-position]");
 
     const current = () => {
@@ -181,6 +224,13 @@
       result.secondary_color = safeHex(result.secondary_color, defaults.secondary_color);
       result.transparency = numericValue(result.transparency, defaults.transparency, 0, 100);
       result.rotation_degrees = numericValue(result.rotation_degrees, defaults.rotation_degrees, -15, 15);
+      result.stamp_logo_size = numericValue(result.stamp_logo_size, defaults.stamp_logo_size, 1, 100);
+      result.stamp_logo_offset_x = numericValue(result.stamp_logo_offset_x, defaults.stamp_logo_offset_x, -100, 100);
+      result.stamp_logo_offset_y = numericValue(result.stamp_logo_offset_y, defaults.stamp_logo_offset_y, -100, 100);
+      result.stamp_logo_rotation = [0, 90, 180, 270].includes(Number(result.stamp_logo_rotation))
+        ? Number(result.stamp_logo_rotation)
+        : defaults.stamp_logo_rotation;
+      result.stamp_logo_opacity = numericValue(result.stamp_logo_opacity, defaults.stamp_logo_opacity, 0, 100);
       return result;
     };
 
@@ -219,6 +269,7 @@
       });
       if (transparencyValue) transparencyValue.textContent = `${value.transparency}%`;
       if (rotationValue) rotationValue.textContent = `${value.rotation_degrees}°`;
+      if (logoOpacityValue) logoOpacityValue.textContent = `${value.stamp_logo_opacity}%`;
       if (positionValue) positionValue.textContent = value.position;
       ["primary_color", "secondary_color"].forEach((field) => {
         const output = root.querySelector(`[data-stamp-color-value="${field}"]`);
