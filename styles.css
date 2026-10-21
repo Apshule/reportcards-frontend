@@ -425,3 +425,10 @@ html .rc-preview .rc-remarks-grid>div>b{font-size:14pt}
 html .rc-preview .rc-stamp-preview{overflow:hidden}
 html .rc-preview .rc-stamp-preview.rc-stamp-has-external-logo{overflow:visible}
 html .rc-preview .rc-stamp-logo{max-width:50%;max-height:50%}
+.settings-tabs{display:flex;gap:6px;overflow-x:auto;margin:0 0 18px;padding:4px;border:1px solid var(--line);border-radius:12px;background:#fff}
+.settings-tab{flex:0 0 auto;border:0;border-radius:8px;padding:10px 14px;background:transparent;color:var(--muted);font-weight:700;white-space:nowrap}
+.settings-tab:hover{background:var(--purple-soft);color:var(--purple)}
+.settings-tab.active{background:var(--purple);color:#fff}
+.compulsory-note{display:block;color:#9b4c12;font-size:12px;font-weight:700}
+.settings-tabs+.section-card{margin-top:0}
+@media(max-width:520px){.settings-tab{padding:9px 11px;font-size:12px}.settings-tabs{margin-right:-2px}}

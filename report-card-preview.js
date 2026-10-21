@@ -200,7 +200,7 @@
       item.remark || item.descriptor,
       item.signature || item.teacher_initials,
     ]);
-    if (includeDefaults && rows.length < defaultOtherSubjects.length) {
+    if (includeDefaults && !report.co_curricular_configured && rows.length < defaultOtherSubjects.length) {
       defaultOtherSubjects.slice(rows.length).forEach((name) => rows.push([name, "", "", ""]));
     }
     return rows.map((row) => `<tr>${row.map((cell) => `<td>${value(cell)}</td>`).join("")}</tr>`);
@@ -216,7 +216,7 @@
       image: item.image_base64 || item.illustration_base64 || item.photo_base64 || "",
     }));
     const names = new Set(rows.map((item) => String(item.name).trim().toLowerCase()));
-    nurseryActivityNames.forEach((name) => {
+    if (!report.co_curricular_configured) nurseryActivityNames.forEach((name) => {
       if (rows.length < nurseryActivityNames.length && !names.has(name.toLowerCase())) rows.push({ name, remark: "", image: "" });
     });
     return rows.slice(0, nurseryActivityNames.length);

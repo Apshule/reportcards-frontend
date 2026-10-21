@@ -644,7 +644,7 @@
       item.remark || item.descriptor,
       item.signature || item.teacher_initials,
     ]);
-    if (includeDefaults && result.length < defaultOtherSubjects.length) {
+    if (includeDefaults && !report.co_curricular_configured && result.length < defaultOtherSubjects.length) {
       defaultOtherSubjects.slice(result.length).forEach((name) => result.push([name, "", "", ""]));
     }
     return result;
@@ -660,7 +660,7 @@
       image: item.image_base64 || item.illustration_base64 || item.photo_base64 || "",
     }));
     const names = new Set(items.map((item) => String(item.name).trim().toLowerCase()));
-    nurseryActivityDefaults.forEach((name) => {
+    if (!report.co_curricular_configured) nurseryActivityDefaults.forEach((name) => {
       if (items.length < nurseryActivityDefaults.length && !names.has(name.toLowerCase())) {
         items.push({ name, remark: "", image: "" });
       }
@@ -676,7 +676,7 @@
       item.remark || item.descriptor || item.teacher_remark,
       item.teacher_initials || item.initials || item.signature,
     ]);
-    if (includeDefaults && rows.length < defaultOtherSubjects.length) {
+    if (includeDefaults && !report.co_curricular_configured && rows.length < defaultOtherSubjects.length) {
       defaultOtherSubjects.slice(rows.length).forEach((name) => rows.push([name, "", "", ""]));
     }
     return rows;
