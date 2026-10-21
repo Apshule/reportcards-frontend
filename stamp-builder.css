@@ -81,6 +81,44 @@
   min-width: 0;
 }
 
+.rc-stamp-builder__visibility {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 14px;
+  border: 1px solid #ded6f1;
+  border-radius: 10px;
+  background: #f8f5ff;
+  color: var(--stamp-ink);
+  cursor: pointer;
+}
+
+.rc-stamp-builder__visibility input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin: 2px 0 0;
+  accent-color: var(--purple, #4b2e9e);
+}
+
+.rc-stamp-builder__visibility span,
+.rc-stamp-builder__visibility strong,
+.rc-stamp-builder__visibility small {
+  display: block;
+}
+
+.rc-stamp-builder__visibility strong {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.rc-stamp-builder__visibility small {
+  margin-top: 3px;
+  color: var(--muted, #817d91);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .rc-stamp-builder__field {
   display: grid;
   gap: 7px;

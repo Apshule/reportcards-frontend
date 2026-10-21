@@ -347,6 +347,7 @@
   }
 
   async function apply(bytes, report, configuredStamp) {
+    if (report?.show_stamp === false || report?.school?.show_stamp === false) return bytes;
     const isObject = (value) => value && typeof value === "object" && !Array.isArray(value);
     const configuredStampValues = isObject(configuredStamp) ? configuredStamp : {};
     const stampConfigs = [

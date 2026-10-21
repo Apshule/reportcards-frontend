@@ -62,7 +62,7 @@ test("verification QR points to the clean public verification URL and produces a
   assert.equal(qrWindow.encodedValue, url);
 });
 
-test("PDF QR renderer overlays a 20mm QR and authenticity label at page bottom center", async () => {
+test("PDF QR renderer overlays a 15mm QR in the footer without covering the grading scale", async () => {
   const calls = { images: [], text: [] };
   const page = {
     getWidth: () => 595.28,
@@ -99,12 +99,47 @@ test("PDF QR renderer overlays a 20mm QR and authenticity label at page bottom c
   assert.deepEqual([...result], [8, 9, 10]);
   assert.deepEqual(calls.pngBytes, [97, 98, 99]);
   assert.equal(calls.images.length, 1);
-  assert.equal(calls.images[0].options.width, 56.69);
-  assert.equal(calls.images[0].options.height, 56.69);
-  assert.equal(calls.images[0].options.x, (595.28 - 56.69) / 2);
-  assert.equal(calls.images[0].options.y, 44);
+  assert.equal(calls.images[0].options.width, 42.52);
+  assert.equal(calls.images[0].options.height, 42.52);
+  assert.equal(calls.images[0].options.x, (595.28 - 42.52) / 2);
+  assert.equal(calls.images[0].options.y, 60);
   assert.equal(calls.text[0].text, "Scan to Verify Authenticity");
-  assert.equal(calls.text[0].options.y, 36);
+  assert.equal(calls.text[0].options.y, 53);
   assert.ok(calls.text[0].options.x > 0);
+});
+
+test("PDF QR renderer moves to the opposite footer corner when the stamp is centered", async () => {
+  const calls = [];
+  const page = {
+    getWidth: () => 595.28,
+    drawImage: (_image, options) => calls.push(options),
+    drawText() {},
+  };
+  const rendererWindow = {
+    PDFLib: {
+      PDFDocument: {
+        load: async () => ({
+          getPages: () => [page],
+          embedPng: async () => ({}),
+          embedFont: async () => ({ widthOfTextAtSize: () => 100 }),
+          save: async () => new Uint8Array(),
+        }),
+      },
+      StandardFonts: { Helvetica: "Helvetica" },
+      rgb: (...values) => values,
+    },
+  };
+  new Function(
+    "window",
+    "atob",
+    readFileSync(new URL("../pdf-templates/authenticity-qr-renderer.js", import.meta.url), "utf8"),
+  )(rendererWindow, globalThis.atob);
+
+  await rendererWindow.ReportCardQrRenderer.apply(new Uint8Array(), {
+    authenticity_qr_data_url: "data:image/png;base64,YWJj",
+    school: { stamp_config: { position: "Bottom Center" } },
+  });
+
+  assert.equal(calls[0].x, 595.28 - 28 - 42.52);
 });
 

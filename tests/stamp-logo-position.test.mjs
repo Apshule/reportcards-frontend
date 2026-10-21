@@ -95,7 +95,7 @@ test("outside logo settings position the school logo on the requested side; hidd
   assert.equal(missing, null);
 });
 
-test("logo sizing, offsets, rotation, and transparency are applied to the embedded school logo", async () => {
+test("logo sizing and nudges are constrained to the stamp while rotation and transparency are honored", async () => {
   const image = await renderStamp("inside_center", {
     logoSettings: {
       stamp_logo_size: 30,
@@ -106,14 +106,14 @@ test("logo sizing, offsets, rotation, and transparency are applied to the embedd
     },
   });
   assert.ok(image);
-  assert.ok(Math.abs(image.width - (30 * 72 / 25.4)) < 0.01);
-  assert.ok(Math.abs(image.x - (554 - image.width / 2 + 5 * 72 / 25.4)) < 0.01);
-  assert.ok(Math.abs(image.y - (82 - image.height / 2 + 3 * 72 / 25.4)) < 0.01);
+  assert.equal(image.width, 31);
+  const centerDistance = Math.hypot(image.x + image.width / 2 - 554, image.y + image.height / 2 - 82);
+  assert.ok(centerDistance + Math.hypot(image.width, image.height) / 2 <= 29.01);
   assert.equal(image.rotate, 90);
   assert.equal(image.opacity, 0.5);
 });
 
-test("school API logo settings reach drawImage with the requested scale, position, rotation, and opacity", async () => {
+test("large school API logo settings stay inside the stamp while preserving rotation and opacity", async () => {
   const result = await renderStamp("inside_center", {
     schoolSettings: {
       stamp_logo_size: 30,
@@ -126,11 +126,24 @@ test("school API logo settings reach drawImage with the requested scale, positio
   });
   const image = result.image;
   assert.ok(image);
-  assert.ok(Math.abs(image.width - (30 * 72 / 25.4)) < 0.01);
-  assert.ok(Math.abs(image.x - (554 - image.width / 2 + 5 * 72 / 25.4)) < 0.01);
-  assert.ok(Math.abs(image.y - (82 - image.height / 2 - (-3 * 72 / 25.4))) < 0.01);
+  assert.equal(image.width, 31);
+  const centerDistance = Math.hypot(image.x + image.width / 2 - 554, image.y + image.height / 2 - 82);
+  assert.ok(centerDistance + Math.hypot(image.width, image.height) / 2 <= 29.01);
   assert.equal(image.rotate, 270);
   assert.equal(image.opacity, 0.35);
+});
+
+test("extreme inside-logo offsets are constrained to the stamp's safe area", async () => {
+  const image = await renderStamp("inside_top", {
+    logoSettings: {
+      stamp_logo_size: 100,
+      stamp_logo_offset_x: 100,
+      stamp_logo_offset_y: -100,
+    },
+  });
+  assert.ok(image);
+  const centerDistance = Math.hypot(image.x + image.width / 2 - 554, image.y + image.height / 2 - 82);
+  assert.ok(centerDistance + Math.hypot(image.width, image.height) / 2 <= 29.01);
 });
 
 test("school logo parser accepts a base64 image data URI", async () => {

@@ -2,6 +2,7 @@
   "use strict";
 
   const defaults = {
+    show_stamp: true,
     shape: "circle",
     primary_color: "#1E5EB5",
     secondary_color: "#000000",
@@ -78,6 +79,7 @@
 
   function render(config = {}, { saving = false, error = "" } = {}) {
     const values = { ...defaults, ...(config && typeof config === "object" ? config : {}) };
+    values.show_stamp = values.show_stamp !== false;
     values.shape = shapes.some(([shape]) => shape === values.shape) ? values.shape : defaults.shape;
     const positionKey = String(values.position || "").toLowerCase().replace(/[\s_-]+/g, "");
     values.position = positions.find((position) => position.toLowerCase().replace(/\s+/g, "") === positionKey) || defaults.position;
@@ -115,6 +117,10 @@
         ${error ? `<div class="rc-stamp-builder__error" role="alert">${escapeHTML(error)}</div>` : ""}
         <div class="rc-stamp-builder__layout">
           <div class="rc-stamp-builder__controls">
+            <label class="rc-stamp-builder__visibility" for="stamp-show-on-report">
+              <input id="stamp-show-on-report" name="show_stamp" type="checkbox" data-stamp-field="show_stamp" ${values.show_stamp !== false ? "checked" : ""}>
+              <span><strong>Show Digital Stamp on Report Card</strong><small>${values.show_stamp !== false ? "Yes — include the digital stamp on reports." : "No — hide the digital stamp on reports."}</small></span>
+            </label>
             <fieldset class="rc-stamp-builder__fieldset rc-stamp-builder__shape-fieldset">
               <legend>Shape</legend>
               <div class="rc-stamp-builder__shape-options">${shapeOptions}</div>
@@ -218,6 +224,10 @@
           if (field.checked) result[key] = field.value;
           return;
         }
+        if (field.type === "checkbox") {
+          result[key] = field.checked;
+          return;
+        }
         result[key] = field.type === "number" || field.type === "range" ? Number(field.value) : field.value;
       });
       result.primary_color = safeHex(result.primary_color, defaults.primary_color);
@@ -271,6 +281,12 @@
       if (rotationValue) rotationValue.textContent = `${value.rotation_degrees}°`;
       if (logoOpacityValue) logoOpacityValue.textContent = `${value.stamp_logo_opacity}%`;
       if (positionValue) positionValue.textContent = value.position;
+      const visibilityHint = root.querySelector(".rc-stamp-builder__visibility small");
+      if (visibilityHint) {
+        visibilityHint.textContent = value.show_stamp
+          ? "Yes — include the digital stamp on reports."
+          : "No — hide the digital stamp on reports.";
+      }
       ["primary_color", "secondary_color"].forEach((field) => {
         const output = root.querySelector(`[data-stamp-color-value="${field}"]`);
         if (output) output.textContent = value[field];

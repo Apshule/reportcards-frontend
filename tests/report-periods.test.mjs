@@ -6,7 +6,7 @@ const window = {};
 new Function("window", readFileSync(new URL("../template-picker.js", import.meta.url), "utf8"))(window);
 new Function("window", readFileSync(new URL("../report-card-preview.js", import.meta.url), "utf8"))(window);
 
-const periods = ["BOT", "MID", "EOT", "COMBINED_BME", "COMBINED_BE", "COMBINED_ME"];
+const periods = ["BOT", "MID", "EOT", "COMBINED_BM", "COMBINED_BME", "COMBINED_BE", "COMBINED_ME"];
 const sourceMark = {
   bot: 60,
   mid_term: 72,
@@ -39,11 +39,12 @@ function reportFor(period) {
   };
 }
 
-test("period definitions cover all six assessment selections", () => {
+test("period definitions cover all seven assessment selections", () => {
   const expectedFields = {
     BOT: ["B.O.T"],
     MID: ["MID-TERM"],
     EOT: ["E.O.T"],
+    COMBINED_BM: ["B.O.T", "MIDTERM"],
     COMBINED_BME: ["B.O.T", "MID-TERM", "E.O.T"],
     COMBINED_BE: ["B.O.T", "E.O.T"],
     COMBINED_ME: ["MID-TERM", "E.O.T"],
@@ -83,6 +84,7 @@ test("HTML preview uses only selected-period columns and labels the header", () 
 });
 
 test("combined FINAL is the arithmetic mean of its selected period marks", () => {
+  assert.equal(window.ReportCardTemplatePicker.periodScore(sourceMark, "COMBINED_BM"), 66);
   assert.equal(window.ReportCardTemplatePicker.periodScore(sourceMark, "COMBINED_BME"), 74);
   assert.equal(window.ReportCardTemplatePicker.periodScore(sourceMark, "COMBINED_BE"), 75);
   assert.equal(window.ReportCardTemplatePicker.periodScore(sourceMark, "COMBINED_ME"), 81);
@@ -92,6 +94,34 @@ test("combined FINAL is the arithmetic mean of its selected period marks", () =>
     period: "COMBINED_BME",
   });
   assert.match(html, /<td>74\.0<\/td>/);
+});
+
+test("A5 preview uses the B.O.T and Midterm columns only and hides stamp and QR", () => {
+  const report = {
+    ...reportFor("COMBINED_BM"),
+    school: {
+      name: "Condensed Layout School",
+      stamp_config: { line_1: "OFFICIAL SCHOOL STAMP" },
+    },
+    authenticity_qr_data_url: "data:image/png;base64,QUJD",
+    class_teacher_comment: "Encouraging progress.",
+    principal_comment: "Continue the good work.",
+  };
+  const html = window.ReportCardPreview.render(report, {
+    template: "1",
+    period: "COMBINED_BM",
+    layoutFormat: "A5_CONDENSED",
+    includeStamp: true,
+  });
+  const head = html.match(/<thead>[\s\S]*?<\/thead>/)?.[0] ?? "";
+  assert.match(html, /rc-preview-a5-condensed/);
+  for (const label of ["Subject", "B.O.T", "Midterm", "Average", "Grade", "Remarks"]) {
+    assert.ok(head.includes(`>${label}<`), `A5 table should include ${label}`);
+  }
+  assert.doesNotMatch(head, /E\.O\.T|FINAL/);
+  assert.match(html, /<td>66\.0<\/td>/);
+  assert.doesNotMatch(html, /OFFICIAL SCHOOL STAMP|rc-authenticity-qr|data:image\/png;base64,QUJD/);
+  assert.match(html, /Class Teacher's signature/);
 });
 
 test("HTML preview shows an authenticity QR and label when one is issued", () => {

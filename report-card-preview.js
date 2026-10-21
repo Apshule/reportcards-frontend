@@ -165,7 +165,7 @@
     const showPosition = reportPositionEnabled(report, level, template.id);
     const rows = level === "NURSERY" ? [
       [["REG NO", learner.reg_no], ["CLASS", report.class?.name], ["FEES BAL", report.fees?.balance], ["SCHOOLPAY CODE", learner.schoolpay_code || report.school?.schoolpay_code]],
-      [["NAME", learner.full_name], ["DAYS ATTENDED", report.days_attended ?? report.days_present], ["ABSENT", report.days_absent ?? report.absence], ["TOTAL", report.total_days ?? report.school_days]],
+      [["NAME", learner.full_name], ["DAYS ATTENDED", report.days_attended ?? report.days_present], ["ABSENT", report.days_absent ?? report.absence], ["TOTAL", report.total_days ?? report.school_days], ["HOUSE", learner.house]],
     ] : level === "PRIMARY" ? [
       [["NAME", learner.full_name], ["AD No", learner.reg_no], ["PRINT DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
       [["CLASS", report.class?.name], ["SEX", learner.sex || learner.gender], ["AGE", learner.age]],
@@ -174,11 +174,11 @@
     ] : level === "O_LEVEL" ? [
       [["NAME", learner.full_name], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")], ["YEAR", report.year], ["DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
       [["SCHOLAR ID", learner.scholar_id || learner.reg_no], ["CLASS", report.class?.name], ["VCODE", learner.vcode]],
-      [["LIN/AMIS.NO", learner.lin || learner.amis_no], ["STATE", learner.state], ["RESIDENCE", learner.residence]],
+      [["LIN/AMIS.NO", learner.lin || learner.amis_no], ["STATE", learner.state], ["RESIDENCE", learner.residence], ["HOUSE", learner.house]],
     ] : level === "A_LEVEL" ? [
       [["NAME", learner.full_name], ["GENDER", learner.gender || learner.sex]],
       [["AGE", learner.age], ["ROLL NO", learner.roll_no || learner.reg_no]],
-      [["CLASS", report.class?.name], ["STREAM", learner.stream || report.class?.stream]],
+      [["CLASS", report.class?.name], ["STREAM", learner.stream || report.class?.stream], ["HOUSE", learner.house]],
       [["COMBINATION", learner.combination || report.class?.combination], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")]],
     ] : [
       [["NAME", learner.full_name], ["AD No", learner.reg_no]],
@@ -268,8 +268,12 @@
     }).join("")}</div></section>`;
   };
   const stampBlock = (report, options = {}) => {
-    if (options.includeStamp === false) return "";
     const school = report.school || {};
+    if (
+      options.includeStamp === false ||
+      report.show_stamp === false ||
+      school.show_stamp === false
+    ) return "";
     const stamp = {
       ...(school.stamp_config && typeof school.stamp_config === "object" ? school.stamp_config : {}),
       ...(report.stamp_config && typeof report.stamp_config === "object" ? report.stamp_config : {}),
@@ -331,10 +335,19 @@
     const outsideLogo = ["outside_left", "outside_right"].includes(normalizedLogoPosition) ? " rc-stamp-has-external-logo" : "";
     return `<div class="rc-stamp-preview rc-stamp-${shape} rc-stamp-${positionClass}${outsideLogo}" style="--rc-stamp-text:${colorWithAlpha(primaryColor, stampAlpha)};--rc-stamp-border:${colorWithAlpha(secondaryColor, stampAlpha)};--rc-stamp-rotation:${rotation}deg;--rc-stamp-logo-size:${logoSize}mm;--rc-stamp-logo-x:${offsetX}px;--rc-stamp-logo-y:${offsetY}px;--rc-stamp-logo-rotation:${logoRotation}deg;--rc-stamp-logo-opacity:${logoOpacity}" aria-label="Configured school stamp"><div class="rc-stamp-copy">${lines.map((line) => `<span>${value(line)}</span>`).join("")}</div>${logoMarkup}</div>`;
   };
+  const qrFooterSide = (report) => {
+    const school = report.school || {};
+    const stamp = {
+      ...(school.stamp_config && typeof school.stamp_config === "object" ? school.stamp_config : {}),
+      ...(report.stamp_config && typeof report.stamp_config === "object" ? report.stamp_config : {}),
+    };
+    const position = String(stamp.position || "Bottom Right").toLowerCase().replace(/[\s_]+/g, "");
+    return position === "bottomcenter" ? "right" : "center";
+  };
   const authenticityQrBlock = (report) => {
     const image = report.authenticity_qr_data_url;
     if (!image) return "";
-    return `<div class="rc-authenticity-qr"><img src="${esc(image)}" alt="Report card authenticity QR code"><span>Scan to Verify Authenticity</span></div>`;
+    return `<div class="rc-authenticity-qr" data-qr-position="${qrFooterSide(report)}"><img src="${esc(image)}" alt="Report card authenticity QR code"><span>Scan to Verify Authenticity</span></div>`;
   };
   const promotionBanner = (report) => {
     const endOfYear = ["TERM_3", "END_OF_YEAR"].includes(String(report.term || "").toUpperCase());
@@ -358,6 +371,15 @@
     const fees = report.fees || {};
     const earlyYears = level === "NURSERY" || level === "PRIMARY";
     const gradeScale = gradeLegend(report, level);
+    const authenticityQr = authenticityQrBlock(report);
+    const gradeParts = gradeScale.split(/\s*·\s*/u);
+    const midpoint = Math.ceil(gradeParts.length / 2);
+    const qrSide = qrFooterSide(report);
+    const gradingScaleMarkup = !authenticityQr
+      ? `<div class="rc-grading-scale"><b>GRADING SCALE:</b> ${esc(gradeScale)}</div>`
+      : qrSide === "center"
+        ? `<div class="rc-grading-scale rc-grading-scale--qr-center"><span><b>GRADING SCALE:</b> ${esc(gradeParts.slice(0, midpoint).join(" · "))}</span><span aria-hidden="true"></span><span>${esc(gradeParts.slice(midpoint).join(" · "))}</span></div>`
+        : `<div class="rc-grading-scale rc-grading-scale--qr-right"><span><b>GRADING SCALE:</b> ${esc(gradeScale)}</span><span aria-hidden="true"></span></div>`;
     const footerDetails = level === "NURSERY"
       ? `<div class="rc-early-footer-line"><span><b>Date of Issue:</b> ${formatReportDate(report.printed_at || report.generated_at || new Date())}</span><span><b>Next Term Begins:</b> ${formatReportDate(dates.next_term_begins)}</span></div><div class="rc-school-requirements"><b>School Requirements:</b> ${value(school.school_requirements)}</div>`
       : level === "PRIMARY"
@@ -371,12 +393,19 @@
         </div>`;
     const footerLead = value(school.name);
     const footerCenter = earlyYears ? value(school.motto) : "";
+    const contactLeft = value([school.street, school.po_box, school.city, school.district].filter(Boolean).join(" · "));
+    const contactRight = value(school.website || school.motto || school.report_footer_text);
+    const footerContactMarkup = !authenticityQr
+      ? `<div class="rc-footer-contact"><span>${contactLeft}</span><span>${contactRight}</span></div>`
+      : qrSide === "center"
+        ? `<div class="rc-footer-contact rc-footer-contact--qr-center"><span>${contactLeft}</span><span aria-hidden="true"></span><span>${contactRight}</span></div>`
+        : `<div class="rc-footer-contact rc-footer-contact--qr-right"><span>${contactLeft}${contactLeft && contactRight ? " · " : ""}${contactRight}</span><span aria-hidden="true"></span></div>`;
     return `<footer class="rc-footer">
       ${footerDetails}
       ${level === "O_LEVEL" ? `<p class="rc-secondary-footer-note">Outstanding school fees balance is UGX ${value(fees.balance)} as at ${formatReportDate(report.printed_at || report.generated_at || new Date())}<br>T = Topic; EOTI = end of term 1</p>` : ""}
-      <div class="rc-grading-scale"><b>GRADING SCALE:</b> ${esc(gradeScale)}</div>
+      ${gradingScaleMarkup}
       <div class="rc-footer-band"><span>${footerLead}</span><span class="rc-grade-key">${footerCenter}</span><span class="rc-page-count">Page 1 of 1</span></div>
-      <div class="rc-footer-contact"><span>${value([school.street, school.po_box, school.city, school.district].filter(Boolean).join(" · "))}</span><span>${value(school.website || school.motto || school.report_footer_text)}</span></div>
+      ${footerContactMarkup}
       ${school.report_footer_text ? `<p class="rc-footer-note">${value(school.report_footer_text)}</p>` : ""}
     </footer>`;
   };
@@ -495,7 +524,7 @@
       ["Learner", learner.full_name],
       ["Class", report.class?.name],
       ["Term / Year", `${displayTerm(report.term)} ${report.year ?? ""}`.trim()],
-      ["Reg. No.", learner.reg_no],
+      ["Reg. No. / House", [learner.reg_no, learner.house ? `House ${learner.house}` : ""].filter(Boolean).join(" · ")],
     ];
     return `<article ${previewAttrs(report, level, options)}>
       <div class="rc-preview-content rc-a5-content">
@@ -562,7 +591,7 @@
         ${periodSummary(report, options)}
        ${earlyYearsRemarks(report, "NURSERY")}
       ${stampBlock(report, options)}
-      ${authenticityQrBlock(report)}
+       ${authenticityQrBlock(report)}
        ${footer(report, "NURSERY")}
       </div>
     </article>`;

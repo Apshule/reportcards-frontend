@@ -8,6 +8,16 @@
     return Uint8Array.from(binary, (character) => character.charCodeAt(0));
   }
 
+  function sideForReport(report) {
+    const school = report?.school || {};
+    const stamp = {
+      ...(school.stamp_config && typeof school.stamp_config === "object" ? school.stamp_config : {}),
+      ...(report?.stamp_config && typeof report.stamp_config === "object" ? report.stamp_config : {}),
+    };
+    const position = String(stamp.position || "Bottom Right").toLowerCase().replace(/[\s_-]+/g, "");
+    return position === "bottomcenter" ? "right" : "center";
+  }
+
   async function apply(pdfBytes, report) {
     const source = report?.authenticity_qr_data_url;
     if (!source) return pdfBytes;
@@ -21,15 +31,16 @@
 
     const qrImage = await document.embedPng(pngBytes(source));
     const font = await document.embedFont(window.PDFLib.StandardFonts.Helvetica);
-    const size = 56.69;
-    const x = (page.getWidth() - size) / 2;
-    page.drawImage(qrImage, { x, y: 44, width: size, height: size });
+    const size = 42.52;
+    const side = sideForReport(report);
+    const x = side === "right" ? page.getWidth() - 28 - size : (page.getWidth() - size) / 2;
+    page.drawImage(qrImage, { x, y: 60, width: size, height: size });
     const label = "Scan to Verify Authenticity";
     const labelSize = 5.5;
     const labelWidth = font.widthOfTextAtSize(label, labelSize);
     page.drawText(label, {
-      x: (page.getWidth() - labelWidth) / 2,
-      y: 36,
+      x: x + (size - labelWidth) / 2,
+      y: 53,
       size: labelSize,
       font,
       color: window.PDFLib.rgb(0.18, 0.16, 0.22),

@@ -256,7 +256,7 @@
     const showPosition = reportPositionEnabled(report, meta);
     const infoRows = level === "NURSERY" ? [
       [["REG NO", learner.reg_no], ["CLASS", report.class?.name], ["FEES BAL", report.fees?.balance], ["SCHOOLPAY CODE", learner.schoolpay_code || school.schoolpay_code]],
-      [["NAME", learner.full_name], ["DAYS ATTENDED", report.days_attended ?? report.days_present], ["ABSENT", report.days_absent ?? report.absence], ["TOTAL", report.total_days ?? report.school_days]],
+      [["NAME", learner.full_name], ["DAYS ATTENDED", report.days_attended ?? report.days_present], ["ABSENT", report.days_absent ?? report.absence], ["TOTAL", report.total_days ?? report.school_days], ["HOUSE", learner.house]],
     ] : level === "PRIMARY" ? [
       [["NAME", learner.full_name], ["AD No", learner.reg_no], ["PRINT DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
       [["CLASS", report.class?.name], ["SEX", learner.sex || learner.gender], ["AGE", learner.age]],
@@ -265,11 +265,11 @@
     ] : level === "O_LEVEL" ? [
       [["NAME", learner.full_name], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")], ["YEAR", report.year], ["DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
       [["SCHOLAR ID", learner.scholar_id || learner.reg_no], ["CLASS", report.class?.name], ["VCODE", learner.vcode]],
-      [["LIN/AMIS.NO", learner.lin || learner.amis_no], ["STATE", learner.state], ["RESIDENCE", learner.residence]],
+      [["LIN/AMIS.NO", learner.lin || learner.amis_no], ["STATE", learner.state], ["RESIDENCE", learner.residence], ["HOUSE", learner.house]],
     ] : level === "A_LEVEL" ? [
       [["NAME", learner.full_name], ["GENDER", learner.gender || learner.sex]],
       [["AGE", learner.age], ["ROLL NO", learner.roll_no || learner.reg_no]],
-      [["CLASS", report.class?.name], ["STREAM", learner.stream || report.class?.stream]],
+      [["CLASS", report.class?.name], ["STREAM", learner.stream || report.class?.stream], ["HOUSE", learner.house]],
       [["COMBINATION", learner.combination || report.class?.combination], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")]],
     ] : [
       [["NAME", learner.full_name], ["AD No", learner.reg_no]],
@@ -537,6 +537,20 @@
     visible[1] = `${visible[1].slice(0, Math.max(0, visible[1].length - 1))}...`;
     return visible;
   }
+  function qrFooterSide(report) {
+    const school = report?.school || {};
+    const stamp = {
+      ...(school.stamp_config && typeof school.stamp_config === "object" ? school.stamp_config : {}),
+      ...(report?.stamp_config && typeof report.stamp_config === "object" ? report.stamp_config : {}),
+    };
+    const position = String(stamp.position || "Bottom Right").toLowerCase().replace(/[\s_-]+/g, "");
+    return position === "bottomcenter" ? "right" : "center";
+  }
+  function splitGradeScale(text) {
+    const parts = String(text || "").split(/\s+·\s+/u);
+    const midpoint = Math.ceil(parts.length / 2);
+    return [parts.slice(0, midpoint).join(" · "), parts.slice(midpoint).join(" · ")];
+  }
   async function drawFooter(doc, page, report, fonts, accent, options = {}) {
     const { width } = page.getSize();
     const school = report.school || {};
@@ -565,9 +579,34 @@
         drawText(page, `School term/year: ${str(dates.current_term)} / ${str(dates.current_year)}   ·   Term ended: ${formatReportDate(dates.term_ended_on)}`, 28, 245, fonts.regular, reportFonts.body, ink, width - 56);
         drawText(page, `Next term fees: ${str(dates.next_term_fees)}   ·   Fees balance: ${str(fees.balance)}`, 28, 230, fonts.regular, reportFonts.body, ink, width - 56);
       }
-      wrappedLines(`GRADING SCALE: ${str(gradeKey)}`, fonts.regular, reportFonts.body, width - 56)
-        .slice(0, 2)
-        .forEach((line, index) => drawText(page, line, 28, 91 - index * 12, fonts.regular, reportFonts.body, ink, width - 56));
+      const gradeText = `GRADING SCALE: ${str(gradeKey)}`;
+      if (report.authenticity_qr_data_url) {
+        const qrSize = 42.52;
+        const qrSide = qrFooterSide(report);
+        const qrX = qrSide === "right" ? width - 28 - qrSize : (width - qrSize) / 2;
+        const gap = 8;
+        const drawLines = (text, x, maxWidth) => wrappedLines(
+          text,
+          fonts.regular,
+          reportFonts.body,
+          maxWidth,
+        ).slice(0, 2).forEach((line, index) =>
+          drawText(page, line, x, 91 - index * 12, fonts.regular, reportFonts.body, ink, maxWidth),
+        );
+        if (qrSide === "center") {
+          const [leftGrades, rightGrades] = splitGradeScale(str(gradeKey));
+          drawLines(`GRADING SCALE: ${leftGrades}`, 28, Math.max(80, qrX - 28 - gap));
+          if (rightGrades) {
+            drawLines(rightGrades, qrX + qrSize + gap, Math.max(60, width - qrX - qrSize - gap - 28));
+          }
+        } else {
+          drawLines(gradeText, 28, Math.max(80, qrX - 28 - gap));
+        }
+      } else {
+        wrappedLines(gradeText, fonts.regular, reportFonts.body, width - 56)
+          .slice(0, 2)
+          .forEach((line, index) => drawText(page, line, 28, 91 - index * 12, fonts.regular, reportFonts.body, ink, width - 56));
+      }
 
       const remarkTop = 223;
       const remarkHeight = 80;
@@ -604,8 +643,31 @@
     const pageNumber = doc.getPages().indexOf(page) + 1;
     const pageLabel = `Page ${pageNumber} of ${doc.getPages().length}`;
     if (address || school.website || school.report_footer_text) {
-      drawText(page, str(address), 30, 59, fonts.regular, reportFonts.body, rgb(0.32, 0.32, 0.34), width * 0.58);
-      drawText(page, str(school.website || school.report_footer_text), width * 0.62, 59, fonts.regular, reportFonts.body, rgb(0.32, 0.32, 0.34), width * 0.34);
+      const ink = rgb(0.32, 0.32, 0.34);
+      if (report.authenticity_qr_data_url) {
+        const qrSize = 42.52;
+        const qrSide = qrFooterSide(report);
+        const qrX = qrSide === "right" ? width - 28 - qrSize : (width - qrSize) / 2;
+        if (qrSide === "center") {
+          drawText(page, str(address), 30, 59, fonts.regular, reportFonts.body, ink, Math.max(80, qrX - 40));
+          drawText(
+            page,
+            str(school.website || school.report_footer_text),
+            qrX + qrSize + 8,
+            59,
+            fonts.regular,
+            reportFonts.body,
+            ink,
+            Math.max(60, width - qrX - qrSize - 38),
+          );
+        } else {
+          const contact = [address, school.website || school.report_footer_text].filter(Boolean).join(" · ");
+          drawText(page, str(contact), 30, 59, fonts.regular, reportFonts.body, ink, Math.max(80, qrX - 40));
+        }
+      } else {
+        drawText(page, str(address), 30, 59, fonts.regular, reportFonts.body, ink, width * 0.58);
+        drawText(page, str(school.website || school.report_footer_text), width * 0.62, 59, fonts.regular, reportFonts.body, ink, width * 0.34);
+      }
     }
     page.drawRectangle({ x: 28, y: 28, width: width - 56, height: 24, color: colorToPdf(accent) });
     const footerTextColor = rgb(1, 1, 1);
@@ -1583,7 +1645,7 @@
       ["Learner", learner.full_name],
       ["Class", report.class?.name],
       ["Term / Year", `${displayTerm(report.term)} ${report.year ?? ""}`.trim()],
-      ["Reg. No.", learner.reg_no],
+      ["Reg. No. / House", [learner.reg_no, learner.house ? `House ${learner.house}` : ""].filter(Boolean).join(" · ")],
     ];
     const cellWidth = contentWidth / 2;
     info.forEach(([label, value], index) => {
@@ -1681,7 +1743,8 @@
     const stampSources = [report?.school?.stamp_config, report?.stamp_config]
       .filter((value) => value && typeof value === "object" && !Array.isArray(value));
     const stamp = includeStamp ? Object.assign({}, ...stampSources) : null;
-    const renderReport = { ...report, __includeStamp: Boolean(stamp && typeof stamp === "object" && Object.keys(stamp).length) };
+    const showStamp = report?.school?.show_stamp !== false && report?.show_stamp !== false;
+    const renderReport = { ...report, __includeStamp: Boolean(showStamp && stamp && typeof stamp === "object" && Object.keys(stamp).length) };
     const level = levelCode(classLevel || renderReport.class?.level);
     if ((layoutFormat || renderReport.layout_format || "A4") === "A5_CONDENSED") return renderA5Condensed(renderReport, level);
     const id = String(templateId || "1").replace(/^template[_-]?/i, "");
@@ -1697,7 +1760,7 @@
     } else {
       bytes = await renderVariant(themedReport, level, meta);
     }
-    if (includeStamp && window.ReportCardStampRenderer) {
+    if (includeStamp && showStamp && window.ReportCardStampRenderer) {
       bytes = await window.ReportCardStampRenderer.apply(bytes, themedReport, stamp);
     }
     if (themedReport.authenticity_qr_data_url) {
