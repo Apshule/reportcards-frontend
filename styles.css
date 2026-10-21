@@ -476,8 +476,8 @@ html .rc-preview .rc-stamp-logo{max-width:50%;max-height:50%}
 .rc-a5-signature span{width:48mm;height:4mm;border-bottom:1px solid #777}
 .rc-a5-signature b{font-size:7pt}
 @media print{
-  @page report-a5{size:A5 portrait;margin:5mm}
-  #rc-print-root[data-layout-format="A5_CONDENSED"] .rc-print-card{page:report-a5;width:148mm;height:210mm;break-after:page;page-break-after:always}
+  @page report-a5{size:A5 portrait;margin:0}
+  #rc-print-root[data-layout-format="A5_CONDENSED"] .rc-print-card{page:report-a5;width:148mm;height:210mm;box-sizing:border-box;break-after:page;page-break-after:always}
   #rc-print-root[data-layout-format="A5_CONDENSED"] .rc-print-card:last-child{break-after:auto;page-break-after:auto}
-  #rc-print-root .rc-preview-a5-condensed{width:148mm;height:210mm;min-height:210mm;padding:0;border:0}
+  #rc-print-root .rc-preview-a5-condensed{width:148mm!important;height:210mm!important;min-height:210mm!important;box-sizing:border-box;padding:4mm;border:0}
 }
