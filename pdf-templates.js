@@ -620,7 +620,8 @@
         ["Class Teacher's Remarks", report.class_teacher_comment || report.suggested_comment],
         ["Head Teacher's Remarks", report.head_teacher_comment],
         ["Principal's Remarks", report.principal_comment],
-      ]).slice(0, options.remarkCount === 2 ? 2 : 3);
+      ]).slice(0, options.remarkCount === 2 ? 2 : 3)
+        .map(([label, content]) => [label, resolvedRemarkContent(label, content, report)]);
       const remarkWidth = (width - 56) / remarks.length;
       const signature = await embedImage(doc, school.report_signature_base64);
       const signatures = Array.isArray(options.signatures) && options.signatures.length
@@ -692,10 +693,159 @@
     }
   }
   function marks(report) {
-    return (report.subjects || []).map((subject) => ({
-      subject,
-      mark: subject.mark || {},
-    }));
+    return (report.subjects || []).map((subject) => {
+      const source = subject && typeof subject === "object" ? subject : {};
+      const nestedMark = source.mark && typeof source.mark === "object" ? source.mark : {};
+      return {
+        subject: source,
+        mark: { ...source, ...nestedMark },
+      };
+    });
+  }
+  function printableValue(value) {
+    if (value === null || value === undefined) return "";
+    const text = String(value).trim();
+    return ["-", "—", "–", "-/-", "/-"].includes(text) ? "" : text;
+  }
+  function numericMarkValue(value) {
+    if (value === null || value === undefined || String(value).trim() === "") return null;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  function scoreForMark(mark, report) {
+    const period = assessmentPeriod(report);
+    const selectedValues = period.key === "EOT"
+      ? [mark?.pct100, mark?.period_score]
+      : [mark?.period_score, periodScore(mark, period), mark?.pct100];
+    for (const value of selectedValues) {
+      const parsed = numericMarkValue(value);
+      if (parsed !== null) return parsed;
+    }
+    if (period.key !== "EOT") return null;
+    const eotValues = [
+      periodValue(mark, "eot_period", period),
+      periodValue(mark, "eot", period),
+      mark?.eot_period,
+      mark?.eot,
+      mark?.exam_score,
+    ];
+    for (const value of eotValues) {
+      const parsed = numericMarkValue(value);
+      if (parsed !== null) return parsed;
+    }
+    return null;
+  }
+  function gradeForScore(score, report) {
+    if (score === null) return "";
+    const scaleValue = report?.grading_scale;
+    const rows = Array.isArray(scaleValue)
+      ? scaleValue
+      : Array.isArray(scaleValue?.rows) ? scaleValue.rows : [];
+    const matchingRow = rows.find((row) => {
+      const minimum = numericMarkValue(row?.min_score ?? row?.min);
+      const maximum = numericMarkValue(row?.max_score ?? row?.max);
+      return minimum !== null && maximum !== null && score >= minimum && score <= maximum;
+    });
+    const configuredGrade = printableValue(matchingRow?.grade_code ?? matchingRow?.grade);
+    if (configuredGrade) return configuredGrade;
+
+    const level = levelCode(report?.class?.level);
+    if (level === "NURSERY") return "";
+    const thresholds = level === "A_LEVEL"
+      ? [[75, "A"], [65, "B"], [50, "C"], [35, "D"], [0, "E"]]
+      : [[80, "A"], [70, "B"], [60, "C"], [50, "D"], [0, "E"]];
+    return thresholds.find(([minimum]) => score >= minimum)?.[1] || "E";
+  }
+  function overallAverage(report) {
+    const summary = report?.summary || {};
+    for (const value of [
+      summary.overall_average,
+      summary.average,
+      report?.overall_average,
+      report?.average,
+    ]) {
+      const parsed = numericMarkValue(value);
+      if (parsed !== null) return parsed;
+    }
+    const scores = marks(report)
+      .map(({ mark }) => scoreForMark(mark, report))
+      .filter((score) => score !== null);
+    if (!scores.length) return null;
+    return Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length + Number.EPSILON) * 100) / 100;
+  }
+  function overallGrade(report) {
+    const summaryGrade = printableValue(report?.summary?.overall_grade ?? report?.overall_grade);
+    return summaryGrade || gradeForScore(overallAverage(report), report) || "—";
+  }
+  function positionValue(mark, report) {
+    for (const value of [
+      mark?.position,
+      mark?.class_position,
+      mark?.rank,
+      report?.summary?.position,
+      report?.position,
+    ]) {
+      const normalized = printableValue(value);
+      if (normalized) return normalized;
+    }
+    return "";
+  }
+  function classSizeValue(mark, report) {
+    for (const value of [mark?.class_size, report?.summary?.class_size, report?.class_size]) {
+      const normalized = printableValue(value);
+      if (normalized) return normalized;
+    }
+    return "";
+  }
+  function overallPositionValue(report) {
+    const summaryPosition = printableValue(report?.summary?.position ?? report?.position);
+    if (summaryPosition) return summaryPosition;
+    return marks(report)
+      .map(({ mark }) => positionValue(mark, {}))
+      .find(Boolean) || "";
+  }
+  function overallClassSizeValue(report) {
+    const summarySize = printableValue(report?.summary?.class_size ?? report?.class_size);
+    if (summarySize) return summarySize;
+    return marks(report).map(({ mark }) => printableValue(mark?.class_size)).find(Boolean) || "";
+  }
+  function subjectRemark(mark) {
+    for (const value of [mark?.tr, mark?.teacher_remark, mark?.descriptor, mark?.remark]) {
+      const normalized = printableValue(value);
+      if (normalized) return normalized;
+    }
+    return "—";
+  }
+  function overallPerformance(report) {
+    const grade = overallGrade(report).toUpperCase();
+    const average = overallAverage(report);
+    if (/^(A|D1|D2|3|2A)$/u.test(grade) || (average !== null && average >= 80)) return "excellent";
+    if (/^(B|C3|C4|C5|C6|2)$/u.test(grade) || (average !== null && average >= 70)) return "very good";
+    if (/^(C|2B)$/u.test(grade) || (average !== null && average >= 60)) return "satisfactory";
+    if (/^(D|1A)$/u.test(grade) || (average !== null && average >= 50)) return "developing";
+    return average === null ? "" : "needs improvement";
+  }
+  function autoOverallRemark(report, audience) {
+    const average = overallAverage(report);
+    if (average === null) return "";
+    const learnerName = printableValue(report?.learner?.full_name).split(/\s+/u)[0] || "The learner";
+    const performance = overallPerformance(report) || "steady";
+    const formattedAverage = average.toFixed(1);
+    if (audience === "principal") {
+      return `The school commends ${learnerName} for ${performance} performance and an overall average of ${formattedAverage}.`;
+    }
+    if (audience === "teacher") {
+      return `${learnerName} has shown ${performance} progress this term, with an overall average of ${formattedAverage}. Keep it up.`;
+    }
+    return `${learnerName} has attained an overall average of ${formattedAverage} with ${performance} academic progress.`;
+  }
+  function resolvedRemarkContent(label, content, report) {
+    if (printableValue(content)) return content;
+    const key = String(label || "").toLowerCase();
+    if (/class teacher/u.test(key)) return autoOverallRemark(report, "teacher") || content;
+    if (/principal/u.test(key)) return autoOverallRemark(report, "principal") || content;
+    if (/head teacher|head of infants|infant/u.test(key)) return autoOverallRemark(report, "head") || content;
+    return content;
   }
   function reportPositionEnabled(report, meta = null) {
     const setting = report?.school?.show_report_position ?? report?.show_report_position;
@@ -793,14 +943,13 @@
       ? "A 75–100 · B 65–74 · C 50–64 · D 35–49 · E 0–34"
       : "A 80–100 · B 70–79 · C 60–69 · D 50–59 · E 0–49";
   }
-  function gradeLabel(mark = {}) {
-    const grade = str(mark.grade);
-    const overall = str(mark.overall_grade_code);
-    const points = mark.points === null || mark.points === undefined || mark.points === ""
-      ? ""
-      : str(mark.points);
-    if (overall) return `${grade ? `${grade}/` : ""}${overall}${points ? ` (${points})` : ""}`;
-    return `${grade}${points ? ` (${points})` : ""}`;
+  function gradeLabel(mark = {}, report = {}) {
+    const grade = printableValue(mark.grade) || gradeForScore(scoreForMark(mark, report), report);
+    const overall = printableValue(mark.overall_grade_code);
+    const pointsValue = printableValue(mark.points);
+    const points = pointsValue ? ` (${pointsValue})` : "";
+    if (overall) return `${grade ? `${grade}/` : ""}${overall}${points}`;
+    return `${grade}${points}` || "—";
   }
   const asReport = (learnerOrReport, school, marksData) =>
     school
@@ -914,7 +1063,7 @@
       });
       const remarkIndex = areaWidths.length - 2;
       const remarkX = x + areaWidths.slice(0, remarkIndex).reduce((sum, item) => sum + item, 0);
-      wrappedLines(str(mark.tr || mark.teacher_remark || mark.descriptor || mark.remark || ""), fonts.italic, reportFonts.table, areaWidths[remarkIndex] - 6).slice(0, 2).forEach((line, lineIndex) => {
+      wrappedLines(subjectRemark(mark), fonts.italic, reportFonts.table, areaWidths[remarkIndex] - 6).slice(0, 2).forEach((line, lineIndex) => {
         centeredTable(page, line, remarkX + areaWidths[remarkIndex] / 2, rowTop - 17 - lineIndex * 12, fonts.italic, reportFonts.table, color(theme.primary_color), areaWidths[remarkIndex] - 6);
       });
       const signIndex = areaWidths.length - 1;
@@ -1010,13 +1159,14 @@
           "___",
         ];
       }
+      const position = positionValue(mark, report);
       return [
         subject.name,
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
-        gradeLabel(mark),
-        ...(showPosition ? [mark.position ? `${ordinal(mark.position)} of ${str(mark.class_size)}` : "—"] : []),
-        str(mark.tr || mark.teacher_remark || mark.descriptor),
+        gradeLabel(mark, report),
+        ...(showPosition ? [position ? `${ordinal(position)} of ${classSizeValue(mark, report) || "—"}` : "—"] : []),
+        subjectRemark(mark),
         str(mark.teacher_initials),
       ];
     });
@@ -1037,16 +1187,16 @@
       "TOTALS",
       ...period.fields.map(({ key }) => num(periodSum(entries, key, period), 0)),
       ...(period.combined ? [num(summary.total_score, 0)] : []),
-      str(summary.overall_grade),
-      ...(showPosition ? [`${ordinal(summary.position)} OUT OF ${str(summary.class_size)}`] : []),
+      overallGrade(report),
+      ...(showPosition ? [`${ordinal(overallPositionValue(report))} OUT OF ${overallClassSizeValue(report) || "—"}`] : []),
       promotionStatus(report).replace(/^STATUS:\s*/, ""),
       initials,
     ];
     const totalsY = drawTableTotals(flow.page, totalCells, 28, flow.y, width, columns, fonts, lineAccent, 5.8);
     drawCompactSummary(flow.page, [
-      ...(showPosition ? [["Overall position", `${ordinal(summary.position)} of ${str(summary.class_size)}`]] : []),
-      ["Average", num(summary.overall_average)],
-      ["Grade", str(summary.overall_grade)],
+      ...(showPosition ? [["Overall position", `${ordinal(overallPositionValue(report))} of ${overallClassSizeValue(report) || "—"}`]] : []),
+      ["Average", num(overallAverage(report))],
+      ["Grade", overallGrade(report)],
     ], 28, totalsY - 1, width, fonts, accent);
     const otherRows = primaryOtherSubjectRows(report, true);
     drawText(flow.page, "OTHER SUBJECTS / CO-CURRICULAR", 28, totalsY - 33, fonts.bold, reportFonts.subheading, color(theme.primary_color), width);
@@ -1073,7 +1223,7 @@
     const { doc, page, fonts, accent, lineAccent, backgroundColor, theme, y } = await prepare(report, level, title);
     const entries = marks(report);
     const period = assessmentPeriod(report);
-    const overallGrade = str(report.summary?.overall_grade);
+    const overallGradeText = overallGrade(report);
     const isALevel = level === "A_LEVEL";
     const prefixColumns = isALevel
       ? [
@@ -1098,8 +1248,8 @@
       ...prefixValues(subject, mark),
       ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
       ...(period.combined ? [num(periodScore(mark, period))] : []),
-      gradeLabel(mark),
-      str(mark.tr || mark.teacher_remark || mark.descriptor),
+      gradeLabel(mark, report),
+      subjectRemark(mark),
       str(mark.teacher_initials),
     ]);
     const subjectIndex = isALevel ? 1 : 0;
@@ -1130,15 +1280,15 @@
       ...(period.combined
         ? [finalScores.length ? num(finalScores.reduce((sum, score) => sum + score, 0) / finalScores.length) : "—"]
         : []),
-      overallGrade,
+      overallGradeText,
       str(summary.overall_achievement ?? summary.achievement),
       "",
     ];
     let totalsY = drawTableTotals(flow.page, averages, 28, flow.y - 2, page.getWidth() - 56, columns, fonts, lineAccent, 5.3);
     drawSummary(flow.page, [
-      ...(reportPositionEnabled(report) ? [["Overall position", `${str(summary.position)} of ${str(summary.class_size)}`]] : []),
-      ["Average", num(summary.overall_average)],
-      ["Grade", overallGrade],
+      ...(reportPositionEnabled(report) ? [["Overall position", `${overallPositionValue(report) || "—"} of ${overallClassSizeValue(report) || "—"}`]] : []),
+      ["Average", num(overallAverage(report))],
+      ["Grade", overallGradeText],
       ["Identifier", str(summary.overall_identifier ?? summary.identifier)],
     ], 28, totalsY - 11, page.getWidth() - 56, fonts, accent);
     let nextContentY = totalsY - 43;
@@ -1259,7 +1409,7 @@
         subject.name,
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
-        str(mark.tr || mark.teacher_remark || mark.descriptor),
+        subjectRemark(mark),
         str(mark.teacher_initials),
       ]);
       const x = 31;
@@ -1276,9 +1426,9 @@
       const summary = report.summary || {};
       drawTotalsRow(flow.page, "Score", num(summary.total_score, 0), x, nextY - 1, panelWidth, fonts, lineAccent, theme.background_color);
       drawSummary(flow.page, [
-        ...(showPositionInVariant ? [["Position", `${str(summary.position)} of ${str(summary.class_size)}`]] : []),
-        ["Average", num(summary.overall_average)],
-        ["Grade", str(summary.overall_grade)],
+        ...(showPositionInVariant ? [["Position", `${overallPositionValue(report) || "—"} of ${overallClassSizeValue(report) || "—"}`]] : []),
+        ["Average", num(overallAverage(report))],
+        ["Grade", overallGrade(report)],
       ], x, nextY - 33, panelWidth, fonts, accent);
       nextY -= 76;
       if (meta.requirements) {
@@ -1306,13 +1456,14 @@
         { label: "Initials", weight: 0.62, align: "center" },
       ];
       const rows = entries.map(({ subject, mark }) => {
+        const position = positionValue(mark, report);
         const values = [
           subject.name,
           ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
           ...(period.combined ? [num(periodScore(mark, period))] : []),
-          gradeLabel(mark),
-          ...(showPosition ? [mark.position ? `${mark.position} of ${str(mark.class_size)}` : "—"] : []),
-          str(mark.tr || mark.teacher_remark || mark.descriptor),
+          gradeLabel(mark, report),
+          ...(showPosition ? [position ? `${position} of ${classSizeValue(mark, report) || "—"}` : "—"] : []),
+          subjectRemark(mark),
           str(mark.teacher_initials),
         ];
         if (meta.blankForm) return [
@@ -1356,16 +1507,16 @@
         "TOTALS",
         ...period.fields.map(({ key }) => num(periodSum(entries, key, period), 0)),
         ...(period.combined ? [num(summary.total_score, 0)] : []),
-        str(summary.overall_grade),
-        ...(showPosition ? [`${str(summary.position)} of ${str(summary.class_size)}`] : []),
+        overallGrade(report),
+        ...(showPosition ? [`${overallPositionValue(report) || "—"} of ${overallClassSizeValue(report) || "—"}`] : []),
         promotionStatus(report),
         initials,
       ];
       const totalsY = drawTableTotals(flow.page, totalCells, 28, flow.y - 2, width - 56, columns, fonts, lineAccent);
       drawSummary(flow.page, [
-        ...(showPosition ? [["Overall position", `${str(summary.position)} of ${str(summary.class_size)}`]] : []),
-        ["Average", num(summary.overall_average)],
-        ["Grade", str(summary.overall_grade)],
+        ...(showPosition ? [["Overall position", `${overallPositionValue(report) || "—"} of ${overallClassSizeValue(report) || "—"}`]] : []),
+        ["Average", num(overallAverage(report))],
+        ["Grade", overallGrade(report)],
       ], 28, totalsY - 8, width - 56, fonts, accent);
       const activities = coCurricular(report, true);
       if (activities.length) {
@@ -1390,8 +1541,8 @@
         subject.name,
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
-        gradeLabel(mark),
-        str(mark.tr || mark.teacher_remark || mark.descriptor),
+        gradeLabel(mark, report),
+        subjectRemark(mark),
         str(mark.teacher_initials),
       ]);
       let flow = await drawTableFlow(doc, page, report, fonts, theme, title, `TERM PERFORMANCE RECORDS — ${period.title}`, columns, rows, 28, nextY, width - 56, {
@@ -1412,15 +1563,15 @@
         "AVERAGE SCORES",
         ...period.fields.map(({ key }) => num(periodAverage(entries, key, period))),
         ...(period.combined ? [finalScores.length ? num(finalScores.reduce((sum, score) => sum + score, 0) / finalScores.length) : "—"] : []),
-        str(summary.overall_grade),
+        overallGrade(report),
         str(summary.overall_achievement ?? summary.achievement),
         "",
       ];
       const totalsY = drawTableTotals(flow.page, averages, 28, flow.y - 2, width - 56, columns, fonts, lineAccent, 5.3);
       drawSummary(flow.page, [
-        ...(showPositionInVariant ? [["Overall position", `${str(summary.position)} of ${str(summary.class_size)}`]] : []),
-        ["Average", num(summary.overall_average)],
-        ["Grade", str(summary.overall_grade)],
+        ...(showPositionInVariant ? [["Overall position", `${overallPositionValue(report) || "—"} of ${overallClassSizeValue(report) || "—"}`]] : []),
+        ["Average", num(overallAverage(report))],
+        ["Grade", overallGrade(report)],
         ["Identifier", str(summary.overall_identifier ?? summary.identifier)],
       ], 28, totalsY - 11, width - 56, fonts, accent);
       const dates = report.term_dates || {};
@@ -1460,7 +1611,7 @@
         subject.code, subject.name, str(mark.paper_number),
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
-        gradeLabel(mark), str(mark.tr || mark.teacher_remark || mark.descriptor), str(mark.teacher_initials),
+        gradeLabel(mark, report), subjectRemark(mark), str(mark.teacher_initials),
       ]);
       let flow = await drawTableFlow(doc, page, report, fonts, theme, title, `TERM PERFORMANCE RECORDS — ${period.title}`, columns, rows, 28, nextY, width - 56, {
         rowHeight: 18, fontSize: 5.9, headerFontSize: 6.1, headerHeight: 23, backgroundColor,
@@ -1475,13 +1626,13 @@
         "", "AVERAGE SCORES", "",
         ...period.fields.map(({ key }) => num(periodAverage(entries, key, period))),
         ...(period.combined ? [finalScores.length ? num(finalScores.reduce((sum, score) => sum + score, 0) / finalScores.length) : "—"] : []),
-        str(summary.overall_grade), str(summary.overall_achievement ?? summary.achievement), "",
+        overallGrade(report), str(summary.overall_achievement ?? summary.achievement), "",
       ];
       const totalsY = drawTableTotals(flow.page, averages, 28, flow.y - 2, width - 56, columns, fonts, lineAccent, 5.3);
       drawSummary(flow.page, [
-        ...(showPositionInVariant ? [["Overall position", `${str(summary.position)} of ${str(summary.class_size)}`]] : []),
-        ["Average", num(summary.overall_average)],
-        ["Grade", str(summary.overall_grade)],
+        ...(showPositionInVariant ? [["Overall position", `${overallPositionValue(report) || "—"} of ${overallClassSizeValue(report) || "—"}`]] : []),
+        ["Average", num(overallAverage(report))],
+        ["Grade", overallGrade(report)],
         ["Identifier", str(summary.overall_identifier ?? summary.identifier)],
       ], 28, totalsY - 11, width - 56, fonts, accent);
       const activities = coCurricular(report);
@@ -1593,12 +1744,10 @@
     page.drawText(line, { x: drawX, y, size, font, color: fill });
   }
 
-  function a5GradeLabel(mark = {}) {
-    const grade = String(mark.grade ?? "").trim();
-    const overall = String(mark.overall_grade_code ?? "").trim();
-    const points = mark.points === null || mark.points === undefined || mark.points === ""
-      ? ""
-      : String(mark.points);
+  function a5GradeLabel(mark = {}, report = {}) {
+    const grade = printableValue(mark.grade) || gradeForScore(scoreForMark(mark, report), report);
+    const overall = printableValue(mark.overall_grade_code);
+    const points = printableValue(mark.points);
     if (overall) return `${grade ? `${grade}/` : ""}${overall}${points ? ` (${points})` : ""}`;
     return `${grade}${points ? ` (${points})` : ""}` || "—";
   }
@@ -1697,8 +1846,8 @@
         num(periodValue(mark, "bot", period), 1),
         num(periodValue(mark, "mid_term", period), 1),
         num(periodScore(mark, period), 1),
-        a5GradeLabel(mark),
-        mark.tr || mark.teacher_remark || mark.descriptor || mark.remark,
+        a5GradeLabel(mark, report),
+        subjectRemark(mark),
       ];
       currentX = x;
       columns.forEach((column, index) => {
@@ -1730,8 +1879,8 @@
     });
 
     const comments = [
-      `Class Teacher: ${str(report.class_teacher_comment || report.suggested_comment)}`,
-      `Principal: ${str(report.principal_comment || report.head_teacher_comment)}`,
+      `Class Teacher: ${str(report.class_teacher_comment || report.suggested_comment || autoOverallRemark(report, "teacher"))}`,
+      `Principal: ${str(report.principal_comment || report.head_teacher_comment || autoOverallRemark(report, "principal"))}`,
     ].join("  ·  ");
     const footerY = Math.max(footerBottom - 3, rowTop - 16);
     page.drawLine({ start: { x, y: footerY + 8 }, end: { x: width - x, y: footerY + 8 }, thickness: 0.6, color: accent });
