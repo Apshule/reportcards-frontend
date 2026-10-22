@@ -3,6 +3,12 @@
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[char]);
   const value = (input) => input === null || input === undefined || input === "" ? "—" : esc(input);
+  const infoValue = (label, input) => {
+    const blankWhenMissing = ["HOUSE", "ABSENT", "DAYS ABSENT"].includes(String(label).toUpperCase());
+    return blankWhenMissing && (input === null || input === undefined || String(input).trim() === "")
+      ? ""
+      : value(input);
+  };
   function formatReportDate(input) {
     if (input === null || input === undefined || input === "") return value(input);
     const isDate = input instanceof Date;
@@ -165,11 +171,11 @@
     const showPosition = reportPositionEnabled(report, level, template.id);
     const rows = level === "NURSERY" ? [
       [["REG NO", learner.reg_no], ["CLASS", report.class?.name], ["FEES BAL", report.fees?.balance], ["SCHOOLPAY CODE", learner.schoolpay_code || report.school?.schoolpay_code]],
-      [["NAME", learner.full_name], ["DAYS ATTENDED", report.days_attended ?? report.days_present], ["ABSENT", report.days_absent ?? report.absence], ["TOTAL", report.total_days ?? report.school_days], ["HOUSE", learner.house]],
+      [["NAME", learner.full_name], ["DAYS ATTENDED", report.days_attended ?? report.days_present], ["ABSENT", report.days_absent ?? learner.days_absent ?? report.absence], ["TOTAL", report.total_days ?? report.school_days], ["HOUSE", learner.house]],
     ] : level === "PRIMARY" ? [
       [["NAME", learner.full_name], ["AD No", learner.reg_no], ["PRINT DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
       [["CLASS", report.class?.name], ["SEX", learner.sex || learner.gender], ["AGE", learner.age]],
-      [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? report.absence], ["TERM", displayTerm(report.term)], ["YEAR", report.year]],
+      [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? learner.days_absent ?? report.absence], ["TERM", displayTerm(report.term)], ["YEAR", report.year]],
       [["POSITION", summary.position], ["OUT OF", summary.class_size]],
     ] : level === "O_LEVEL" ? [
       [["NAME", learner.full_name], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")], ["YEAR", report.year], ["DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
@@ -183,14 +189,14 @@
     ] : [
       [["NAME", learner.full_name], ["AD No", learner.reg_no]],
       [["CLASS", report.class?.name], ["SEX", learner.sex]],
-      [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? report.absence]],
+      [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? learner.days_absent ?? report.absence]],
       [["POSITION", summary.position], ["OUT OF", summary.class_size]],
       [["TERM", displayTerm(report.term)], ["YEAR", report.year], ["PRINT DATE", formatReportDate(new Date())]],
     ];
     const visibleRows = rows.filter((row) => showPosition || !row.some(([label]) => label === "POSITION"));
     return `<div class="rc-learner-grid rc-learner-grid-${String(level || "general").toLowerCase()}">${visibleRows.map((row, index) =>
       `<div class="rc-info-row rc-info-row-${row.length} ${index % 2 ? "is-tinted" : ""}">${row.map(([label, content]) =>
-        `<div><b>${esc(label)}</b><span>${value(content)}</span></div>`).join("")}</div>`).join("")}</div>`;
+        `<div><b>${esc(label)}</b><span>${infoValue(label, content)}</span></div>`).join("")}</div>`).join("")}</div>`;
   };
   const defaultOtherSubjects = ["Handwriting", "Art & Drawing", "P.E & Games", "Music", "Luganda", "Religious Education"];
   const coCurricular = (report, includeDefaults = false) => {

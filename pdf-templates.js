@@ -34,6 +34,12 @@
     return Number.isFinite(parsed) ? parsed.toFixed(digits) : "—";
   };
   const str = (value) => value === null || value === undefined || value === "" ? "—" : String(value);
+  const infoValue = (label, value) => {
+    const blankWhenMissing = ["HOUSE", "ABSENT", "DAYS ABSENT"].includes(String(label).toUpperCase());
+    return blankWhenMissing && (value === null || value === undefined || String(value).trim() === "")
+      ? ""
+      : str(value);
+  };
   function formatReportDate(value) {
     if (value === null || value === undefined || value === "") return str(value);
     const isDate = value instanceof Date;
@@ -104,11 +110,11 @@
     const drawWidth = image.width * scale;
     const drawHeight = image.height * scale;
     const savedOpacity = school.watermark_opacity === null || school.watermark_opacity === undefined || school.watermark_opacity === ""
-      ? 10
+      ? 5
       : Number(school.watermark_opacity);
     const opacity = Number.isFinite(savedOpacity)
       ? Math.max(0, Math.min(100, savedOpacity)) / 100
-      : 0.1;
+      : 0.05;
     page.drawImage(image, {
       x: (width - drawWidth) / 2,
       y: (height - drawHeight) / 2,
@@ -256,11 +262,11 @@
     const showPosition = reportPositionEnabled(report, meta);
     const infoRows = level === "NURSERY" ? [
       [["REG NO", learner.reg_no], ["CLASS", report.class?.name], ["FEES BAL", report.fees?.balance], ["SCHOOLPAY CODE", learner.schoolpay_code || school.schoolpay_code]],
-      [["NAME", learner.full_name], ["DAYS ATTENDED", report.days_attended ?? report.days_present], ["ABSENT", report.days_absent ?? report.absence], ["TOTAL", report.total_days ?? report.school_days], ["HOUSE", learner.house]],
+      [["NAME", learner.full_name], ["DAYS ATTENDED", report.days_attended ?? report.days_present], ["ABSENT", report.days_absent ?? learner.days_absent ?? report.absence], ["TOTAL", report.total_days ?? report.school_days], ["HOUSE", learner.house]],
     ] : level === "PRIMARY" ? [
       [["NAME", learner.full_name], ["AD No", learner.reg_no], ["PRINT DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
       [["CLASS", report.class?.name], ["SEX", learner.sex || learner.gender], ["AGE", learner.age]],
-      [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? report.absence], ["TERM", displayTerm(report.term)], ["YEAR", report.year]],
+      [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? learner.days_absent ?? report.absence], ["TERM", displayTerm(report.term)], ["YEAR", report.year]],
       [["POSITION", report.summary?.position], ["OUT OF", report.summary?.class_size]],
     ] : level === "O_LEVEL" ? [
       [["NAME", learner.full_name], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")], ["YEAR", report.year], ["DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
@@ -274,7 +280,7 @@
     ] : [
       [["NAME", learner.full_name], ["AD No", learner.reg_no]],
       [["CLASS", report.class?.name], ["SEX", learner.sex]],
-      [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? report.absence]],
+      [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? learner.days_absent ?? report.absence]],
       [["POSITION", report.summary?.position], ["OUT OF", report.summary?.class_size]],
       [["TERM", displayTerm(report.term)], ["YEAR", report.year], ["PRINT DATE", formatReportDate(new Date())]],
     ];
@@ -293,7 +299,7 @@
       const textX = cellX + 5;
       const labelWidth = fonts.bold.widthOfTextAtSize(labelText, labelSize);
       drawText(page, labelText, textX, cellY + 6, fonts.bold, labelSize, rgb(0.2, 0.2, 0.22), labelWidth);
-      drawText(page, str(value), textX + labelWidth + 3, cellY + 6, fonts.regular, valueSize, rgb(0.2, 0.2, 0.22), cellWidth - labelWidth - 13);
+      drawText(page, infoValue(label, value), textX + labelWidth + 3, cellY + 6, fonts.regular, valueSize, rgb(0.2, 0.2, 0.22), cellWidth - labelWidth - 13);
     }));
     return infoTop - infoRows.length * cellHeight - 12;
   }

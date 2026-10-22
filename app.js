@@ -395,13 +395,13 @@
   }
 
   function brandingSettingsMarkup(school){
-    const rawOpacity=school.watermark_opacity===null||school.watermark_opacity===undefined||school.watermark_opacity===""?10:Number(school.watermark_opacity);
-    const opacity=Number.isInteger(rawOpacity)&&rawOpacity>=0&&rawOpacity<=100?rawOpacity:10;
+    const rawOpacity=school.watermark_opacity===null||school.watermark_opacity===undefined||school.watermark_opacity===""?5:Number(school.watermark_opacity);
+    const opacity=Number.isInteger(rawOpacity)&&rawOpacity>=0&&rawOpacity<=100?rawOpacity:5;
     const logo=schoolLogoSource(school.logo_base64);
     return `<section class="card section-card"><div class="section-title"><div><h2>School branding and report-card watermark</h2><p>Use your school logo in the dashboard and, optionally, behind report-card content.</p></div></div>
       <form id="branding-settings-form" class="form-grid" novalidate><div class="school-branding-settings">
         <div class="field"><label for="school-logo-file">School logo</label><div class="school-logo-preview-wrap">${logo?`<img class="school-logo-preview" src="${esc(logo)}" alt="${esc(school.name||"School")} logo">`:`<span class="school-logo-empty">No school logo uploaded</span>`}</div><input id="school-logo-file" name="school_logo_file" type="file" accept="image/png,image/jpeg"><span class="field-hint">PNG or JPG; maximum 2.75 MB.</span></div>
-        <div class="field"><label class="watermark-toggle" for="settings-watermark-enabled"><input id="settings-watermark-enabled" name="watermark_enabled" type="checkbox" ${school.watermark_enabled===true?"checked":""}><span><strong>Report card watermark</strong><small>Show the school logo centered behind the report text and tables.</small></span></label><label for="settings-watermark-opacity">Watermark opacity <output id="watermark-opacity-value">${opacity}%</output></label><input id="settings-watermark-opacity" name="watermark_opacity" type="range" min="0" max="100" step="1" value="${opacity}" data-watermark-opacity><span class="field-hint">0% is invisible; 100% is fully opaque. Default: 10%.</span></div>
+        <div class="field"><label class="watermark-toggle" for="settings-watermark-enabled"><input id="settings-watermark-enabled" name="watermark_enabled" type="checkbox" ${school.watermark_enabled===true?"checked":""}><span><strong>Report card watermark</strong><small>Show the school logo centered behind the report text and tables.</small></span></label><label for="settings-watermark-opacity">Watermark opacity <output id="watermark-opacity-value">${opacity}%</output></label><input id="settings-watermark-opacity" name="watermark_opacity" type="range" min="0" max="100" step="1" value="${opacity}" data-watermark-opacity><span class="field-hint">0% is invisible; 100% is fully opaque. Default: 5%.</span></div>
       </div><div id="branding-settings-error">${state.data.brandingError?`<div class="alert error" role="alert">${esc(state.data.brandingError)}</div>`:""}</div><div class="page-actions"><button class="btn btn-primary" type="submit" ${state.data.savingBranding?"disabled":""}>${icon("fa-floppy-disk")}${state.data.savingBranding?"Saving…":"Save branding settings"}</button></div></form></section>`;
   }
    function generalSettingsMarkup(school,promotion,stampMarkup){

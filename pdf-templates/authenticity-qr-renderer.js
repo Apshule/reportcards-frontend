@@ -34,13 +34,15 @@
     const size = 42.52;
     const side = sideForReport(report);
     const x = side === "right" ? page.getWidth() - 28 - size : (page.getWidth() - size) / 2;
-    page.drawImage(qrImage, { x, y: 60, width: size, height: size });
+    const verticalNudge = 5 * 72 / 25.4;
+    const qrY = 60 + verticalNudge;
+    page.drawImage(qrImage, { x, y: qrY, width: size, height: size });
     const label = "Scan to Verify Authenticity";
     const labelSize = 5.5;
     const labelWidth = font.widthOfTextAtSize(label, labelSize);
     page.drawText(label, {
       x: x + (size - labelWidth) / 2,
-      y: 53,
+      y: qrY - 7,
       size: labelSize,
       font,
       color: window.PDFLib.rgb(0.18, 0.16, 0.22),
