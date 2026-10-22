@@ -267,7 +267,7 @@
       [["NAME", learner.full_name], ["AD No", learner.reg_no], ["PRINT DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
       [["CLASS", report.class?.name], ["SEX", learner.sex || learner.gender], ["AGE", learner.age]],
       [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? learner.days_absent ?? report.absence], ["TERM", displayTerm(report.term)], ["YEAR", report.year]],
-      [["POSITION", report.summary?.position], ["OUT OF", report.summary?.class_size]],
+      [["POSITION", positionValue({}, report)], ["OUT OF", classSizeValue({}, report)]],
     ] : level === "O_LEVEL" ? [
       [["NAME", learner.full_name], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")], ["YEAR", report.year], ["DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
       [["SCHOLAR ID", learner.scholar_id || learner.reg_no], ["CLASS", report.class?.name], ["VCODE", learner.vcode]],
@@ -281,7 +281,7 @@
       [["NAME", learner.full_name], ["AD No", learner.reg_no]],
       [["CLASS", report.class?.name], ["SEX", learner.sex]],
       [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? learner.days_absent ?? report.absence]],
-      [["POSITION", report.summary?.position], ["OUT OF", report.summary?.class_size]],
+      [["POSITION", positionValue({}, report)], ["OUT OF", classSizeValue({}, report)]],
       [["TERM", displayTerm(report.term)], ["YEAR", report.year], ["PRINT DATE", formatReportDate(new Date())]],
     ];
     const gridX = margin;
@@ -707,6 +707,30 @@
     const text = String(value).trim();
     return ["-", "—", "–", "-/-", "/-"].includes(text) ? "" : text;
   }
+  function ordinalPosition(value) {
+    const normalized = printableValue(value);
+    if (!normalized) return "";
+    if (/[a-z]/i.test(normalized)) return normalized;
+    const parsed = Number(normalized);
+    if (!Number.isFinite(parsed)) return normalized;
+    const remainder100 = parsed % 100;
+    const suffix = remainder100 >= 11 && remainder100 <= 13
+      ? "th"
+      : ({ 1: "st", 2: "nd", 3: "rd" }[parsed % 10] || "th");
+    return `${parsed}${suffix}`;
+  }
+  function reportClassSize(report) {
+    for (const value of [
+      report?.summary?.class_size,
+      report?.summary_class_size,
+      report?.summary_out_of,
+      report?.class_size,
+    ]) {
+      const normalized = printableValue(value);
+      if (normalized) return normalized;
+    }
+    return "";
+  }
   function numericMarkValue(value) {
     if (value === null || value === undefined || String(value).trim() === "") return null;
     const parsed = Number(value);
@@ -782,38 +806,65 @@
       mark?.position,
       mark?.class_position,
       mark?.rank,
+      report?.summary_position,
       report?.summary?.position,
       report?.position,
+    ]) {
+      const normalized = ordinalPosition(value);
+      if (normalized) return normalized;
+    }
+    if (reportClassSize(report) === "1") return "1st";
+    return "";
+  }
+  function classSizeValue(mark, report) {
+    for (const value of [
+      mark?.class_size,
+      report?.summary?.class_size,
+      report?.summary_class_size,
+      report?.summary_out_of,
+      report?.class_size,
     ]) {
       const normalized = printableValue(value);
       if (normalized) return normalized;
     }
     return "";
   }
-  function classSizeValue(mark, report) {
-    for (const value of [mark?.class_size, report?.summary?.class_size, report?.class_size]) {
-      const normalized = printableValue(value);
-      if (normalized) return normalized;
-    }
-    return "";
-  }
   function overallPositionValue(report) {
-    const summaryPosition = printableValue(report?.summary?.position ?? report?.position);
+    const summaryPosition = positionValue({}, report);
     if (summaryPosition) return summaryPosition;
     return marks(report)
       .map(({ mark }) => positionValue(mark, {}))
       .find(Boolean) || "";
   }
   function overallClassSizeValue(report) {
-    const summarySize = printableValue(report?.summary?.class_size ?? report?.class_size);
+    const summarySize = reportClassSize(report);
     if (summarySize) return summarySize;
     return marks(report).map(({ mark }) => printableValue(mark?.class_size)).find(Boolean) || "";
   }
-  function subjectRemark(mark) {
-    for (const value of [mark?.tr, mark?.teacher_remark, mark?.descriptor, mark?.remark]) {
+  function subjectRemark(mark, report) {
+    for (const value of [
+      mark?.tr,
+      mark?.teacher_remark,
+      mark?.subject_remark,
+      mark?.remark,
+      mark?.descriptor,
+      mark?.grade_desc,
+      mark?.auto_remark,
+    ]) {
       const normalized = printableValue(value);
       if (normalized) return normalized;
     }
+    const score = scoreForMark(mark, report);
+    const grade = (
+      printableValue(mark?.grade) ||
+      printableValue(mark?.grade_code) ||
+      gradeForScore(score, report)
+    ).toUpperCase();
+    if (/^(A|D1|D2|C3|3|2A)$/u.test(grade) || (score !== null && score >= 80)) return "Excellent achievement";
+    if (/^(B|C4|C5|C6|2)$/u.test(grade) || (score !== null && score >= 70)) return "Very good progress";
+    if (/^(C|P7|2B)$/u.test(grade) || (score !== null && score >= 60)) return "Satisfactory progress";
+    if (/^(D|P8|1A)$/u.test(grade) || (score !== null && score >= 50)) return "Developing";
+    if (score !== null || grade) return "Needs improvement";
     return "—";
   }
   function overallPerformance(report) {
@@ -908,10 +959,18 @@
     return "STATUS: —";
   }
   function gradeScale(level, report = {}) {
-    if (report.grading_scale_preset_key === "primary_ple_upper") {
-      return "Subject-specific PLE bands · D1=1 · D2=2 · C3=3 · C4=4 · C5=5 · C6=6 · P7=7 · P8=8 · F9=9";
+    const scaleRows = Array.isArray(report.grading_scale)
+      ? report.grading_scale
+      : Array.isArray(report.grading_scale?.rows) ? report.grading_scale.rows : [];
+    const activePresetKey = report.grading_scale_preset_key
+      ?? report.active_grading_scale?.preset_key
+      ?? report.grading_scale?.preset_key;
+    const hasPleBands = ["D1", "D2", "C3", "C4", "C5", "C6", "P7", "P8", "F9"]
+      .every((grade) => scaleRows.some((row) => String(row.grade_code || row.grade || "").toUpperCase() === grade));
+    if (activePresetKey === "primary_ple_upper" || hasPleBands) {
+      return "PLE D1–F9: D1=1 · D2=2 · C3=3 · C4=4 · C5=5 · C6=6 · P7=7 · P8=8 · F9=9";
     }
-    const rows = Array.isArray(report.grading_scale) ? report.grading_scale : [];
+    const rows = scaleRows;
     const custom = rows.map((row) => {
       const code = str(row.grade_code);
       const min = Number(row.min_score);
@@ -1066,7 +1125,7 @@
       });
       const remarkIndex = areaWidths.length - 2;
       const remarkX = x + areaWidths.slice(0, remarkIndex).reduce((sum, item) => sum + item, 0);
-      wrappedLines(subjectRemark(mark), fonts.italic, reportFonts.table, areaWidths[remarkIndex] - 6).slice(0, 2).forEach((line, lineIndex) => {
+      wrappedLines(subjectRemark(mark, report), fonts.italic, reportFonts.table, areaWidths[remarkIndex] - 6).slice(0, 2).forEach((line, lineIndex) => {
         centeredTable(page, line, remarkX + areaWidths[remarkIndex] / 2, rowTop - 17 - lineIndex * 12, fonts.italic, reportFonts.table, color(theme.primary_color), areaWidths[remarkIndex] - 6);
       });
       const signIndex = areaWidths.length - 1;
@@ -1079,7 +1138,7 @@
     const totalFill = color(theme.accent_color);
     page.drawRectangle({ x, y: totalTop - totalHeight, width: panelWidth, height: totalHeight, color: totalFill, borderColor: totalFill, borderWidth: 0.5 });
     const showPosition = reportPositionEnabled(report, meta);
-    const totals = [`TOTAL: ${num(maxScore, 0)}`, `SCORED: ${num(scored, 0)}`, ...(showPosition ? [`POSITION ${str(report.summary?.position)} OUT OF ${str(report.summary?.class_size)}`] : [])];
+    const totals = [`TOTAL: ${num(maxScore, 0)}`, `SCORED: ${num(scored, 0)}`, ...(showPosition ? [`POSITION ${overallPositionValue(report) || "—"} OUT OF ${overallClassSizeValue(report) || "—"}`] : [])];
     let totalX = x;
     const totalWidths = showPosition
       ? [panelWidth * 0.31, panelWidth * 0.31, panelWidth * 0.38]
@@ -1169,7 +1228,7 @@
         ...(period.combined ? [num(periodScore(mark, period))] : []),
         gradeLabel(mark, report),
         ...(showPosition ? [position ? `${ordinal(position)} of ${classSizeValue(mark, report) || "—"}` : "—"] : []),
-        subjectRemark(mark),
+        subjectRemark(mark, report),
         str(mark.teacher_initials),
       ];
     });
@@ -1255,7 +1314,7 @@
       ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
       ...(period.combined ? [num(periodScore(mark, period))] : []),
       gradeLabel(mark, report),
-      subjectRemark(mark),
+      subjectRemark(mark, report),
       str(mark.teacher_initials),
     ]);
     const subjectIndex = isALevel ? 1 : 0;
@@ -1415,7 +1474,7 @@
         subject.name,
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
-        subjectRemark(mark),
+        subjectRemark(mark, report),
         str(mark.teacher_initials),
       ]);
       const x = 31;
@@ -1469,7 +1528,7 @@
           ...(period.combined ? [num(periodScore(mark, period))] : []),
           gradeLabel(mark, report),
           ...(showPosition ? [position ? `${position} of ${classSizeValue(mark, report) || "—"}` : "—"] : []),
-          subjectRemark(mark),
+          subjectRemark(mark, report),
           str(mark.teacher_initials),
         ];
         if (meta.blankForm) return [
@@ -1548,7 +1607,7 @@
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
         gradeLabel(mark, report),
-        subjectRemark(mark),
+        subjectRemark(mark, report),
         str(mark.teacher_initials),
       ]);
       let flow = await drawTableFlow(doc, page, report, fonts, theme, title, `TERM PERFORMANCE RECORDS — ${period.title}`, columns, rows, 28, nextY, width - 56, {
@@ -1617,7 +1676,7 @@
         subject.code, subject.name, str(mark.paper_number),
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
-        gradeLabel(mark, report), subjectRemark(mark), str(mark.teacher_initials),
+        gradeLabel(mark, report), subjectRemark(mark, report), str(mark.teacher_initials),
       ]);
       let flow = await drawTableFlow(doc, page, report, fonts, theme, title, `TERM PERFORMANCE RECORDS — ${period.title}`, columns, rows, 28, nextY, width - 56, {
         rowHeight: 18, fontSize: 5.9, headerFontSize: 6.1, headerHeight: 23, backgroundColor,
@@ -1853,7 +1912,7 @@
         num(periodValue(mark, "mid_term", period), 1),
         num(periodScore(mark, period), 1),
         a5GradeLabel(mark, report),
-        subjectRemark(mark),
+        subjectRemark(mark, report),
       ];
       currentX = x;
       columns.forEach((column, index) => {
