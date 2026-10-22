@@ -107,6 +107,7 @@
       ${showPosition ? `<span><b>POSITION:</b> ${value(summary.position)} OUT OF ${value(summary.class_size)}</span>` : ""}
       <span><b>AVERAGE:</b> ${number(summary.overall_average)}</span>
       <span><b>GRADE:</b> ${value(summary.overall_grade)}</span>
+      ${level === "PRIMARY" && summary.aggregate !== null && summary.aggregate !== undefined ? `<span><b>AGGREGATE:</b> ${value(summary.aggregate)}${summary.aggregate_division ? ` · ${value(summary.aggregate_division)}` : ""}${summary.aggregate_interpretation ? ` · ${value(summary.aggregate_interpretation)}` : ""}</span>` : ""}
     </div>`;
   };
   function templateInfo(level, options = {}) {
@@ -135,6 +136,7 @@
   const header = (report, title, options = {}) => {
     const school = report.school || {};
     const learner = report.learner || {};
+    const summary = report.summary || {};
     const level = levelCode(report.class?.level);
     const address = [school.street, school.po_box, school.city, school.district].filter(Boolean).join(" · ");
     const secondary = ["O_LEVEL", "A_LEVEL"].includes(level);
@@ -389,7 +391,7 @@
     const footerDetails = level === "NURSERY"
       ? `<div class="rc-early-footer-line"><span><b>Date of Issue:</b> ${formatReportDate(report.printed_at || report.generated_at || new Date())}</span><span><b>Next Term Begins:</b> ${formatReportDate(dates.next_term_begins)}</span></div><div class="rc-school-requirements"><b>School Requirements:</b> ${value(school.school_requirements)}</div>`
       : level === "PRIMARY"
-        ? `<div class="rc-early-footer-line"><span><b>Next term will begin on:</b> ${formatReportDate(dates.next_term_begins)}</span></div><div class="rc-school-requirements"><b>KEY:</b> GR = Grade; AGGR = Aggregate</div>`
+        ? `<div class="rc-early-footer-line"><span><b>Next term will begin on:</b> ${formatReportDate(dates.next_term_begins)}</span></div><div class="rc-school-requirements"><b>PLE KEY:</b> 4–12 Top Secondary (Division I) · 13–23 Division II · 24–29 Division III · 30–34 Division IV</div>`
         : `<div class="rc-footer-details">
           <span><b>School term / year</b> ${value(dates.current_term)} / ${value(dates.current_year)}</span>
           <span><b>Term ended</b> ${formatReportDate(dates.term_ended_on)}</span>
@@ -455,6 +457,9 @@
   const firstInitials = (report) => report.subjects?.find((subject) => subject.mark?.teacher_initials)?.mark.teacher_initials
     || report.teacher_initials || "—";
   const gradeLegend = (report, level) => {
+    if (report.grading_scale_preset_key === "primary_ple_upper") {
+      return "Subject-specific PLE bands · D1=1 · D2=2 · C3=3 · C4=4 · C5=5 · C6=6 · P7=7 · P8=8 · F9=9";
+    }
     const bands = (Array.isArray(report.grading_scale) ? report.grading_scale : []).map((band) => {
       const grade = String(band.grade_code || "").trim();
       const min = Number(band.min_score);
@@ -508,6 +513,7 @@
     const level = levelCode(report.class?.level);
     const school = report.school || {};
     const learner = report.learner || {};
+    const summary = report.summary || {};
     const logo = imageSource(school.logo_base64);
     const entries = scoreRows(report);
     const rows = entries.map(({ subject, mark }) => {
@@ -548,7 +554,7 @@
         )}</div>
         <section class="rc-a5-bottom">
           <p class="rc-a5-remarks"><b>Teacher / Principal:</b> ${value(comments.join(" · ") || "—")}</p>
-          <p class="rc-a5-grading-key"><b>Grading key:</b> ${esc(gradeLegend(report, level))}</p>
+          <p class="rc-a5-grading-key">${summary.aggregate !== null && summary.aggregate !== undefined ? `<b>PLE aggregate:</b> ${value(summary.aggregate)}${summary.aggregate_division ? ` · ${value(summary.aggregate_division)}` : ""}${summary.aggregate_interpretation ? ` · ${value(summary.aggregate_interpretation)}` : ""} &nbsp; · &nbsp; ` : ""}<b>Grading key:</b> ${esc(gradeLegend(report, level))}</p>
           <div class="rc-a5-signature"><span></span><b>Class Teacher's signature</b></div>
         </section>
       </div>

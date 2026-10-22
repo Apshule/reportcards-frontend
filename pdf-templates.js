@@ -580,7 +580,7 @@
         drawText(page, `School Requirements: ${str(school.school_requirements)}`, 28, 119, fonts.regular, reportFonts.body, ink, width - 56);
       } else if (isPrimary) {
         drawText(page, `Next term will begin on: ${formatReportDate(dates.next_term_begins)}`, 28, 134, fonts.regular, reportFonts.body, ink, width - 56);
-        drawText(page, "GR = Grade; AGGR = Aggregate", 28, 119, fonts.regular, reportFonts.body, ink, width - 56);
+        drawText(page, "PLE KEY: 4–12 Top Secondary (Division I) · 13–23 Division II · 24–29 Division III · 30–34 Division IV", 28, 119, fonts.regular, reportFonts.body, ink, width - 56);
       } else {
         drawText(page, `School term/year: ${str(dates.current_term)} / ${str(dates.current_year)}   ·   Term ended: ${formatReportDate(dates.term_ended_on)}`, 28, 245, fonts.regular, reportFonts.body, ink, width - 56);
         drawText(page, `Next term fees: ${str(dates.next_term_fees)}   ·   Fees balance: ${str(fees.balance)}`, 28, 230, fonts.regular, reportFonts.body, ink, width - 56);
@@ -908,6 +908,9 @@
     return "STATUS: —";
   }
   function gradeScale(level, report = {}) {
+    if (report.grading_scale_preset_key === "primary_ple_upper") {
+      return "Subject-specific PLE bands · D1=1 · D2=2 · C3=3 · C4=4 · C5=5 · C6=6 · P7=7 · P8=8 · F9=9";
+    }
     const rows = Array.isArray(report.grading_scale) ? report.grading_scale : [];
     const custom = rows.map((row) => {
       const code = str(row.grade_code);
@@ -1197,6 +1200,9 @@
       ...(showPosition ? [["Overall position", `${ordinal(overallPositionValue(report))} of ${overallClassSizeValue(report) || "—"}`]] : []),
       ["Average", num(overallAverage(report))],
       ["Grade", overallGrade(report)],
+      ...(summary.aggregate !== null && summary.aggregate !== undefined
+        ? [["Aggregate", `${str(summary.aggregate)}${summary.aggregate_division ? ` · ${str(summary.aggregate_division).replace("Division ", "Div ")}` : ""}`]]
+        : []),
     ], 28, totalsY - 1, width, fonts, accent);
     const otherRows = primaryOtherSubjectRows(report, true);
     drawText(flow.page, "OTHER SUBJECTS / CO-CURRICULAR", 28, totalsY - 33, fonts.bold, reportFonts.subheading, color(theme.primary_color), width);
@@ -1885,7 +1891,11 @@
     const footerY = Math.max(footerBottom - 3, rowTop - 16);
     page.drawLine({ start: { x, y: footerY + 8 }, end: { x: width - x, y: footerY + 8 }, thickness: 0.6, color: accent });
     drawA5Text(page, comments, x + 2, footerY, fonts.regular, 7.5, ink, contentWidth - 4);
-    const key = `Grading key: ${gradeScale(classLevel, report)}`;
+    const summary = report.summary || {};
+    const aggregateText = summary.aggregate !== null && summary.aggregate !== undefined
+      ? `PLE aggregate: ${str(summary.aggregate)}${summary.aggregate_division ? ` · ${str(summary.aggregate_division)}` : ""}${summary.aggregate_interpretation ? ` · ${str(summary.aggregate_interpretation)}` : ""}  ·  `
+      : "";
+    const key = `${aggregateText}Grading key: ${gradeScale(classLevel, report)}`;
     drawA5Text(page, key, x + 2, footerY - 13, fonts.regular, 7, ink, contentWidth - 4);
     const signatureY = 27;
     page.drawLine({ start: { x, y: signatureY + 12 }, end: { x: width - x, y: signatureY + 12 }, thickness: 0.5, color: accent });
