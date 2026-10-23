@@ -367,21 +367,21 @@
       [["NAME", learner.full_name], ["DAYS ATTENDED", report.days_attended ?? report.days_present], ["ABSENT", report.days_absent ?? learner.days_absent ?? report.absence], ["TOTAL", report.total_days ?? report.school_days], ["HOUSE", learner.house]],
     ] : level === "PRIMARY" ? [
       [["NAME", learner.full_name], ["AD No", learner.reg_no], ["PRINT DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
-      [["CLASS", report.class?.name], ["SEX", learner.sex || learner.gender], ["AGE", learner.age]],
+       [["CLASS", report.class?.name], ["SEX", learner.sex || learner.gender], ["AGE", learner.age], ["SCHOOLPAY CODE", learner.schoolpay_code]],
       [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? learner.days_absent ?? report.absence], ["TERM", displayTerm(report.term)], ["YEAR", report.year]],
       [["POSITION", positionValue({}, report)], ["OUT OF", classSizeValue({}, report)]],
     ] : level === "O_LEVEL" ? [
       [["NAME", learner.full_name], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")], ["YEAR", report.year], ["DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
-      [["SCHOLAR ID", learner.scholar_id || learner.reg_no], ["CLASS", report.class?.name], ["VCODE", learner.vcode]],
+       [["SCHOLAR ID", learner.scholar_id || learner.reg_no], ["CLASS", report.class?.name], ["VCODE", learner.vcode], ["SCHOOLPAY CODE", learner.schoolpay_code]],
       [["LIN/AMIS.NO", learner.lin || learner.amis_no], ["STATE", learner.state], ["RESIDENCE", learner.residence], ["HOUSE", learner.house]],
     ] : level === "A_LEVEL" ? [
       [["NAME", learner.full_name], ["GENDER", learner.gender || learner.sex]],
-      [["AGE", learner.age], ["ROLL NO", learner.roll_no || learner.reg_no]],
+       [["AGE", learner.age], ["ROLL NO", learner.roll_no || learner.reg_no], ["SCHOOLPAY CODE", learner.schoolpay_code]],
       [["CLASS", report.class?.name], ["STREAM", learner.stream || report.class?.stream], ["HOUSE", learner.house]],
       [["COMBINATION", learner.combination || report.class?.combination], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")]],
     ] : [
       [["NAME", learner.full_name], ["AD No", learner.reg_no]],
-      [["CLASS", report.class?.name], ["SEX", learner.sex]],
+       [["CLASS", report.class?.name], ["SEX", learner.sex], ["SCHOOLPAY CODE", learner.schoolpay_code]],
       [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? learner.days_absent ?? report.absence]],
       [["POSITION", positionValue({}, report)], ["OUT OF", classSizeValue({}, report)]],
       [["TERM", displayTerm(report.term)], ["YEAR", report.year], ["PRINT DATE", formatReportDate(new Date())]],
