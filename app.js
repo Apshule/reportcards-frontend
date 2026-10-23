@@ -46,11 +46,11 @@
     return requested;
   }
   function visibleNavItems(){if(state.role==="teacher")return navItems.filter(item=>["dashboard","marks","attendance"].includes(item[0]));return ["bursar","head_teacher","director"].includes(state.role)?navItems.filter(item=>item[0]==="finance"):navItems.filter(item=>(item[0]!=="finance"||state.role==="school_admin")&&(item[0]!=="settings"||state.role==="school_admin")&&(item[0]!=="reports"||state.role==="school_admin")&&(item[0]!=="review"||state.role==="school_admin")&&(!["announcements","parent-feedback"].includes(item[0])||state.role==="school_admin"))}
-  async function api(path,{method="GET",body,auth=true}={}){
+  async function api(path,{method="GET",body,auth=true,cache="no-store"}={}){
     const headers={"Content-Type":"application/json"};
     if(auth&&state.token)headers.Authorization=`Bearer ${state.token}`;
     let response;
-    try { response=await fetch(API+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body)}); }
+    try { response=await fetch(API+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),cache}); }
     catch { throw new Error("Could not reach the API. Check your connection and try again."); }
     let payload={};try{payload=await response.json()}catch{}
     if(response.status===401&&auth){logout(false);throw new Error(payload.error||"Your session has expired. Please sign in again.");}
@@ -87,7 +87,7 @@
       else if(route==="marks"&&state.role==="teacher"){await loadTeacherClasses();if(state.filter.class_id&&state.filter.subject_id)await loadTeacherMarks()}
        else if(route==="classes"){state.data.classes=null;render();const [classes,teachers]=await Promise.all([api("/api/classes"),api("/api/teachers")]);state.data.classes=classes.classes||[];state.data.teachers=teachers.teachers||[];}
       else if(route==="learners"){state.data.classes=state.data.classes||((await api("/api/classes")).classes||[]);state.data.learners=null;render();const q=new URLSearchParams();if(state.filter.class_id)q.set("class_id",state.filter.class_id);if(state.filter.search)q.set("search",state.filter.search);state.data.learners=(await api("/api/learners?"+q)).learners||[];}
-      else if(route==="subjects"){state.data.subjects=null;render();let q=state.filter.level?`?level=${encodeURIComponent(state.filter.level)}`:"";state.data.subjects=(await api("/api/subjects"+q)).subjects||[];}
+      else if(route==="subjects"){state.data.subjects=null;state.data.subjectsError=null;render();let q=state.filter.level?`?level=${encodeURIComponent(state.filter.level)}`:"";state.data.subjects=(await api("/api/subjects"+q,{cache:"no-store"})).subjects||[];}
        else if(route==="grading"){state.data.grading=null;render();let q=state.filter.level?`?level=${encodeURIComponent(state.filter.level)}`:"";const [result,subjectsResult]=await Promise.all([api("/api/grading"+q),api("/api/subjects")]);state.data.subjects=subjectsResult.subjects||[];state.data.grading=result.grading||[];state.data.subjectGrading=result.subject_grading||[];state.data.activeGradingScale=result.active_scale||null;state.data.gradingScales=result.scales||[];state.data.activeGradingScales=result.active_scales||[];state.data.gradingPointsScheme=result.points_scheme||{};}
       else if(route==="teachers"){state.data.teachers=null;render();state.data.teachers=(await api("/api/teachers")).teachers||[];state.data.classes=(await api("/api/classes")).classes||[];state.data.subjects=(await api("/api/subjects")).subjects||[];}
       else if(route==="marks"){state.data.classes=state.data.classes||((await api("/api/classes")).classes||[]);state.data.subjects=state.data.subjects||((await api("/api/subjects")).subjects||[]);await loadMarks()}
@@ -965,7 +965,42 @@
     if(a==="apply-learners"){const search=document.getElementById("learner-search");if(search)state.filter.search=search.value.trim();await loadRoute("learners");return}
     if(a==="import-csv"){document.getElementById("csv-file")?.click();return}
     if(a==="apply-level-subjects"||a==="apply-level-grading"){const select=document.querySelector(`[data-filter="level"]`);state.filter.level=select?.value||"";if(state.route==="settings")render();else await loadRoute(state.route);return}
-    if(a==="seed-subjects"||a==="seed-grading"){const level=state.filter.level||prompt("Choose level: NURSERY, PRIMARY, O_LEVEL, or A_LEVEL","PRIMARY");if(!level)return;const normalized=level.toUpperCase();if(!LEVELS.some(x=>x[0]===normalized)){toast("Enter a valid school level.","error");return}try{const r=await api(a==="seed-subjects"?"/api/subjects/seed-defaults":"/api/grading/seed-defaults",{method:"POST",body:{level:normalized}});toast(`${r.inserted||0} defaults added for ${levelLabel(normalized)}.`);state.filter.level=normalized;await loadRoute(state.route)}catch(e){toast(e.message,"error")}return}
+    if(a==="seed-subjects"||a==="seed-grading"){
+      const selectedLevel=a==="seed-subjects"?document.getElementById("subject-level")?.value:state.filter.level;
+      const level=selectedLevel||state.filter.level||prompt("Choose level: NURSERY, PRIMARY, O_LEVEL, or A_LEVEL","PRIMARY");
+      if(!level)return;
+      const normalized=String(level).trim().toUpperCase();
+      if(!LEVELS.some(x=>x[0]===normalized)){toast("Enter a valid school level.","error");return}
+      const endpoint=a==="seed-subjects"?"/api/subjects/seed-defaults":"/api/grading/seed-defaults";
+      const payload={level:normalized};
+      const requestUrl=API+endpoint;
+      try{
+        const r=await api(endpoint,{method:"POST",body:payload});
+        console.info("[subjects-defaults] request",JSON.stringify({method:"POST",url:requestUrl,payload}));
+        console.info("[subjects-defaults] response",JSON.stringify({status:200,level:r.level,inserted:r.inserted,updated:r.updated,subjects:r.subjects}));
+        state.filter.level=normalized;
+        if(a==="seed-subjects"){
+          await loadRoute("subjects");
+          const rows=(state.data.subjects||[]).filter(subject=>String(subject.level||"").toUpperCase()===normalized);
+          const core=rows.filter(subject=>(subject.category||"CORE")==="CORE").length;
+          const other=rows.filter(subject=>subject.category==="OTHER").length;
+          console.info("[subjects-defaults] refreshed list",JSON.stringify({level:normalized,total:rows.length,core,other}));
+          if(normalized==="NURSERY"&&(core<5||other<10)){
+            const message=`Nursery defaults request succeeded, but the refreshed list has ${core} core areas and ${other} activities. Reload and try again.`;
+            state.data.subjectsError=message;
+            render();
+            toast(message,"error");
+            return;
+          }
+        }else await loadRoute(state.route);
+        const changed=Number(r.inserted||0)+Number(r.updated||0);
+        toast(changed?`${changed} defaults added or corrected for ${levelLabel(normalized)}.`:`${levelLabel(normalized)} defaults are already up to date.`);
+      }catch(e){
+        console.error("[subjects-defaults] failed",JSON.stringify({url:requestUrl,payload,error:e.message}));
+        toast(e.message,"error");
+      }
+      return;
+    }
     if(a==="dashboard"||a==="classes"||a==="learners"||a==="subjects"||a==="grading"||a==="teachers"||a==="marks"||a==="projects"||a==="settings"){await loadRoute(a);return}
     if(a==="load-marks"){await loadMarks();return}
     if(a==="open-assigned"){state.filter.class_id=button.dataset.class;state.filter.subject_id=button.dataset.subject;state.route="marks";location.hash="marks";render();await loadTeacherMarks();return}
