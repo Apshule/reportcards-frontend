@@ -556,6 +556,6 @@ html .rc-preview-a5-condensed .rc-a5-school strong{
   display:block;margin-top:.3mm;color:#171717;font-size:5.8pt;line-height:1.05
 }
 @media(max-width:760px){
-  html .rc-preview .rc-head{grid-template-columns:14mm minmax(0,1fr) 14mm;gap:1mm;min-height:29mm;padding:4mm 1mm 2mm}
+  html .rc-preview .rc-head{grid-template-columns:14mm minmax(0,1fr) 14mm;gap:1mm;min-height:42mm;padding:4mm 1mm 2mm}
   html .rc-preview .rc-brand-image,html .rc-preview .rc-learner-image{width:13mm;height:17mm}
 }
