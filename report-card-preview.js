@@ -630,7 +630,7 @@
         "<i aria-hidden=\"true\"></i>",
       ];
       return `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`;
-    }).join("");
+    });
     const activityCards = activities.map((item) => {
       const source = imageSource(item.image);
       return `<div class="rc-nursery-activity-card"><div><b>${value(item.name)}</b><span>${value(item.remark)}</span></div>${source ? `<img src="${esc(source)}" alt="">` : `<i aria-hidden="true">${esc(String(item.name || "?").trim().slice(0, 1).toUpperCase())}</i>`}</div>`;
