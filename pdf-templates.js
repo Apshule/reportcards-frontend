@@ -898,6 +898,21 @@
     if (!scores.length) return null;
     return Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length + Number.EPSILON) * 100) / 100;
   }
+  function overallResultMetric(report) {
+    const summary = report?.summary || {};
+    const metric = summary.result_metric ??
+      report?.primary_result_metric ??
+      report?.school?.primary_result_metric;
+    if (levelCode(report?.class?.level) === "PRIMARY" && metric === "ple_aggregate") {
+      const aggregate = numericMarkValue(summary.aggregate);
+      const division = printableValue(summary.aggregate_division);
+      const value = aggregate === null
+        ? "—"
+        : `${num(aggregate)}${division ? ` · ${division.replace(/^Division\s+/u, "Div ")}` : ""}`;
+      return ["PLE Aggregate", value];
+    }
+    return ["Average", num(overallAverage(report))];
+  }
   function overallGrade(report) {
     const summaryGrade = printableValue(report?.summary?.overall_grade ?? report?.overall_grade);
     return summaryGrade || gradeForScore(overallAverage(report), report) || "—";
@@ -1358,11 +1373,8 @@
     const totalsY = drawTableTotals(flow.page, totalCells, 28, flow.y, width, columns, fonts, lineAccent, 5.8);
     drawCompactSummary(flow.page, [
       ...(showPosition ? [["Overall position", `${ordinal(overallPositionValue(report))} of ${overallClassSizeValue(report) || "—"}`]] : []),
-      ["Average", num(overallAverage(report))],
+      overallResultMetric(report),
       ["Grade", overallGrade(report)],
-      ...(summary.aggregate !== null && summary.aggregate !== undefined
-        ? [["Aggregate", `${str(summary.aggregate)}${summary.aggregate_division ? ` · ${str(summary.aggregate_division).replace("Division ", "Div ")}` : ""}`]]
-        : []),
     ], 28, totalsY - 1, width, fonts, accent);
     const otherRows = primaryOtherSubjectRows(report, true);
     drawText(flow.page, "OTHER SUBJECTS / CO-CURRICULAR", 28, totalsY - 33, fonts.bold, reportFonts.subheading, color(theme.primary_color), width);
@@ -1453,7 +1465,7 @@
     let totalsY = drawTableTotals(flow.page, averages, 28, flow.y - 2, page.getWidth() - 56, columns, fonts, lineAccent, 5.3);
     drawSummary(flow.page, [
       ...(reportPositionEnabled(report) ? [["Overall position", `${overallPositionValue(report) || "—"} of ${overallClassSizeValue(report) || "—"}`]] : []),
-      ["Average", num(overallAverage(report))],
+      overallResultMetric(report),
       ["Grade", overallGradeText],
       ["Identifier", str(summary.overall_identifier ?? summary.identifier)],
     ], 28, totalsY - 11, page.getWidth() - 56, fonts, accent);
@@ -1593,7 +1605,7 @@
       drawTotalsRow(flow.page, "Score", num(summary.total_score, 0), x, nextY - 1, panelWidth, fonts, lineAccent, theme.background_color);
       drawSummary(flow.page, [
         ...(showPositionInVariant ? [["Position", `${overallPositionValue(report) || "—"} of ${overallClassSizeValue(report) || "—"}`]] : []),
-        ["Average", num(overallAverage(report))],
+        overallResultMetric(report),
         ["Grade", overallGrade(report)],
       ], x, nextY - 33, panelWidth, fonts, accent);
       nextY -= 76;
@@ -1681,7 +1693,7 @@
       const totalsY = drawTableTotals(flow.page, totalCells, 28, flow.y - 2, width - 56, columns, fonts, lineAccent);
       drawSummary(flow.page, [
         ...(showPosition ? [["Overall position", `${overallPositionValue(report) || "—"} of ${overallClassSizeValue(report) || "—"}`]] : []),
-        ["Average", num(overallAverage(report))],
+        overallResultMetric(report),
         ["Grade", overallGrade(report)],
       ], 28, totalsY - 8, width - 56, fonts, accent);
       const activities = coCurricular(report, true);
@@ -1736,7 +1748,7 @@
       const totalsY = drawTableTotals(flow.page, averages, 28, flow.y - 2, width - 56, columns, fonts, lineAccent, 5.3);
       drawSummary(flow.page, [
         ...(showPositionInVariant ? [["Overall position", `${overallPositionValue(report) || "—"} of ${overallClassSizeValue(report) || "—"}`]] : []),
-        ["Average", num(overallAverage(report))],
+        overallResultMetric(report),
         ["Grade", overallGrade(report)],
         ["Identifier", str(summary.overall_identifier ?? summary.identifier)],
       ], 28, totalsY - 11, width - 56, fonts, accent);
@@ -1797,7 +1809,7 @@
       const totalsY = drawTableTotals(flow.page, averages, 28, flow.y - 2, width - 56, columns, fonts, lineAccent, 5.3);
       drawSummary(flow.page, [
         ...(showPositionInVariant ? [["Overall position", `${overallPositionValue(report) || "—"} of ${overallClassSizeValue(report) || "—"}`]] : []),
-        ["Average", num(overallAverage(report))],
+        overallResultMetric(report),
         ["Grade", overallGrade(report)],
         ["Identifier", str(summary.overall_identifier ?? summary.identifier)],
       ], 28, totalsY - 11, width - 56, fonts, accent);
@@ -2093,11 +2105,8 @@
         color: ink,
       });
     });
-    const summary = report.summary || {};
-    const aggregateText = summary.aggregate !== null && summary.aggregate !== undefined
-      ? `PLE aggregate: ${str(summary.aggregate)}${summary.aggregate_division ? ` · ${str(summary.aggregate_division)}` : ""}${summary.aggregate_interpretation ? ` · ${str(summary.aggregate_interpretation)}` : ""}  ·  `
-      : "";
-    const key = `${aggregateText}Grading key: ${gradeScale(classLevel, report)}`;
+    const resultMetric = overallResultMetric(report);
+    const key = `${resultMetric[0]}: ${resultMetric[1]} · Grading key: ${gradeScale(classLevel, report)}`;
     const keyY = footerY - fittedComments.lines.length * commentLeading - 2;
     drawA5Text(page, key, x + 2, keyY, fonts.regular, 7, ink, contentWidth - 4);
     const signatureY = 27;

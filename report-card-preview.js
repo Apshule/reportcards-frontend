@@ -103,11 +103,15 @@
     const level = levelCode(report.class?.level);
     const template = templateInfo(level, options);
     const showPosition = reportPositionEnabled(report, level, template.id);
+    const resultMetric = summary.result_metric ?? report.primary_result_metric ?? report.school?.primary_result_metric;
+    const usePleAggregate = level === "PRIMARY" && resultMetric === "ple_aggregate";
+    const resultValue = usePleAggregate
+      ? `${value(summary.aggregate)}${summary.aggregate_division ? ` · ${value(summary.aggregate_division)}` : ""}${summary.aggregate_interpretation ? ` · ${value(summary.aggregate_interpretation)}` : ""}`
+      : number(summary.overall_average);
     return `<div class="rc-summary rc-period-summary">
       ${showPosition ? `<span><b>POSITION:</b> ${value(summary.position)} OUT OF ${value(summary.class_size)}</span>` : ""}
-      <span><b>AVERAGE:</b> ${number(summary.overall_average)}</span>
+      <span><b>${usePleAggregate ? "PLE AGGREGATE" : "AVERAGE"}:</b> ${resultValue}</span>
       <span><b>GRADE:</b> ${value(summary.overall_grade)}</span>
-      ${level === "PRIMARY" && summary.aggregate !== null && summary.aggregate !== undefined ? `<span><b>AGGREGATE:</b> ${value(summary.aggregate)}${summary.aggregate_division ? ` · ${value(summary.aggregate_division)}` : ""}${summary.aggregate_interpretation ? ` · ${value(summary.aggregate_interpretation)}` : ""}</span>` : ""}
     </div>`;
   };
   function templateInfo(level, options = {}) {
@@ -461,7 +465,7 @@
     || report.teacher_initials || "—";
   const gradeLegend = (report, level) => {
     if (report.grading_scale_preset_key === "primary_ple_upper") {
-      return "Subject-specific PLE bands · D1=1 · D2=2 · C3=3 · C4=4 · C5=5 · C6=6 · P7=7 · P8=8 · F9=9";
+      return "PLE D1–F9 · Subject-specific bands · D1=1 · D2=2 · C3=3 · C4=4 · C5=5 · C6=6 · P7=7 · P8=8 · F9=9";
     }
     const bands = (Array.isArray(report.grading_scale) ? report.grading_scale : []).map((band) => {
       const grade = String(band.grade_code || "").trim();
@@ -549,6 +553,11 @@
       ["Next Term Begins", formatReportDate(report.term_dates?.next_term_begins)],
       ["Reg. No. / House", [learner.reg_no, learner.house ? `House ${learner.house}` : ""].filter(Boolean).join(" · ")],
     ];
+    const resultMetric = summary.result_metric ?? report.primary_result_metric ?? school.primary_result_metric;
+    const usePleAggregate = level === "PRIMARY" && resultMetric === "ple_aggregate";
+    const resultSummary = usePleAggregate
+      ? `<b>PLE Aggregate:</b> ${value(summary.aggregate)}${summary.aggregate_division ? ` · ${value(summary.aggregate_division)}` : ""}${summary.aggregate_interpretation ? ` · ${value(summary.aggregate_interpretation)}` : ""}`
+      : `<b>Average:</b> ${number(summary.overall_average)}`;
     return `<article ${previewAttrs(report, level, options)}>
       <div class="rc-preview-content rc-a5-content">
         <header class="rc-a5-header">
@@ -574,7 +583,7 @@
         )}</div>
         <section class="rc-a5-bottom">
           <div class="rc-a5-remarks">${comments.join("") || "<p>—</p>"}</div>
-          <p class="rc-a5-grading-key">${summary.aggregate !== null && summary.aggregate !== undefined ? `<b>PLE aggregate:</b> ${value(summary.aggregate)}${summary.aggregate_division ? ` · ${value(summary.aggregate_division)}` : ""}${summary.aggregate_interpretation ? ` · ${value(summary.aggregate_interpretation)}` : ""} &nbsp; · &nbsp; ` : ""}<b>Grading key:</b> ${esc(gradeLegend(report, level))}</p>
+          <p class="rc-a5-grading-key">${resultSummary} &nbsp; · &nbsp; <b>Grading key:</b> ${esc(gradeLegend(report, level))}</p>
           <div class="rc-a5-signature"><span></span><b>Class Teacher's signature</b></div>
         </section>
       </div>

@@ -419,6 +419,7 @@
          <div class="field"><label for="settings-next-term">Next term start date</label><input id="settings-next-term" name="next_term_begins" type="date" value="${esc(String(school.next_term_begins||"").slice(0,10))}"></div>
           <div class="field"><label for="settings-next-fees">Next-term fees</label><input id="settings-next-fees" name="next_term_fees" type="number" min="0" max="1000000000" step="0.01" value="${esc(school.next_term_fees??"")}" placeholder="e.g. 250000"></div>
           <div class="field"><label class="watermark-toggle" for="settings-show-position"><input id="settings-show-position" name="show_report_position" type="checkbox" ${school.show_report_position!==false?"checked":""}><span><strong>Show class position on report cards</strong><small>Turn this off to use the alternative format without position; average and grade remain visible.</small></span></label></div>
+           <div class="field"><label for="settings-primary-result-metric">Primary report-card result</label><select id="settings-primary-result-metric" name="primary_result_metric"><option value="average" ${school.primary_result_metric!=="ple_aggregate"?"selected":""}>Use Average</option><option value="ple_aggregate" ${school.primary_result_metric==="ple_aggregate"?"selected":""}>Use PLE Aggregate</option></select><span class="field-hint">PLE Aggregate adds the best four core-subject points and is used when the Upper Primary PLE scale is active.</span></div>
        </div><div id="settings-error"></div><div class="page-actions"><button class="btn btn-primary" type="submit" ${state.data.savingSettings?"disabled":""}>${icon("fa-floppy-disk")}${state.data.savingSettings?"Saving…":"Save school settings"}</button></div></form></section>
        <section class="card section-card"><div class="section-title"><div><h2>Promotion Rules</h2><p>Set the Term III final-average thresholds used for promotion suggestions.</p></div></div>
        <form id="promotion-rules-form" class="form-grid" novalidate><div class="form-two">
@@ -1256,6 +1257,7 @@
       current_year:Number(fd.get("current_year")),
       mark_entry_mode:String(fd.get("mark_entry_mode")||"CBC"),
       show_report_position:fd.get("show_report_position")==="on",
+      primary_result_metric:String(fd.get("primary_result_metric")||"average"),
       term_ended_on:String(fd.get("term_ended_on")||""),
       next_term_begins:String(fd.get("next_term_begins")||""),
       next_term_fees:String(fd.get("next_term_fees")||""),
@@ -1267,7 +1269,7 @@
       state.data.schoolSettings={...state.data.schoolSettings,...saved};
       if(reportState.data){
         reportState.data.term_dates={...reportState.data.term_dates,...saved};
-        reportState.data.school={...reportState.data.school,current_term:saved.current_term,current_year:saved.current_year,show_report_position:saved.show_report_position};
+        reportState.data.school={...reportState.data.school,current_term:saved.current_term,current_year:saved.current_year,show_report_position:saved.show_report_position,primary_result_metric:saved.primary_result_metric};
       }
       state.data.savingSettings=false;render();toast("School term settings saved.");
     }catch(error){
