@@ -96,6 +96,16 @@
   async function drawPageWatermark(doc, page, report) {
     const school = report?.school || {};
     const schoolLogoBase64 = school.logo_base64;
+    const pageSize = page.getSize();
+    if (typeof school.report_background_color === "string" && /^#[0-9a-f]{6}$/iu.test(school.report_background_color)) {
+      page.drawRectangle({
+        x: 0,
+        y: 0,
+        width: pageSize.width,
+        height: pageSize.height,
+        color: color(school.report_background_color),
+      });
+    }
     if (school.watermark_enabled !== true || !schoolLogoBase64) return;
     let image = watermarkImageCache.get(doc);
     if (!image) {
@@ -285,7 +295,7 @@
     const accent = color(theme.accent_color);
     const maroon = color("#800000");
     const gold = color("#D4AF37");
-    const ink = rgb(0.12, 0.12, 0.13);
+    const ink = theme.font_color ? color(theme.font_color) : rgb(0.12, 0.12, 0.13);
     page.drawRectangle({
       x: margin,
       y: margin,
@@ -428,7 +438,7 @@
     const headerColor = options.headerColor ? colorToPdf(options.headerColor) : pale;
     const headerTextColor = options.headerTextColor ? colorToPdf(options.headerTextColor) : accent;
     const border = options.accentColor ? colorToPdf(options.accentColor) : accent;
-    const ink = rgb(0.17, 0.18, 0.2);
+    const ink = options.textColor || rgb(0.17, 0.18, 0.2);
     let y = top;
     page.drawRectangle({ x, y: y - headerHeight, width: tableWidth, height: headerHeight, color: headerColor });
     const groupY = y;
@@ -537,7 +547,11 @@
       const capacity = Math.max(1, Math.floor((availableRowsHeight + 0.01) / rowHeight));
       const count = rows.length ? Math.min(capacity, rows.length - offset) : 0;
       const batch = rows.slice(offset, offset + count);
-      lastY = drawTable(page, columns, batch, x, tableTop, tableWidth, fonts, color(theme.primary_color), { ...options, rowHeight });
+      lastY = drawTable(page, columns, batch, x, tableTop, tableWidth, fonts, color(theme.primary_color), {
+        ...options,
+        rowHeight,
+        textColor: theme.font_color ? color(theme.font_color) : options.textColor,
+      });
       offset += count;
       if (offset < rows.length) {
         page = doc.addPage(portrait);
@@ -1146,7 +1160,7 @@
       bold: await doc.embedFont(StandardFonts.HelveticaBold),
       italic: await doc.embedFont(StandardFonts.HelveticaOblique),
     };
-    const theme = window.ReportCardThemeEngine?.getTheme(level, report.level_theme || report.school?.level_theme) || {
+    const theme = window.ReportCardThemeEngine?.getTheme(level, report.level_theme || report.school?.level_theme, report.school) || {
       primary_color: level === "NURSERY" ? "#8BC34A" : level === "PRIMARY" ? "#1E5EB5" : level === "O_LEVEL" ? "#7B1FA2" : "#4B2E9E",
       accent_color: level === "NURSERY" ? "#DCEDC8" : level === "PRIMARY" ? "#BBDEFB" : level === "O_LEVEL" ? "#E1BEE7" : "#D1C4E9",
       background_color: "#F7F6FA",
@@ -1177,7 +1191,7 @@
     const headerInk = color(theme.table_header_text_color);
     const border = lineAccent;
     const pale = color(backgroundColor);
-    const ink = rgb(0.17, 0.18, 0.2);
+    const ink = theme.font_color ? color(theme.font_color) : rgb(0.17, 0.18, 0.2);
     const white = rgb(1, 1, 1);
     if (meta) variantRule(page, page.getHeight() - 150, width, meta);
 
@@ -1940,13 +1954,22 @@
     const width = 419.53;
     const height = 595.28;
     const page = doc.addPage([width, height]);
+    if (typeof report.school?.report_background_color === "string" && /^#[0-9a-f]{6}$/iu.test(report.school.report_background_color)) {
+      page.drawRectangle({
+        x: 0,
+        y: 0,
+        width,
+        height,
+        color: color(report.school.report_background_color),
+      });
+    }
     doc.setTitle(`B.O.T + Midterm Report — ${str(report.learner?.full_name)}`);
     doc.setAuthor(str(report.school?.name));
     const fonts = {
       regular: await doc.embedFont(StandardFonts.Helvetica),
       bold: await doc.embedFont(StandardFonts.HelveticaBold),
     };
-    const theme = window.ReportCardThemeEngine?.getTheme(classLevel, report.level_theme || report.school?.level_theme) || {
+    const theme = window.ReportCardThemeEngine?.getTheme(classLevel, report.level_theme || report.school?.level_theme, report.school) || {
       primary_color: "#4B2E9E",
       accent_color: "#D1C4E9",
       table_header_color: "#F6F2FC",
@@ -1958,7 +1981,7 @@
     const headerText = color(theme.table_header_text_color || theme.primary_color);
     const maroon = color("#800000");
     const gold = color("#D4AF37");
-    const ink = rgb(0.16, 0.16, 0.18);
+    const ink = theme.font_color ? color(theme.font_color) : rgb(0.16, 0.16, 0.18);
     const white = rgb(1, 1, 1);
     const x = 18;
     const contentWidth = width - x * 2;
@@ -2127,7 +2150,7 @@
     const id = String(templateId || "1").replace(/^template[_-]?/i, "");
     const meta = templateMeta(level, id);
     const suppliedTheme = renderReport.level_theme || renderReport.school?.level_theme;
-    const templateTheme = window.ReportCardThemeEngine?.getTemplateTheme?.(level, meta, suppliedTheme);
+    const templateTheme = window.ReportCardThemeEngine?.getTemplateTheme?.(level, meta, suppliedTheme, renderReport.school);
     const themedReport = templateTheme ? { ...renderReport, level_theme: templateTheme } : renderReport;
     let bytes;
     if (String(meta.id) === "1") {

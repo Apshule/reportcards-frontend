@@ -126,12 +126,14 @@
     };
     const template = templateInfo(level, options);
     const suppliedTheme = report.level_theme || report.school?.level_theme;
-    const theme = window.ReportCardThemeEngine?.getTemplateTheme?.(level, template.definition, suppliedTheme)
-      || window.ReportCardThemeEngine?.getTheme?.(level, suppliedTheme)
+    const theme = window.ReportCardThemeEngine?.getTemplateTheme?.(level, template.definition, suppliedTheme, report.school)
+      || window.ReportCardThemeEngine?.getTheme?.(level, suppliedTheme, report.school)
       || defaults;
     const layoutFormat = options.layoutFormat || report.layout_format || "A4";
     const layoutClass = layoutFormat === "A5_CONDENSED" ? " rc-preview-a5-condensed" : "";
-    return `class="rc-preview rc-preview-level-${level.toLowerCase()}${layoutClass}" data-level="${level}" data-template="${esc(template.id)}" data-layout-format="${esc(layoutFormat)}" style="--rc-theme:${theme.primary_color};--rc-header:${theme.header_color};--rc-header-text:${theme.header_text_color};--rc-table-header:${theme.table_header_color};--rc-table-header-text:${theme.table_header_text_color};--rc-accent:${theme.accent_color};--rc-accent-text:${contrastText(theme.accent_color)};--rc-table-bg:${theme.background_color}"`;
+    const customFont=Boolean(report.school?.report_font_color);
+    const pageBackground=report.school?.report_background_color||"#FFFFFF";
+    return `class="rc-preview rc-preview-level-${level.toLowerCase()}${layoutClass}" data-level="${level}" data-template="${esc(template.id)}" data-layout-format="${esc(layoutFormat)}" data-custom-font="${customFont}" style="--rc-theme:${theme.primary_color};--rc-header:${theme.header_color};--rc-header-text:${theme.header_text_color};--rc-table-header:${theme.table_header_color};--rc-table-header-text:${theme.table_header_text_color};--rc-accent:${theme.accent_color};--rc-accent-text:${contrastText(theme.accent_color)};--rc-table-bg:${theme.background_color};--rc-page-bg:${pageBackground};--rc-font:${theme.font_color||"#24242a"}`;
   }
   const scoreRows = (report) => (report.subjects || []).map((subject) => ({
     subject,

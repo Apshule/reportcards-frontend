@@ -208,7 +208,8 @@ body.marks-entry-fullscreen{overflow:hidden}
 .rc-remarks-grid b,.rc-remarks-grid span{display:block}.rc-remarks-grid b{color:var(--rc-theme);font-size:8px;text-transform:uppercase;letter-spacing:.25px}
 .rc-remarks-grid span{margin-top:4px;white-space:pre-wrap;overflow-wrap:anywhere}
 .rc-remarks-signatures .rc-signatures{margin:0;padding:10px;background:transparent;border:0}
-.rc-preview{position:relative}
+.rc-preview{position:relative;background:var(--rc-page-bg,#fff);color:var(--rc-font,#24242a)}
+.rc-preview[data-custom-font="true"] .rc-school p,.rc-preview[data-custom-font="true"] .rc-learner-line,.rc-preview[data-custom-font="true"] .rc-learner-grid span,.rc-preview[data-custom-font="true"] .rc-table td,.rc-preview[data-custom-font="true"] .rc-summary,.rc-preview[data-custom-font="true"] .rc-summary b,.rc-preview[data-custom-font="true"] .rc-legend,.rc-preview[data-custom-font="true"] .rc-footer-details,.rc-preview[data-custom-font="true"] .rc-signatures>div,.rc-preview[data-custom-font="true"] .rc-comments>div,.rc-preview[data-custom-font="true"] .rc-footer-note,.rc-preview[data-custom-font="true"] .rc-grading-scale{color:var(--rc-font)}
 .rc-stamp-preview{position:absolute;z-index:3;right:4.5mm;bottom:13mm;width:68px;height:68px;margin:0;padding:0;border:0;border-radius:50%;text-align:center;color:var(--rc-stamp-text,var(--rc-theme));font-size:6px;font-weight:800;line-height:1.25;overflow:visible}
 .rc-stamp-preview::before{content:"";position:absolute;inset:0;border:2px double var(--rc-stamp-border,#000);border-radius:inherit;transform:rotate(var(--rc-stamp-rotation,0deg));pointer-events:none}
 .rc-stamp-copy{position:absolute;z-index:1;inset:0;padding:7px 4px;display:grid;align-content:center;text-align:center;color:var(--rc-stamp-text,var(--rc-theme));overflow-wrap:anywhere;transform:rotate(var(--rc-stamp-rotation,0deg));pointer-events:none}

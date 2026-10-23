@@ -408,8 +408,31 @@
         <div class="field"><label class="watermark-toggle" for="settings-watermark-enabled"><input id="settings-watermark-enabled" name="watermark_enabled" type="checkbox" ${school.watermark_enabled===true?"checked":""}><span><strong>Report card watermark</strong><small>Show the school logo centered behind the report text and tables.</small></span></label><label for="settings-watermark-opacity">Watermark opacity <output id="watermark-opacity-value">${opacity}%</output></label><input id="settings-watermark-opacity" name="watermark_opacity" type="range" min="0" max="100" step="1" value="${opacity}" data-watermark-opacity><span class="field-hint">0% is invisible; 100% is fully opaque. Default: 5%.</span></div>
       </div><div id="branding-settings-error">${state.data.brandingError?`<div class="alert error" role="alert">${esc(state.data.brandingError)}</div>`:""}</div><div class="page-actions"><button class="btn btn-primary" type="submit" ${state.data.savingBranding?"disabled":""}>${icon("fa-floppy-disk")}${state.data.savingBranding?"Saving…":"Save branding settings"}</button></div></form></section>`;
   }
+  function schoolProfileSettingsMarkup(school){
+    return `<section class="card section-card"><div class="section-title"><div><h2>School profile</h2><p>These details appear in the report-card header. The school email is also used for school sign-in.</p></div></div>
+      <form id="school-profile-form" class="form-grid" novalidate><div class="form-two">
+        <div class="field"><label for="school-profile-name">School name *</label><input id="school-profile-name" name="name" required maxlength="200" value="${esc(school.name||"")}"></div>
+        <div class="field"><label for="school-profile-motto">Motto</label><input id="school-profile-motto" name="motto" maxlength="500" value="${esc(school.motto||"")}"></div>
+        <div class="field"><label for="school-profile-street">Address / street</label><input id="school-profile-street" name="street" maxlength="300" value="${esc(school.street||"")}"></div>
+        <div class="field"><label for="school-profile-po-box">P.O. Box</label><input id="school-profile-po-box" name="po_box" maxlength="100" value="${esc(school.po_box||"")}"></div>
+        <div class="field"><label for="school-profile-city">Town / city</label><input id="school-profile-city" name="city" maxlength="120" value="${esc(school.city||"")}"></div>
+        <div class="field"><label for="school-profile-district">District</label><input id="school-profile-district" name="district" maxlength="120" value="${esc(school.district||"")}"></div>
+        <div class="field"><label for="school-profile-phone">Phone</label><input id="school-profile-phone" name="phone" type="tel" maxlength="60" value="${esc(school.phone||"")}"></div>
+        <div class="field"><label for="school-profile-email">School and sign-in email *</label><input id="school-profile-email" name="email" type="email" required maxlength="254" value="${esc(school.email||"")}"></div>
+        <div class="field"><label for="school-profile-website">Website</label><input id="school-profile-website" name="website" inputmode="url" maxlength="500" value="${esc(school.website||"")}"></div>
+        <div class="field"><label for="school-admission-number-mode">Admission number format</label><select id="school-admission-number-mode" name="admission_number_mode"><option value="manual" ${school.admission_number_mode!=="auto"?"selected":""}>Manual entry</option><option value="auto" ${school.admission_number_mode==="auto"?"selected":""}>Auto-generate sequentially</option></select><span class="field-hint">Automatic numbers continue after the highest existing numeric admission number.</span></div>
+      </div><div id="school-profile-error">${state.data.schoolProfileError?`<div class="alert error" role="alert">${esc(state.data.schoolProfileError)}</div>`:""}</div><div class="page-actions"><button class="btn btn-primary" type="submit" ${state.data.savingSchoolProfile?"disabled":""}>${icon("fa-floppy-disk")}${state.data.savingSchoolProfile?"Saving…":"Save school profile"}</button></div></form></section>`;
+  }
+  function themeSettingsMarkup(school){
+    return `<section class="card section-card"><div class="section-title"><div><h2>Report-card theme</h2><p>Set the main colors used for headers, tables, text, and page backgrounds across report-card templates.</p></div></div>
+      <form id="school-theme-form" class="form-grid" novalidate><div class="form-two">
+        <div class="field"><label for="school-theme-primary">Primary color</label><input id="school-theme-primary" name="report_primary_color" type="color" value="${esc(school.report_primary_color||"#4B2E9E")}"><span class="field-hint">Used for report headers, table headings, accents, and borders.</span></div>
+        <div class="field"><label for="school-theme-font">Font color</label><input id="school-theme-font" name="report_font_color" type="color" value="${esc(school.report_font_color||"#292633")}"><span class="field-hint">Used for report text and table content.</span></div>
+        <div class="field"><label for="school-theme-background">Background color</label><input id="school-theme-background" name="report_background_color" type="color" value="${esc(school.report_background_color||"#FFFFFF")}"><span class="field-hint">Used for the report page and shaded table rows.</span></div>
+      </div><div id="school-theme-error">${state.data.schoolThemeError?`<div class="alert error" role="alert">${esc(state.data.schoolThemeError)}</div>`:""}</div><div class="page-actions"><button class="btn btn-primary" type="submit" ${state.data.savingSchoolTheme?"disabled":""}>${icon("fa-floppy-disk")}${state.data.savingSchoolTheme?"Saving…":"Save theme"}</button></div></form></section>`;
+  }
    function generalSettingsMarkup(school,promotion,stampMarkup){
-     return `${state.data.settingsError?errorBox(state.data.settingsError,"settings"):""}
+      return `${schoolProfileSettingsMarkup(school)}${state.data.settingsError?errorBox(state.data.settingsError,"settings"):""}
        <section class="card section-card"><div class="section-title"><div><h2>Term dates and next-term fees</h2><p>These details are included on report-card previews and PDFs.</p></div></div>
        <form id="settings-form" class="form-grid" novalidate><div class="form-two">
          <div class="field"><label for="settings-mark-entry-mode">Mark Entry Mode *</label><select id="settings-mark-entry-mode" name="mark_entry_mode" required><option value="CBC" ${school.mark_entry_mode!=="RAW"?"selected":""}>CBC Mode</option><option value="RAW" ${school.mark_entry_mode==="RAW"?"selected":""}>Raw Marks Mode</option></select><span class="field-hint">CBC shows A1, A2, A3 and EOT. Raw mode shows one marks column; Nursery and P.1–P.3 use marks out of 3, other classes use marks out of 100.</span></div>
@@ -434,10 +457,11 @@
      if(!school)return `${heading("School settings","Set the current school term and the information shown on report cards.")}${state.data.settingsError?errorBox(state.data.settingsError,"settings"):`${loading()}`}`;
      const promotion=state.data.promotionSettings||{promotion_pass_mark:50,promotion_try_another_min:40};
      const active=state.data.settingsTab||"general";
-     const tabs=[["general","School"],["grading","Grading scale"],["subjects","Subjects"],["other","Other / co-curricular"]];
+      const tabs=[["general","School"],["theme","Theme"],["grading","Grading scale"],["subjects","Subjects"],["other","Other / co-curricular"]];
      const tabBar=`<div class="settings-tabs" role="tablist" aria-label="School settings sections">${tabs.map(([key,label])=>`<button type="button" role="tab" aria-selected="${active===key}" class="settings-tab ${active===key?"active":""}" data-action="settings-tab" data-tab="${key}">${label}</button>`).join("")}</div>`;
      let panel="";
-     if(active==="grading")panel=gradingPanel();
+      if(active==="theme")panel=themeSettingsMarkup(school);
+      else if(active==="grading")panel=gradingPanel();
      else if(active==="subjects")panel=subjectsPanel("CORE");
      else if(active==="other")panel=subjectsPanel("OTHER");
      else{
@@ -512,7 +536,7 @@
   function enhanceSchoolLogoHeader(){const source=schoolLogoSource(state.school?.logo_base64);if(!source)return;const topbar=root.querySelector(".topbar"),date=topbar?.querySelector(".topbar-date");if(!topbar||!date)return;let right=topbar.querySelector(".topbar-right");if(!right){right=document.createElement("div");right.className="topbar-right";date.replaceWith(right);right.append(date)}if(!right.querySelector(".topbar-school-logo")){const image=document.createElement("img");image.className="topbar-school-logo";image.src=source;image.alt=`${schoolName()} logo`;right.insertBefore(image,date)}}
   function toggleMarkFullscreen(){const panel=root.querySelector(".marks-register-panel");if(!panel)return;const active=panel.classList.toggle("is-fullscreen");document.body.classList.toggle("marks-entry-fullscreen",active);const button=panel.querySelector('[data-action="toggle-mark-fullscreen"]');if(button){button.innerHTML=`${icon(active?"fa-compress":"fa-expand")} ${active?"Exit full screen":"Full screen"}`;button.setAttribute("aria-label",active?"Exit full-screen assessment register":"Expand assessment register")}}
   function exitMarkFullscreen(){root.querySelector(".marks-register-panel.is-fullscreen")?.classList.remove("is-fullscreen");document.body.classList.remove("marks-entry-fullscreen")}
-  function render(){exitMarkFullscreen();if(!state.token){if(landingRequested()&&window.AppShuleLanding?.render){window.AppShuleLanding.render(root);return}renderAuth();return}if(state.mustChangePassword){renderPasswordChange();return}root.innerHTML=shell(currentView());if(state.modal?.type==="learner-profile"&&state.role==="school_admin"){const actions=root.querySelector(".modal-actions");if(actions&&!actions.querySelector('[data-action="invite-parent"]'))actions.insertAdjacentHTML("afterbegin",`<button class="btn btn-outline" data-action="invite-parent" data-id="${esc(state.modal.learner?.id)}">${icon("fa-envelope")} Invite parent</button>`)}enhanceSchoolLogoHeader();if(state.route==="marks")enhanceMarkRegister();if(state.route==="settings")window.ReportCardStampBuilder?.bind(root,state.data.stampConfig||{});if(state.route==="reports"){updateReportPreviewPageCount();requestAnimationFrame(applyPreviewScale)}else if(previewCountPending){previewCountSequence++;previewCountPending="";}}
+  function render(){exitMarkFullscreen();if(!state.token){if(landingRequested()&&window.AppShuleLanding?.render){window.AppShuleLanding.render(root);return}renderAuth();return}if(state.mustChangePassword){renderPasswordChange();return}root.innerHTML=shell(currentView());const admissionInput=root.querySelector("#f-reg_no");if(admissionInput){const autoNumbering=state.data.schoolSettings?.admission_number_mode==="auto";admissionInput.required=!autoNumbering;const label=root.querySelector('label[for="f-reg_no"]');if(label)label.textContent=autoNumbering?"Admission number (auto-generated)":"Admission number *";const field=label?.closest(".field");if(field){let hint=field.querySelector("[data-admission-hint]");if(!hint){hint=document.createElement("span");hint.className="field-hint";hint.dataset.admissionHint="true";field.append(hint)}hint.textContent=autoNumbering?"A sequential number will be assigned when you save.":"Enter a number manually; required while manual numbering is enabled."}}if(state.modal?.type==="learner-profile"&&state.role==="school_admin"){const actions=root.querySelector(".modal-actions");if(actions&&!actions.querySelector('[data-action="invite-parent"]'))actions.insertAdjacentHTML("afterbegin",`<button class="btn btn-outline" data-action="invite-parent" data-id="${esc(state.modal.learner?.id)}">${icon("fa-envelope")} Invite parent</button>`)}enhanceSchoolLogoHeader();if(state.route==="marks")enhanceMarkRegister();if(state.route==="settings")window.ReportCardStampBuilder?.bind(root,state.data.stampConfig||{});if(state.route==="reports"){updateReportPreviewPageCount();requestAnimationFrame(applyPreviewScale)}else if(previewCountPending){previewCountSequence++;previewCountPending="";}}
   function renderAuth(){const signup=state.authMode==="signup";root.innerHTML=`<main class="auth-shell"><section class="auth-card" aria-labelledby="auth-title"><div class="brand"><span class="brand-mark"></span>appshule</div><h1 id="auth-title">${signup?"Set up your school":"Welcome back"}</h1><p class="lede">${signup?"Create your school office workspace.":"Sign in with the same email and password you use for your school, staff, or parent account."}</p><div id="auth-error"></div><form id="auth-form" class="form-grid" novalidate>${signup?`<div class="field"><label for="school_name">School name</label><input id="school_name" name="school_name" required autocomplete="organization" maxlength="200"></div>`:""}<div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required autocomplete="email" maxlength="254"></div>${signup?`<div class="field"><label for="phone">School phone</label><input id="phone" name="phone" type="tel" required autocomplete="tel" maxlength="60"></div>`:""}<div class="field"><label for="password">Password</label><div class="auth-password-wrap"><input id="password" name="password" type="password" required autocomplete="${signup?"new-password":"current-password"}" minlength="${signup?8:1}" maxlength="200"><button class="auth-password-toggle" type="button" data-action="toggle-password" data-target="password" aria-label="View password" aria-pressed="false">${icon("fa-eye")}</button></div>${signup?'<span class="field-hint">Use at least 8 characters.</span>':""}</div>${signup?`<div class="field"><label for="head_teacher_name">Head teacher name <span class="field-hint">(optional)</span></label><input id="head_teacher_name" name="head_teacher_name" autocomplete="name" maxlength="200"></div><div class="form-two"><div class="field"><label for="city">City <span class="field-hint">(optional)</span></label><input id="city" name="city" maxlength="120"></div><div class="field"><label for="district">District <span class="field-hint">(optional)</span></label><input id="district" name="district" maxlength="120"></div></div>`:""}<button class="btn btn-primary btn-block" type="submit" ${state.loading?"disabled":""}>${state.loading?"Please wait…":signup?"Create school account":"Sign in"} ${icon(signup?"fa-arrow-right":"fa-arrow-right-to-bracket")}</button></form><p class="auth-footer">${signup?"Already have an account?":"New to AppShule?"} <button class="text-button" data-action="toggle-auth">${signup?"Sign in":"Create school account"}</button></p>${!signup?'<p class="auth-footer">Parents can also sign in here. <a href="/parent-dashboard.html">Parent portal</a></p>':""}</section></main>`}
     function modalMarkup(){
       const m=state.modal;
@@ -647,6 +671,10 @@
   }
   async function handleModalSubmit(form){
     const values=formValues(form), type=form.dataset.type, method=form.dataset.method;
+    if(type==="learner"){
+      const admissionInput=form.querySelector('[name="reg_no"]');
+      if(admissionInput)admissionInput.required=state.data.schoolSettings?.admission_number_mode!=="auto";
+    }
     if(!form.reportValidity())return;
     if(type==="learner"){
       const photoInput=form.querySelector("#f-learner-photo");
@@ -706,9 +734,9 @@
     const rows=[];let row=[],field="",quoted=false;
     for(let i=0;i<text.length;i++){const c=text[i];if(quoted){if(c==='"'&&text[i+1]==='"'){field+='"';i++}else if(c==='"')quoted=false;else field+=c}else if(c==='"'){quoted=true}else if(c===","){row.push(field);field=""}else if(c==="\n"||c==="\r"){if(c==="\r"&&text[i+1]==="\n")i++;row.push(field);if(row.some(v=>v.trim()!==""))rows.push(row);row=[];field=""}else field+=c}
     if(quoted)throw new Error("CSV has an unclosed quoted field.");row.push(field);if(row.some(v=>v.trim()!==""))rows.push(row);if(rows.length<2)throw new Error("CSV must include a header row and at least one learner.");
-    const headers=rows.shift().map(h=>h.replace(/^\uFEFF/,"").trim().toLowerCase());if(!headers.includes("reg_no")||!headers.includes("full_name"))throw new Error("CSV requires reg_no and full_name columns.");
+    const headers=rows.shift().map(h=>h.replace(/^\uFEFF/,"").trim().toLowerCase());if(!headers.includes("full_name"))throw new Error("CSV requires a full_name column. A reg_no column is optional when automatic admission numbering is enabled.");
     const allowed=["reg_no","full_name","gender","age","house","parent_name","parent_phone","parent_email"];
-    const errors=[];const parsed=rows.map((cells,i)=>{const obj={};headers.forEach((h,index)=>{if(allowed.includes(h))obj[h]=(cells[index]||"").trim()});if(!obj.reg_no||!obj.full_name){errors.push({row:i+2,error:"reg_no and full_name are required"});return null}if(obj.age)obj.age=Number(obj.age);else delete obj.age;return {sourceRow:i+2,data:obj}}).filter(Boolean);
+    const errors=[];const parsed=rows.map((cells,i)=>{const obj={};headers.forEach((h,index)=>{if(allowed.includes(h))obj[h]=(cells[index]||"").trim()});if(!obj.full_name){errors.push({row:i+2,error:"full_name is required"});return null}if(obj.age)obj.age=Number(obj.age);else delete obj.age;return {sourceRow:i+2,data:obj}}).filter(Boolean);
     return {rows:parsed,errors}
   }
   async function importCsv(file){
@@ -890,7 +918,7 @@
   }
   async function action(button,clickEvent){
     const a=button.dataset.action,id=button.dataset.id;
-    if(a==="settings-tab"){const tab=button.dataset.tab;if(["general","grading","subjects","other"].includes(tab)){state.data.settingsTab=tab;state.modal=null;render()}return}
+    if(a==="settings-tab"){const tab=button.dataset.tab;if(["general","theme","grading","subjects","other"].includes(tab)){state.data.settingsTab=tab;state.modal=null;render()}return}
     if(a==="toggle-auth"){state.authMode=state.authMode==="signup"?"login":"signup";if(requestedPath==="/"||requestedPath==="/login"||requestedPath==="/signup")history.replaceState(null,"",`/${state.authMode}`);renderAuth();return}
     if(a==="toggle-password"){const input=document.getElementById(button.dataset.target);if(!input)return;const visible=input.type==="password";input.type=visible?"text":"password";button.setAttribute("aria-pressed",String(visible));button.setAttribute("aria-label",visible?"Hide password":"View password");button.innerHTML=icon(visible?"fa-eye-slash":"fa-eye");input.focus();return}
     if(a==="logout"){logout();return}
@@ -1278,6 +1306,38 @@
       if(target)target.innerHTML=`<div class="alert error" role="alert">${esc(error.message)}</div>`;
     }
   }
+  async function saveSchoolProfile(form){
+    if(!form.reportValidity())return;
+    const fd=new FormData(form);
+    const body=Object.fromEntries(["name","motto","street","po_box","city","district","phone","email","website","admission_number_mode"].map(key=>[key,String(fd.get(key)||"").trim()]));
+    state.data.savingSchoolProfile=true;state.data.schoolProfileError="";render();
+    try{
+      const result=await api("/api/school/me",{method:"PATCH",body});
+      const saved=result.school||{};
+      state.data.schoolSettings={...state.data.schoolSettings,...saved};
+      state.school={...state.school,...saved};
+      if(reportState.data?.school)reportState.data.school={...reportState.data.school,...saved};
+      state.data.savingSchoolProfile=false;render();toast("School profile saved.");
+    }catch(error){
+      state.data.savingSchoolProfile=false;state.data.schoolProfileError=error.message||"Could not save school profile.";render();
+    }
+  }
+  async function saveSchoolTheme(form){
+    if(!form.reportValidity())return;
+    const fd=new FormData(form);
+    const body=Object.fromEntries(["report_primary_color","report_font_color","report_background_color"].map(key=>[key,String(fd.get(key)||"")]));
+    state.data.savingSchoolTheme=true;state.data.schoolThemeError="";render();
+    try{
+      const result=await api("/api/school/me",{method:"PATCH",body});
+      const saved=result.school||{};
+      state.data.schoolSettings={...state.data.schoolSettings,...saved};
+      state.school={...state.school,...saved};
+      if(reportState.data?.school)reportState.data.school={...reportState.data.school,...saved};
+      state.data.savingSchoolTheme=false;render();toast("Report-card theme saved.");
+    }catch(error){
+      state.data.savingSchoolTheme=false;state.data.schoolThemeError=error.message||"Could not save report-card theme.";render();
+    }
+  }
   async function saveBrandingSettings(form){
     if(!form.reportValidity())return;
     const file=form.elements.school_logo_file.files?.[0]||null;
@@ -1407,7 +1467,7 @@
    root.addEventListener("change",e=>{const t=e.target;if(t.matches("[data-filter]")){state.filter[t.dataset.filter]=t.value;if(t.dataset.filter==="class_id"&&state.route==="marks"){state.filter.subject_id="";loadRoute("marks")}else if(t.dataset.filter==="level"&&["subjects","grading"].includes(state.route)){state.filter.level=t.value;loadRoute(state.route)}}if(t.matches("[data-rm-filter]")){state.filter[t.dataset.rmFilter]=t.value;if(t.dataset.rmFilter==="class_id"){const first=(state.rm.classes||[]).find(c=>String(c.class_id)===String(t.value));state.filter.subject_id=first?.subject_id||""}if(state.route==="review")loadReviewQueue();else render()}if(t.matches("[data-report-filter]")){const key=t.dataset.reportFilter;if(key==="includeStamp"){reportState.includeStamp=t.checked;render()}else{reportState[key]=t.value;if(key==="template"||key==="period"){reportState.error="";if(reportState.data)loadReportClass();else render()}else if(key==="learnerId"){reportState.verificationError="";render();loadSelectedReportVerification()}else{reportState.verificationRequestId++;reportState.verifications={};reportState.verificationBusy=false;reportState.verificationError="";reportState.data=null;reportState.learners=[];reportState.learnerId="";reportState.error="";render()}}}if(t.matches("[data-fin-filter]")){state.finance[t.dataset.finFilter]=t.value;if(t.dataset.finFilter==="reportClass")state.finance.reportClass=t.value;loadRoute("finance")}if(t.matches("[data-signature-file]")&&t.files?.[0]){const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const c=document.getElementById("signature-canvas"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);const scale=Math.min(c.width/img.width,c.height/img.height);ctx.drawImage(img,(c.width-img.width*scale)/2,(c.height-img.height*scale)/2,img.width*scale,img.height*scale)};img.src=reader.result};reader.readAsDataURL(t.files[0])}if(t.id==="csv-file"&&t.files?.[0])importCsv(t.files[0]);if(t.id==="finance-csv"&&t.files?.[0])importFinanceCsv(t.files[0])});
   root.addEventListener("change",e=>{const filter=e.target.closest("[data-project-filter]");if(!filter)return;projectState[filter.dataset.projectFilter]=filter.value;projectState.error="";state.data.projectRegister=null;render()});
    root.addEventListener("change",e=>{const select=e.target.closest("[data-promotion-class]");if(select){state.rm.promotionClassId=select.value;loadReviewQueue()}});
-   root.addEventListener("submit",async e=>{if(e.target.id==="auth-form"){e.preventDefault();await submitAuth(e.target)}else if(e.target.id==="modal-form"){e.preventDefault();await handleModalSubmit(e.target)}else if(e.target.matches("[data-fin-form]")){e.preventDefault();await handleFinanceSubmit(e.target)}else if(e.target.id==="settings-form"){e.preventDefault();await saveSchoolSettings(e.target)}else if(e.target.id==="promotion-rules-form"){e.preventDefault();await savePromotionRules(e.target)}else if(e.target.id==="report-card-stamp-builder"){e.preventDefault();await saveStampSettings(e.target)}});
+   root.addEventListener("submit",async e=>{if(e.target.id==="auth-form"){e.preventDefault();await submitAuth(e.target)}else if(e.target.id==="modal-form"){e.preventDefault();await handleModalSubmit(e.target)}else if(e.target.matches("[data-fin-form]")){e.preventDefault();await handleFinanceSubmit(e.target)}else if(e.target.id==="settings-form"){e.preventDefault();await saveSchoolSettings(e.target)}else if(e.target.id==="school-profile-form"){e.preventDefault();await saveSchoolProfile(e.target)}else if(e.target.id==="school-theme-form"){e.preventDefault();await saveSchoolTheme(e.target)}else if(e.target.id==="promotion-rules-form"){e.preventDefault();await savePromotionRules(e.target)}else if(e.target.id==="report-card-stamp-builder"){e.preventDefault();await saveStampSettings(e.target)}});
   root.addEventListener("submit",async e=>{if(e.target.id==="branding-settings-form"){e.preventDefault();await saveBrandingSettings(e.target)}});
    root.addEventListener("keydown",e=>{if(e.key==="Escape"&&root.querySelector(".marks-register-panel.is-fullscreen")){exitMarkFullscreen();return}if(e.key==="Escape"&&reportState.fullscreen){reportState.fullscreen=false;render();return}if(e.key==="Escape"&&state.modal){state.modal=null;render()}});
   root.addEventListener("pointerdown",e=>{const c=e.target.closest("#signature-canvas");if(!c)return;drawing=true;lastPoint=canvasPoint(c,e);c.setPointerCapture?.(e.pointerId)});
