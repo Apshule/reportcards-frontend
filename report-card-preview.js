@@ -106,11 +106,12 @@
     const resultMetric = summary.result_metric ?? report.primary_result_metric ?? report.school?.primary_result_metric;
     const usePleAggregate = level === "PRIMARY" && resultMetric === "ple_aggregate";
     const resultValue = usePleAggregate
-      ? `${value(summary.aggregate)}${summary.aggregate_division ? ` · ${value(summary.aggregate_division)}` : ""}${summary.aggregate_interpretation ? ` · ${value(summary.aggregate_interpretation)}` : ""}`
+      ? `${value(summary.aggregate)}${summary.aggregate_division ? ` · ${value(summary.aggregate_division)}` : ""}`
       : number(summary.overall_average);
     return `<div class="rc-summary rc-period-summary">
       ${showPosition ? `<span><b>POSITION:</b> ${value(summary.position)} OUT OF ${value(summary.class_size)}</span>` : ""}
       <span><b>${usePleAggregate ? "PLE AGGREGATE" : "AVERAGE"}:</b> ${resultValue}</span>
+      ${report.ple_official_enabled && !usePleAggregate ? `<span><b>AGGREGATE:</b> ${value(summary.aggregate)} · <b>DIVISION:</b> ${value(summary.aggregate_division)}</span>` : ""}
       <span><b>GRADE:</b> ${value(summary.overall_grade)}</span>
     </div>`;
   };
@@ -206,6 +207,14 @@
         `<div><b>${esc(label)}</b><span>${infoValue(label, content)}</span></div>`).join("")}</div>`).join("")}</div>`;
   };
   const defaultOtherSubjects = ["Handwriting", "Art & Drawing", "P.E & Games", "Music", "Luganda", "Religious Education"];
+  const pleEnabled = (report) => report?.ple_official_enabled === true ||
+    (report?.grading_scale_preset_key === "primary_ple_upper" && levelCode(report?.class?.level) === "PRIMARY");
+  const incompleteWarning = (report) => {
+    const subjects = Array.isArray(report?.incomplete_marks) ? report.incomplete_marks : [];
+    return pleEnabled(report) && subjects.length
+      ? `<p class="alert warning rc-incomplete-marks" role="alert"><b>Incomplete marks</b>: ${esc(subjects.join(", "))}</p>`
+      : "";
+  };
   const coCurricular = (report, includeDefaults = false) => {
     const items = Array.isArray(report.activities) ? report.activities
       : Array.isArray(report.other_subjects) ? report.other_subjects : [];
@@ -466,9 +475,6 @@
   const firstInitials = (report) => report.subjects?.find((subject) => subject.mark?.teacher_initials)?.mark.teacher_initials
     || report.teacher_initials || "—";
   const gradeLegend = (report, level) => {
-    if (report.grading_scale_preset_key === "primary_ple_upper") {
-      return "PLE D1–F9 · Subject-specific bands · D1=1 · D2=2 · C3=3 · C4=4 · C5=5 · C6=6 · P7=7 · P8=8 · F9=9";
-    }
     const bands = (Array.isArray(report.grading_scale) ? report.grading_scale : []).map((band) => {
       const grade = String(band.grade_code || "").trim();
       const min = Number(band.min_score);
@@ -477,10 +483,13 @@
       const score = (value) => Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
       const points = band.points === null || band.points === undefined || band.points === ""
         ? ""
-        : ` · ${String(band.points)} pts`;
+        : ` (${String(band.points)} pt${Number(band.points) === 1 ? "" : "s"})`;
       const description = String(band.descriptor || "").trim();
       return `${grade} ${score(min)}–${score(max)}${points}${description ? ` ${description}` : ""}`;
     }).filter(Boolean);
+    if (pleEnabled(report)) {
+      return bands.length ? `UNEB PLE: ${bands.join(" · ")}` : "UNEB PLE grading scale unavailable";
+    }
     if (bands.length) {
       const scheme = report.grading_points_scheme || {};
       const mapText = (key) => {
@@ -504,10 +513,10 @@
         ? "Learning areas are assessed by descriptor"
         : "A 80–100 · B 70–79 · C 60–69 · D 50–59 · E 0–49";
   };
-  const gradeDisplay = (mark = {}) => {
+  const gradeDisplay = (mark = {}, includePoints = true) => {
     const grade = String(mark.grade || "").trim();
     const overall = String(mark.overall_grade_code || "").trim();
-    const points = mark.points === null || mark.points === undefined || mark.points === ""
+    const points = !includePoints || mark.points === null || mark.points === undefined || mark.points === ""
       ? ""
       : String(mark.points);
     if (overall) return `${grade ? `${grade}/` : ""}${overall}${points ? ` (${points} pts)` : ""}`;
@@ -535,7 +544,8 @@
         periodCell(mark, "bot", period),
         periodCell(mark, "mid_term", period),
         number(average),
-        value(gradeDisplay(mark)),
+        value(gradeDisplay(mark, !pleEnabled(report))),
+        ...(pleEnabled(report) ? [number(mark.points, 0)] : []),
         value(mark.tr || mark.teacher_remark || mark.descriptor || mark.remark),
       ];
     }).map((cells) => `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`);
@@ -558,8 +568,11 @@
     const resultMetric = summary.result_metric ?? report.primary_result_metric ?? school.primary_result_metric;
     const usePleAggregate = level === "PRIMARY" && resultMetric === "ple_aggregate";
     const resultSummary = usePleAggregate
-      ? `<b>PLE Aggregate:</b> ${value(summary.aggregate)}${summary.aggregate_division ? ` · ${value(summary.aggregate_division)}` : ""}${summary.aggregate_interpretation ? ` · ${value(summary.aggregate_interpretation)}` : ""}`
+      ? `<b>PLE Aggregate:</b> ${value(summary.aggregate)}${summary.aggregate_division ? ` · ${value(summary.aggregate_division)}` : ""}`
       : `<b>Average:</b> ${number(summary.overall_average)}`;
+    const pleSummary = pleEnabled(report) && !usePleAggregate
+      ? ` &nbsp; · &nbsp; <b>Aggregate:</b> ${value(summary.aggregate)} · <b>Division:</b> ${value(summary.aggregate_division)}`
+      : "";
     return `<article ${previewAttrs(report, level, options)}>
       <div class="rc-preview-content rc-a5-content">
         <header class="rc-a5-header">
@@ -576,8 +589,9 @@
           <div class="rc-a5-learner-image">${photo ? `<img src="${esc(photo)}" alt="${value(learner.full_name)}">` : `<span>Photo</span>`}</div>
         </header>
         <div class="rc-a5-learner-info">${info.map(([label, content]) => `<span><b>${esc(label)}:</b> ${value(content)}</span>`).join("")}</div>
+        ${incompleteWarning(report)}
         <div class="rc-a5-table-wrap">${table(
-          ["Subject", "B.O.T", "Midterm", "Average", "Grade", "Remarks"],
+          ["Subject", "B.O.T", "Midterm", "Average", "Grade", ...(pleEnabled(report) ? ["Points"] : []), "Remarks"],
           rows,
           "rc-a5-table",
           "",
@@ -585,7 +599,7 @@
         )}</div>
         <section class="rc-a5-bottom">
           <div class="rc-a5-remarks">${comments.join("") || "<p>—</p>"}</div>
-          <p class="rc-a5-grading-key">${resultSummary} &nbsp; · &nbsp; <b>Grading key:</b> ${esc(gradeLegend(report, level))}</p>
+          <p class="rc-a5-grading-key">${resultSummary}${pleSummary} &nbsp; · &nbsp; <b>Grading key:</b> ${esc(gradeLegend(report, level))}</p>
           <div class="rc-a5-signature"><span></span><b>Class Teacher's signature</b></div>
         </section>
       </div>
@@ -643,16 +657,18 @@
   function renderPrimary(report, options = {}) {
     const template = templateInfo("PRIMARY", options);
     const showPosition = reportPositionEnabled(report, "PRIMARY", template.id);
+    const isPle = pleEnabled(report);
     const period = assessmentPeriod(report, options);
     const entries = scoreRows(report);
     const rows = entries.map(({ subject, mark }) => {
       const cells = template.definition?.blankForm
-        ? [value(subject.name), ...period.fields.map(() => "________"), ...(period.combined ? ["________"] : []), "___", ...(showPosition ? ["________"] : []), "________________", "___"]
+        ? [value(subject.name), ...period.fields.map(() => "________"), ...(period.combined ? ["________"] : []), "___", ...(isPle ? ["___"] : []), ...(showPosition ? ["________"] : []), "________________", "___"]
         : [
           `<b>${value(subject.name)}</b>`,
           ...period.fields.map(({ key }) => periodCell(mark, key, period)),
           ...(period.combined ? [periodFinal(mark, period)] : []),
-          value(gradeDisplay(mark)),
+          value(gradeDisplay(mark, !isPle)),
+          ...(isPle ? [number(mark.points, 0)] : []),
           ...(showPosition ? [mark.position ? `${value(mark.position)} of ${value(mark.class_size)}` : "—"] : []),
           `<em>${value(mark.tr || mark.teacher_remark || mark.descriptor)}</em>`,
           value(mark.teacher_initials),
@@ -666,6 +682,7 @@
       "TOTALS",
       ...periodTotalCells,
       value(summary.overall_grade),
+      ...(isPle ? [number(summary.aggregate, 0)] : []),
       ...(showPosition ? [`${value(summary.position)} OUT OF ${value(summary.class_size)}`] : []),
       promotionStatus(report).replace(/^STATUS:\s*/, ""),
       firstInitials(report),
@@ -676,6 +693,7 @@
       ...period.fields.map(({ label }) => label),
       ...(period.combined ? ["FINAL"] : []),
       "GRADE",
+      ...(isPle ? ["POINTS"] : []),
       ...(showPosition ? ["POSITION"] : []),
       "TEACHER'S REMARKS",
       "INITIALS",
@@ -684,6 +702,7 @@
       <div class="rc-preview-content">
       ${header(report, "Primary School Report", options)}
        ${learnerInfo(report, "PRIMARY", options)}
+       ${incompleteWarning(report)}
        <section class="rc-subject-section">${table(headers, rows, "rc-primary-table rc-period-table", totals)}</section>
         ${periodSummary(report, options)}
        <section class="rc-activities">${table(["SUBJECT", "GR", "TEACHER'S REMARKS", "INITIALS"], activities, "", "", "OTHER SUBJECTS / CO-CURRICULAR")}</section>

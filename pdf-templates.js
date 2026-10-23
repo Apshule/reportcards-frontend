@@ -1088,31 +1088,42 @@
     if (decision === "try_another") return "STATUS: TRY ANOTHER CLASS";
     return "STATUS: —";
   }
+  function isOfficialPle(report = {}) {
+    const presetKey = report.grading_scale_preset_key
+      ?? report.active_grading_scale?.preset_key
+      ?? report.grading_scale?.preset_key;
+    return report.ple_official_enabled === true || presetKey === "primary_ple_upper";
+  }
   function gradeScale(level, report = {}) {
     const scaleRows = Array.isArray(report.grading_scale)
       ? report.grading_scale
       : Array.isArray(report.grading_scale?.rows) ? report.grading_scale.rows : [];
-    const activePresetKey = report.grading_scale_preset_key
-      ?? report.active_grading_scale?.preset_key
-      ?? report.grading_scale?.preset_key;
-    const hasPleBands = ["D1", "D2", "C3", "C4", "C5", "C6", "P7", "P8", "F9"]
-      .every((grade) => scaleRows.some((row) => String(row.grade_code || row.grade || "").toUpperCase() === grade));
-    if (activePresetKey === "primary_ple_upper" || hasPleBands) {
-      return "PLE D1–F9: D1=1 · D2=2 · C3=3 · C4=4 · C5=5 · C6=6 · P7=7 · P8=8 · F9=9";
-    }
+    const usesOfficialPle = isOfficialPle(report);
     const rows = scaleRows;
     const custom = rows.map((row) => {
       const code = str(row.grade_code);
-      const min = Number(row.min_score);
-      const max = Number(row.max_score);
+      const min = Number(row.min_score ?? row.min_mark);
+      const max = Number(row.max_score ?? row.max_mark);
       if (!code || !Number.isFinite(min) || !Number.isFinite(max)) return "";
       const score = (value) => Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
       const points = row.points === null || row.points === undefined || row.points === ""
         ? ""
-        : ` · ${str(row.points)} pts`;
+        : ` (${str(row.points)} pt${Number(row.points) === 1 ? "" : "s"})`;
       const description = str(row.descriptor);
       return `${code} ${score(min)}–${score(max)}${points}${description ? ` ${description}` : ""}`;
     }).filter(Boolean);
+    if (usesOfficialPle) {
+      const compact = rows.map((row) => {
+        const code = str(row.grade_code);
+        const min = Number(row.min_score ?? row.min_mark);
+        const max = Number(row.max_score ?? row.max_mark);
+        const points = Number(row.points);
+        if (!code || !Number.isFinite(min) || !Number.isFinite(max) || !Number.isFinite(points)) return "";
+        const score = (value) => Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
+        return `${code} ${score(min)}–${score(max)}=${points}`;
+      }).filter(Boolean);
+      return compact.length ? `UNEB PLE: ${compact.join(", ")}` : "UNEB PLE grading scale unavailable";
+    }
     if (custom.length) {
       const pointsScheme = report.grading_points_scheme || {};
       const mapText = (key) => {
@@ -1135,10 +1146,10 @@
       ? "A 75–100 · B 65–74 · C 50–64 · D 35–49 · E 0–34"
       : "A 80–100 · B 70–79 · C 60–69 · D 50–59 · E 0–49";
   }
-  function gradeLabel(mark = {}, report = {}) {
+  function gradeLabel(mark = {}, report = {}, includePoints = true) {
     const grade = printableValue(mark.grade) || gradeForScore(scoreForMark(mark, report), report);
     const overall = printableValue(mark.overall_grade_code);
-    const pointsValue = printableValue(mark.points);
+    const pointsValue = includePoints ? printableValue(mark.points) : "";
     const points = pointsValue ? ` (${pointsValue})` : "";
     if (overall) return `${grade ? `${grade}/` : ""}${overall}${points}`;
     return `${grade}${points}` || "—";
@@ -1318,10 +1329,14 @@
 
   async function renderPrimary(learnerOrReport, school, marksData, meta = null) {
     const report = asReport(learnerOrReport, school, marksData);
+    if (isOfficialPle(report) && Array.isArray(report.incomplete_marks) && report.incomplete_marks.length) {
+      throw new Error(`Incomplete marks: ${report.incomplete_marks.join(", ")}`);
+    }
     const { doc, page, fonts, accent, lineAccent, backgroundColor, theme, y } = await prepare(report, "PRIMARY", "Primary School Report");
     const entries = marks(report);
     const period = assessmentPeriod(report);
     const showPosition = reportPositionEnabled(report, meta);
+    const isPle = isOfficialPle(report);
     const ordinal = (input) => {
       if (input === null || input === undefined || input === "") return "—";
       if (typeof input === "string" && /[a-z]/i.test(input)) return input;
@@ -1331,13 +1346,14 @@
       return `${parsed}${suffix}`;
     };
     const columns = [
-      { label: "SUBJECT", weight: 1.65 },
-      ...period.fields.map(({ label }) => ({ label, weight: 0.62, align: "center" })),
+      { label: "SUBJECT", weight: isPle ? 1.15 : 1.65 },
+      ...period.fields.map(({ label }) => ({ label, weight: isPle ? 0.4 : 0.62, align: "center" })),
       ...(period.combined ? [{ label: "FINAL", weight: 0.68, align: "center" }] : []),
-      { label: "GR.", weight: 0.58, align: "center" },
-      ...(showPosition ? [{ label: "POS.", weight: 0.88, align: "center" }] : []),
-      { label: "REMARKS", weight: 1.7 },
-      { label: "INIT.", weight: 0.62, align: "center" },
+      { label: "GR.", weight: isPle ? 0.55 : 0.58, align: "center" },
+      ...(isPle ? [{ label: "POINTS", weight: 0.65, align: "center" }] : []),
+      ...(showPosition ? [{ label: "POS.", weight: isPle ? 0.55 : 0.88, align: "center" }] : []),
+      { label: "REMARKS", weight: isPle ? 2.2 : 1.7 },
+      { label: "INIT.", weight: isPle ? 0.55 : 0.62, align: "center" },
     ];
     const rows = entries.map(({ subject, mark }) => {
       if (meta?.blankForm) {
@@ -1346,6 +1362,7 @@
           ...period.fields.map(() => "________"),
           ...(period.combined ? ["________"] : []),
           "___",
+          ...(isPle ? ["___"] : []),
           ...(showPosition ? ["________"] : []),
           "________________",
           "___",
@@ -1356,22 +1373,34 @@
         subject.name,
         ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
         ...(period.combined ? [num(periodScore(mark, period))] : []),
-        gradeLabel(mark, report),
+        gradeLabel(mark, report, !isPle),
+        ...(isPle ? [num(mark.points, 0)] : []),
         ...(showPosition ? [position ? `${ordinal(position)} of ${classSizeValue(mark, report) || "—"}` : "—"] : []),
         subjectRemark(mark, report),
         str(mark.teacher_initials),
       ];
     });
     const width = page.getWidth() - 56;
+    const gradeIndex = 1 + period.fields.length + (period.combined ? 1 : 0);
+    const pointsIndex = gradeIndex + 1;
+    const positionIndex = pointsIndex + (isPle ? 1 : 0);
+    const remarkIndex = columns.length - 2;
     if (meta) variantRule(page, page.getHeight() - 150, page.getWidth(), meta);
     let flow = await drawTableFlow(doc, page, report, fonts, theme, "Primary School Report", "", columns, rows, 28, y, width, {
       rowHeight: 12, fontSize: reportFonts.table, headerFontSize: reportFonts.subheading, headerHeight: 20,
       backgroundColor, accentColor: lineAccent, headerColor: theme.table_header_color, headerTextColor: theme.table_header_text_color,
       bottomLimit: 275,
-      boldColumns: [0], italicColumns: [columns.length - 2],
-      centerColumns: [...period.fields.map((_, index) => index + 1), ...(period.combined ? [period.fields.length + 1] : []), columns.length - (showPosition ? 4 : 3), columns.length - 1],
-      wrappedColumns: [0, columns.length - 2],
-      columnFontSizes: { 0: 7.2, [columns.length - 2]: 6.1 },
+      boldColumns: [0], italicColumns: [remarkIndex],
+      centerColumns: [
+        ...period.fields.map((_, index) => index + 1),
+        ...(period.combined ? [period.fields.length + 1] : []),
+        gradeIndex,
+        ...(isPle ? [pointsIndex] : []),
+        ...(showPosition ? [positionIndex] : []),
+        columns.length - 1,
+      ],
+      wrappedColumns: [0, remarkIndex],
+      columnFontSizes: { 0: 7.2, [remarkIndex]: 6.1 },
     }, meta);
     const summary = report.summary || {};
     const initials = entries.find(({ mark }) => mark.teacher_initials)?.mark.teacher_initials || "—";
@@ -1380,6 +1409,7 @@
       ...period.fields.map(({ key }) => num(periodSum(entries, key, period), 0)),
       ...(period.combined ? [num(summary.total_score, 0)] : []),
       overallGrade(report),
+      ...(isPle ? [num(summary.aggregate, 0)] : []),
       ...(showPosition ? [`${ordinal(overallPositionValue(report))} OUT OF ${overallClassSizeValue(report) || "—"}`] : []),
       promotionStatus(report).replace(/^STATUS:\s*/, ""),
       initials,
@@ -1388,6 +1418,9 @@
     drawCompactSummary(flow.page, [
       ...(showPosition ? [["Overall position", `${ordinal(overallPositionValue(report))} of ${overallClassSizeValue(report) || "—"}`]] : []),
       overallResultMetric(report),
+      ...(isPle && (summary.result_metric ?? report.primary_result_metric) !== "ple_aggregate"
+        ? [["Aggregate", num(summary.aggregate, 0)], ["Division", str(summary.aggregate_division)]]
+        : []),
       ["Grade", overallGrade(report)],
     ], 28, totalsY - 1, width, fonts, accent);
     const otherRows = primaryOtherSubjectRows(report, true);
@@ -1936,16 +1969,19 @@
     page.drawText(line, { x: drawX, y, size, font, color: fill });
   }
 
-  function a5GradeLabel(mark = {}, report = {}) {
+  function a5GradeLabel(mark = {}, report = {}, includePoints = true) {
     const grade = printableValue(mark.grade) || gradeForScore(scoreForMark(mark, report), report);
     const overall = printableValue(mark.overall_grade_code);
-    const points = printableValue(mark.points);
+    const points = includePoints ? printableValue(mark.points) : "";
     if (overall) return `${grade ? `${grade}/` : ""}${overall}${points ? ` (${points})` : ""}`;
     return `${grade}${points ? ` (${points})` : ""}` || "—";
   }
 
   async function renderA5Condensed(report, classLevel) {
     const period = assessmentPeriod(report);
+    if (isOfficialPle(report) && Array.isArray(report.incomplete_marks) && report.incomplete_marks.length) {
+      throw new Error(`Incomplete marks: ${report.incomplete_marks.join(", ")}`);
+    }
     if (period.key !== "COMBINED_BM") {
       throw new Error("The Half Page (A5) Condensed layout requires Combined (B.O.T + Midterm).");
     }
@@ -2051,6 +2087,7 @@
       ? Math.min(16, Math.max(9, (tableTop - footerBottom - headerHeight) / entries.length))
       : 16;
     const entries = marks(report);
+    const isPle = isOfficialPle(report);
     const rowH = rowHeight(entries);
     const fontSize = Math.min(8.5, Math.max(8, rowH - 2));
     const columns = [
@@ -2059,7 +2096,8 @@
       { label: "Midterm", weight: 0.72, align: "center" },
       { label: "Average", weight: 0.8, align: "center" },
       { label: "Grade", weight: 0.62, align: "center" },
-      { label: "Remarks", weight: 1.8, align: "left" },
+      ...(isPle ? [{ label: "Points", weight: 0.65, align: "center" }] : []),
+      { label: "Remarks", weight: 1.7, align: "left" },
     ];
     const totalWeight = columns.reduce((sum, column) => sum + column.weight, 0);
     const widths = columns.map((column) => contentWidth * column.weight / totalWeight);
@@ -2077,7 +2115,8 @@
         num(periodValue(mark, "bot", period), 1),
         num(periodValue(mark, "mid_term", period), 1),
         num(periodScore(mark, period), 1),
-        a5GradeLabel(mark, report),
+        a5GradeLabel(mark, report, !isPle),
+        ...(isPle ? [num(mark.points, 0)] : []),
         subjectRemark(mark, report),
       ];
       currentX = x;
@@ -2129,9 +2168,20 @@
       });
     });
     const resultMetric = overallResultMetric(report);
-    const key = `${resultMetric[0]}: ${resultMetric[1]} · Grading key: ${gradeScale(classLevel, report)}`;
+    const summary = report.summary || {};
+    const pleSummary = isPle && resultMetric[0] !== "PLE Aggregate"
+      ? ` · Aggregate: ${num(summary.aggregate, 0)} · ${str(summary.aggregate_division)}`
+      : "";
+    const key = `${resultMetric[0]}: ${resultMetric[1]}${pleSummary} · Grading key: ${gradeScale(classLevel, report)}`;
     const keyY = footerY - fittedComments.lines.length * commentLeading - 2;
-    drawA5Text(page, key, x + 2, keyY, fonts.regular, 7, ink, contentWidth - 4);
+    const keyLines = wrappedLines(key, fonts.regular, 6, contentWidth - 4).slice(0, 2);
+    keyLines.forEach((line, index) => page.drawText(line, {
+      x: x + 2,
+      y: keyY - index * 7,
+      size: 6,
+      font: fonts.regular,
+      color: ink,
+    }));
     const signatureY = 27;
     page.drawLine({ start: { x, y: signatureY + 12 }, end: { x: width - x, y: signatureY + 12 }, thickness: 0.5, color: accent });
     page.drawLine({ start: { x, y: signatureY }, end: { x: x + 93, y: signatureY }, thickness: 0.6, color: ink });
@@ -2145,6 +2195,9 @@
     const stamp = includeStamp ? Object.assign({}, ...stampSources) : null;
     const showStamp = report?.school?.show_stamp !== false && report?.show_stamp !== false;
     const renderReport = { ...report, __includeStamp: Boolean(showStamp && stamp && typeof stamp === "object" && Object.keys(stamp).length) };
+    if (isOfficialPle(renderReport) && Array.isArray(renderReport.incomplete_marks) && renderReport.incomplete_marks.length) {
+      throw new Error(`Incomplete marks: ${renderReport.incomplete_marks.join(", ")}`);
+    }
     const level = levelCode(classLevel || renderReport.class?.level);
     if ((layoutFormat || renderReport.layout_format || "A4") === "A5_CONDENSED") return renderA5Condensed(renderReport, level);
     const id = String(templateId || "1").replace(/^template[_-]?/i, "");
