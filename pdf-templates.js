@@ -280,6 +280,10 @@
     })[key] || key.replace(/_/g, " ") || "TERM";
   }
   function reportCardBanner(report) {
+    const presetKey = report.grading_scale_preset_key
+      ?? report.active_grading_scale?.preset_key
+      ?? report.grading_scale?.preset_key;
+    if (["o_level_old_uce", "o_level_new_uce"].includes(presetKey)) return "ANNUAL UCE REPORT";
     const term = displayTerm(report.term)
       .replace("TERM I", "TERM 1")
       .replace("TERM II", "TERM 2")
@@ -1444,7 +1448,15 @@
 
   async function renderSecondary(learnerOrReport, level, school, marksData) {
     const report = asReport(learnerOrReport, school, marksData);
-    const title = level === "A_LEVEL" ? "A-Level Report" : "O-Level Report";
+    const presetKey = report.grading_scale_preset_key
+      ?? report.active_grading_scale?.preset_key
+      ?? report.grading_scale?.preset_key;
+    const oldUce = level === "O_LEVEL" && presetKey === "o_level_old_uce";
+    const newUce = level === "O_LEVEL" && presetKey === "o_level_new_uce";
+    const usesUce = oldUce || newUce;
+    const title = level === "A_LEVEL" ? "A-Level Report"
+      : oldUce ? "Old UCE Report"
+        : newUce ? "New UCE Report" : "O-Level Report";
     const { doc, page, fonts, accent, lineAccent, backgroundColor, theme, y } = await prepare(report, level, title);
     const entries = marks(report);
     const period = assessmentPeriod(report);
@@ -1461,61 +1473,126 @@
       ? [str(subject.code), subject.name, str(mark.paper_number)]
       : [subject.name];
     const periodColumns = period.fields.map(({ label }) => ({ label, weight: 0.56, align: "center" }));
-    const columns = [
-      ...prefixColumns,
-      ...periodColumns,
-      ...(period.combined ? [{ label: "FINAL", weight: 0.6, align: "center" }] : []),
-      { label: "GRADE", weight: 0.58, align: "center" },
-      { label: isALevel ? "COMMENT" : "GRADE DESCRIPTOR", weight: isALevel ? 1.15 : 1.45 },
-      { label: "TR", weight: 0.55, align: "center" },
-    ];
-    const rows = entries.map(({ subject, mark }) => [
-      ...prefixValues(subject, mark),
-      ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
-      ...(period.combined ? [num(periodScore(mark, period))] : []),
-      gradeLabel(mark, report),
-      subjectRemark(mark, report),
-      str(mark.teacher_initials),
-    ]);
+    const columns = usesUce
+      ? oldUce
+        ? [
+          { label: "SUBJECT", weight: 1.4 },
+          { label: "FINAL SCORE", weight: 0.72, align: "center" },
+          { label: "GRADE", weight: 0.62, align: "center" },
+          { label: "POINTS", weight: 0.55, align: "center" },
+          { label: "TEACHER'S REMARK", weight: 1.5 },
+          { label: "TR", weight: 0.48, align: "center" },
+        ]
+        : [
+          { label: "SUBJECT", weight: 1.35 },
+          { label: "CA 20%", weight: 0.7, align: "center" },
+          { label: "EXAM 80%", weight: 0.72, align: "center" },
+          { label: "FINAL", weight: 0.72, align: "center" },
+          { label: "GRADE", weight: 0.58, align: "center" },
+          { label: "ACHIEVEMENT LEVEL", weight: 1.3 },
+          { label: "REMARKS", weight: 1.35 },
+          { label: "TR", weight: 0.48, align: "center" },
+        ]
+      : [
+        ...prefixColumns,
+        ...periodColumns,
+        ...(period.combined ? [{ label: "FINAL", weight: 0.6, align: "center" }] : []),
+        { label: "GRADE", weight: 0.58, align: "center" },
+        { label: isALevel ? "COMMENT" : "GRADE DESCRIPTOR", weight: isALevel ? 1.15 : 1.45 },
+        { label: "TR", weight: 0.55, align: "center" },
+      ];
+    const rows = entries.map(({ subject, mark }) => usesUce
+      ? oldUce
+        ? [
+          subject.name,
+          num(mark.final_score ?? mark.pct100),
+          str(mark.grade),
+          num(mark.points),
+          subjectRemark(mark, report),
+          str(mark.teacher_initials),
+        ]
+        : [
+          subject.name,
+          num(mark.ca_score),
+          num(mark.exam_score),
+          num(mark.final_score ?? mark.pct100),
+          str(mark.grade),
+          str(mark.achievement_level ?? mark.descriptor),
+          subjectRemark(mark, report),
+          str(mark.teacher_initials),
+        ]
+      : [
+        ...prefixValues(subject, mark),
+        ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
+        ...(period.combined ? [num(periodScore(mark, period))] : []),
+        gradeLabel(mark, report),
+        subjectRemark(mark, report),
+        str(mark.teacher_initials),
+      ]);
     const subjectIndex = isALevel ? 1 : 0;
-    const descriptorIndex = columns.length - 2;
+    const descriptorIndex = usesUce
+      ? oldUce ? 4 : 5
+      : columns.length - 2;
     const periodStart = prefixColumns.length;
-    let flow = await drawTableFlow(doc, page, report, fonts, theme, title, `TERM PERFORMANCE RECORDS — ${period.title}`, columns, rows, 28, y, page.getWidth() - 56, {
-      rowHeight: isALevel ? 12 : 17, fontSize: reportFonts.table, headerFontSize: reportFonts.subheading, headerHeight: 23, backgroundColor,
+    const sectionTitle = usesUce
+      ? oldUce ? "ANNUAL UCE RESULTS — D1–F9 SYSTEM" : "ANNUAL UCE RESULTS — COMPETENCY SYSTEM"
+      : `TERM PERFORMANCE RECORDS — ${period.title}`;
+    let flow = await drawTableFlow(doc, page, report, fonts, theme, title, sectionTitle, columns, rows, 28, y, page.getWidth() - 56, {
+      rowHeight: usesUce ? 14 : isALevel ? 12 : 17, fontSize: reportFonts.table, headerFontSize: reportFonts.subheading, headerHeight: 23, backgroundColor,
       accentColor: lineAccent, headerColor: theme.table_header_color, headerTextColor: theme.table_header_text_color, bottomLimit: 340,
       boldColumns: [subjectIndex], italicColumns: [descriptorIndex],
       columnFontSizes: { [subjectIndex]: reportFonts.table, [descriptorIndex]: reportFonts.descriptor },
       smallTextColumns: [descriptorIndex],
       wrappedColumns: [subjectIndex, descriptorIndex],
-      centerColumns: [
-        ...(isALevel ? [0, 2] : []),
-        ...period.fields.map((_, index) => periodStart + index),
-        ...(period.combined ? [periodStart + period.fields.length] : []),
-        columns.length - 3,
-        columns.length - 1,
-      ],
+      centerColumns: usesUce
+        ? oldUce ? [1, 2, 3, 5] : [1, 2, 3, 4, 7]
+        : [
+          ...(isALevel ? [0, 2] : []),
+          ...period.fields.map((_, index) => periodStart + index),
+          ...(period.combined ? [periodStart + period.fields.length] : []),
+          columns.length - 3,
+          columns.length - 1,
+        ],
     });
     const summary = report.summary || {};
     const finalScores = period.combined
       ? entries.map(({ mark }) => periodScore(mark, period)).filter((score) => score !== null)
       : [];
-    const averages = [
-      ...(isALevel ? ["", "AVERAGE SCORES", ""] : ["AVERAGE SCORES"]),
-      ...period.fields.map(({ key }) => num(periodAverage(entries, key, period))),
-      ...(period.combined
-        ? [finalScores.length ? num(finalScores.reduce((sum, score) => sum + score, 0) / finalScores.length) : "—"]
-        : []),
-      overallGradeText,
-      str(summary.overall_achievement ?? summary.achievement),
-      "",
-    ];
-    let totalsY = drawTableTotals(flow.page, averages, 28, flow.y - 2, page.getWidth() - 56, columns, fonts, lineAccent, 5.3);
-    drawSummary(flow.page, [
-      ...(reportPositionEnabled(report) ? [["Overall position", `${overallPositionValue(report) || "—"} of ${overallClassSizeValue(report) || "—"}`]] : []),
-      overallResultMetric(report),
-      ["Grade", overallGradeText],
-      ["Identifier", str(summary.overall_identifier ?? summary.identifier)],
-    ], 28, totalsY - 11, page.getWidth() - 56, fonts, accent);
+    let totalsY;
+    if (usesUce) {
+      const uce = report.uce_result || {};
+      const uceSummary = oldUce
+        ? [
+          ["Best-8 Aggregate", str(uce.aggregate ?? summary.aggregate)],
+          ["Division", str(uce.division_code ?? summary.aggregate_division)],
+        ]
+        : [
+          ["Result Indicator", str(uce.result_indicator)],
+          ["Certificate", uce.qualified_for_certificate ? "Qualified" : "Did not qualify"],
+          ["Project Work", uce.project_work_completed ? "Completed" : "Not completed"],
+          ["Subjects Graded", str(uce.completed_subject_count)],
+        ];
+      drawSummary(flow.page, uceSummary, 28, flow.y - 11, page.getWidth() - 56, fonts, accent);
+      totalsY = flow.y;
+    } else {
+      const averages = [
+        ...(isALevel ? ["", "AVERAGE SCORES", ""] : ["AVERAGE SCORES"]),
+        ...period.fields.map(({ key }) => num(periodAverage(entries, key, period))),
+        ...(period.combined
+          ? [finalScores.length ? num(finalScores.reduce((sum, score) => sum + score, 0) / finalScores.length) : "—"]
+          : []),
+        overallGradeText,
+        str(summary.overall_achievement ?? summary.achievement),
+        "",
+      ];
+      totalsY = drawTableTotals(flow.page, averages, 28, flow.y - 2, page.getWidth() - 56, columns, fonts, lineAccent, 5.3);
+      drawSummary(flow.page, [
+        ...(reportPositionEnabled(report) ? [["Overall position", `${overallPositionValue(report) || "—"} of ${overallClassSizeValue(report) || "—"}`]] : []),
+        overallResultMetric(report),
+        ["Grade", overallGradeText],
+        ["Identifier", str(summary.overall_identifier ?? summary.identifier)],
+      ], 28, totalsY - 11, page.getWidth() - 56, fonts, accent);
+    }
     let nextContentY = totalsY - 43;
     if (level === "O_LEVEL") {
       const dates = report.term_dates || {};

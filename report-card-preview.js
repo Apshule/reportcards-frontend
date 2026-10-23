@@ -156,7 +156,12 @@
     const term = displayTerm(report.term);
     const termNumber = term.replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3");
     const period = assessmentPeriod(report, options);
-    const bannerText = `${termNumber} PROGRESS REPORT — ${period.title}`;
+    const presetKey = report.grading_scale_preset_key
+      ?? report.active_grading_scale?.preset_key
+      ?? report.grading_scale?.preset_key;
+    const bannerText = ["o_level_old_uce", "o_level_new_uce"].includes(presetKey)
+      ? "ANNUAL UCE REPORT"
+      : `${termNumber} PROGRESS REPORT — ${period.title}`;
     return `<header class="rc-head">
       <div class="rc-brand-image">${logo ? `<img src="${esc(logo)}" alt="School logo">` : `<span>${esc(String(school.name || "S").slice(0, 1))}</span>`}</div>
       <div class="rc-school">
@@ -719,24 +724,54 @@
     const period = assessmentPeriod(report, options);
     const summary = report.summary || {};
     const template = templateInfo(level, options);
+    const presetKey = report.grading_scale_preset_key
+      ?? report.active_grading_scale?.preset_key
+      ?? report.grading_scale?.preset_key;
+    const oldUce = level === "O_LEVEL" && presetKey === "o_level_old_uce";
+    const newUce = level === "O_LEVEL" && presetKey === "o_level_new_uce";
+    const usesUce = oldUce || newUce;
     const prefixHeads = level === "A_LEVEL" ? ["CODE", "SUBJECT", "PAPER"] : ["SUBJECT"];
-    const heads = [
-      ...prefixHeads,
-      ...period.fields.map(({ label }) => label),
-      ...(period.combined ? ["FINAL"] : []),
-      "GRADE",
-      level === "A_LEVEL" ? "COMMENT" : "GRADE DESCRIPTOR",
-      "TR",
-    ];
-    const rows = entries.map(({ subject, mark }) => {
-      const cells = [
-        ...(level === "A_LEVEL" ? [value(subject.code), value(subject.name), value(mark.paper_number)] : [value(subject.name)]),
-        ...period.fields.map(({ key }) => periodCell(mark, key, period)),
-        ...(period.combined ? [periodFinal(mark, period)] : []),
-        value(gradeDisplay(mark)),
-          value(mark.tr || mark.teacher_remark || mark.descriptor),
-        value(mark.teacher_initials),
+    const heads = usesUce
+      ? oldUce
+        ? ["SUBJECT", "FINAL SCORE", "GRADE", "POINTS", "TEACHER'S REMARK", "TR"]
+        : ["SUBJECT", "CA 20%", "EXAM 80%", "FINAL", "GRADE", "ACHIEVEMENT LEVEL", "REMARKS", "TR"]
+      : [
+        ...prefixHeads,
+        ...period.fields.map(({ label }) => label),
+        ...(period.combined ? ["FINAL"] : []),
+        "GRADE",
+        level === "A_LEVEL" ? "COMMENT" : "GRADE DESCRIPTOR",
+        "TR",
       ];
+    const rows = entries.map(({ subject, mark }) => {
+      const cells = usesUce
+        ? oldUce
+          ? [
+            value(subject.name),
+            number(mark.final_score ?? mark.pct100),
+            value(mark.grade),
+            number(mark.points),
+            value(mark.tr || mark.teacher_remark || mark.descriptor),
+            value(mark.teacher_initials),
+          ]
+          : [
+            value(subject.name),
+            number(mark.ca_score),
+            number(mark.exam_score),
+            number(mark.final_score ?? mark.pct100),
+            value(mark.grade),
+            value(mark.achievement_level || mark.descriptor),
+            value(mark.tr || mark.teacher_remark),
+            value(mark.teacher_initials),
+          ]
+        : [
+          ...(level === "A_LEVEL" ? [value(subject.code), value(subject.name), value(mark.paper_number)] : [value(subject.name)]),
+          ...period.fields.map(({ key }) => periodCell(mark, key, period)),
+          ...(period.combined ? [periodFinal(mark, period)] : []),
+          value(gradeDisplay(mark)),
+          value(mark.tr || mark.teacher_remark || mark.descriptor),
+          value(mark.teacher_initials),
+        ];
       return `<tr>${cells.map((cell, index) => `<td${index === cells.length - 2 ? ' class="rc-long-descriptor"' : ""}>${cell}</td>`).join("")}</tr>`;
     });
     const projects = (report.projects || []).map((project) => `<tr><td>${value(project.project_name)}</td><td>${number(project.score)}</td><td>${project.percentage===null||project.percentage===undefined?"—":`${number(project.percentage)}%`}</td><td>${value(project.grade)}</td><td>${value(project.remarks)}</td><td>${value(project.teacher_initials)}</td></tr>`);
@@ -745,7 +780,7 @@
     const finalScores = period.combined
       ? entries.map(({ mark }) => periodTools().periodScore(mark, period.key)).filter((score) => score !== null)
       : [];
-    const averageCells = [
+    const averageCells = usesUce ? "" : [
       ...(level === "A_LEVEL" ? ["", "AVERAGE SCORES", ""] : ["AVERAGE SCORES"]),
       ...periodAverages(entries, period),
       ...(period.combined
@@ -755,18 +790,26 @@
       value(summary.overall_achievement ?? summary.achievement),
       "",
     ];
-    const footerRows = level === "O_LEVEL" ? [[
+    const footerRows = level === "O_LEVEL" && !usesUce ? [[
       { text: "NEXT TERM BEGINS", span: 2 },
       { text: formatReportDate(report.term_dates?.next_term_begins), span: Math.max(1, heads.length - 2) },
     ]] : [];
-    const title = level === "A_LEVEL" ? "A-Level Report" : "O-Level Report";
+    const title = level === "A_LEVEL" ? "A-Level Report"
+      : oldUce ? "Old UCE Report"
+        : newUce ? "New UCE Report" : "O-Level Report";
+    const result = report.uce_result || {};
+    const uceSummary = oldUce
+      ? `<div class="rc-summary rc-summary-wide rc-uce-summary"><span><b>Best-8 Aggregate:</b> ${value(result.aggregate ?? summary.aggregate)}</span><span><b>Division:</b> ${value(result.division_code ?? summary.aggregate_division)}</span></div>`
+      : newUce
+        ? `<div class="rc-summary rc-summary-wide rc-uce-summary"><span><b>Result:</b> ${value(result.result_indicator)}</span><span><b>Certificate:</b> ${result.qualified_for_certificate ? "Qualified" : "Did not qualify"}</span><span><b>Project Work:</b> ${result.project_work_completed ? "Completed" : "Not completed"}</span><span><b>Subjects graded:</b> ${value(result.completed_subject_count)}</span></div>`
+        : "";
     return `<article ${previewAttrs(report, level, options)}>
       <div class="rc-preview-content">
       ${header(report, title, options)}
       ${learnerInfo(report, level, options)}
-       ${promotionBanner(report)}
-        <section class="rc-subject-section">${table(heads, rows, `rc-dense rc-secondary-${level.toLowerCase()} rc-period-table`, averageCells, `TERM PERFORMANCE RECORDS — ${period.title}`, { footerRows })}</section>
-        ${periodSummary(report, options)}
+       ${usesUce ? "" : promotionBanner(report)}
+        <section class="rc-subject-section">${table(heads, rows, `rc-dense rc-secondary-${level.toLowerCase()} ${usesUce ? "rc-uce-table" : "rc-period-table"}`, averageCells, usesUce ? (oldUce ? "ANNUAL UCE RESULTS — D1–F9 SYSTEM" : "ANNUAL UCE RESULTS — COMPETENCY SYSTEM") : `TERM PERFORMANCE RECORDS — ${period.title}`, { footerRows })}</section>
+        ${usesUce ? uceSummary : periodSummary(report, options)}
        ${activities.length ? `<section class="rc-activities">${table(["Activity / Subject", "Progress", "Remark", "Signature"], activities, "", "", "Activities / Other Subjects")}</section>` : ""}
         ${level === "A_LEVEL" && projects.length ? `<section class="rc-projects">${table(["TERMLY PROJECT WORK", "AVERAGE SCORE (10)", "OUT OF 100", "GRADE", "REMARKS", "TEACHER"], projects, "", "", projectHeading)}</section>` : ""}
        ${remarksAndSignatures(report, ["Class Teacher", "Head Teacher"], 2)}
