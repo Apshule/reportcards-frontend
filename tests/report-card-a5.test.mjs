@@ -78,12 +78,20 @@ const report = {
   learner: { full_name: "A5 Test Learner", reg_no: "A5-1" },
   school: {
     name: "A5 Test School",
+    school_subtitle: "Mixed Day & Boarding Primary School",
+    street: "P.O. Box 123, Kampala",
+    phone: "0750002345",
+    email: "info@school.com",
+    website: "www.school.com",
+    motto: "Learning with ease",
     stamp_config: { line_1: "STAMP MUST NOT PRINT" },
     watermark_enabled: true,
   },
   authenticity_qr_data_url: "data:image/png;base64,QUJD",
   class_teacher_comment: "Excellent progress.",
   principal_comment: "Keep working hard.",
+  grading_scale_preset_key: "primary_ple_upper",
+  summary: { aggregate: 5, aggregate_division: "Division I", aggregate_interpretation: "Top Secondary" },
   subjects: [{
     name: "Literacy",
     mark: {
@@ -113,7 +121,18 @@ test("condensed output is one A5 page with only B.O.T and Midterm data", async (
   assert.ok(drawnText.some((text) => text.includes("Class Teacher: Excellent progress.")));
   assert.ok(drawnText.some((text) => text.includes("Principal: Keep working hard.")));
   assert.ok(drawnText.some((text) => text.includes("Grading key:")));
+  assert.ok(drawnText.some((text) => text.includes("PLE aggregate: 5")));
   assert.ok(drawnText.includes("Class Teacher's signature"));
+  for (const headerLine of [
+    "A5 Test School",
+    "Mixed Day & Boarding Primary School",
+    "P.O. Box 123, Kampala",
+    "Tel: 0750002345, Email: info@school.com",
+    "Website: www.school.com",
+    "Learning with ease",
+  ]) {
+    assert.ok(drawnText.some((text) => text.includes(headerLine)), `A5 header should include ${headerLine}`);
+  }
   assert.equal(drawnText.some((text) => /E\.O\.T|FINAL|STAMP MUST NOT PRINT|QR/i.test(text)), false);
   assert.equal(stampApplied, false, "A5 must not pass through the digital stamp renderer");
   assert.equal(qrApplied, false, "A5 must not pass through the authenticity QR renderer");

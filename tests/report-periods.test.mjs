@@ -83,6 +83,32 @@ test("HTML preview uses only selected-period columns and labels the header", () 
   }
 });
 
+test("HTML preview renders the clean school header with centered contact details and both images", () => {
+  const html = window.ReportCardPreview.render({
+    ...reportFor("EOT"),
+    school: {
+      name: "Example School",
+      school_subtitle: "Mixed Day & Boarding Primary School",
+      street: "P.O. Box 123, Kampala",
+      phone: "0750002345",
+      email: "info@school.com",
+      website: "www.school.com",
+      motto: "Learning with ease",
+      logo_base64: "school-logo",
+    },
+    learner: { full_name: "Preview Learner", photo_base64: "learner-photo" },
+  });
+  const header = html.match(/<header class="rc-head">[\s\S]*?<\/header>/)?.[0] ?? "";
+
+  assert.match(header, /school_subtitle|Mixed Day &amp; Boarding Primary School/u);
+  assert.match(header, /#800000|Example School/u);
+  assert.match(header, /Tel: 0750002345, Email: info@school\.com/u);
+  assert.match(header, /Website: www\.school\.com/u);
+  assert.match(header, /Learning with ease/u);
+  assert.match(header, /alt="School logo"/u);
+  assert.match(header, /alt="Preview Learner"/u);
+});
+
 test("combined FINAL is the arithmetic mean of its selected period marks", () => {
   assert.equal(window.ReportCardTemplatePicker.periodScore(sourceMark, "COMBINED_BM"), 66);
   assert.equal(window.ReportCardTemplatePicker.periodScore(sourceMark, "COMBINED_BME"), 74);
@@ -96,6 +122,41 @@ test("combined FINAL is the arithmetic mean of its selected period marks", () =>
   assert.match(html, /<td>74\.0<\/td>/);
 });
 
+test("Mid-Term-only data renders the score, grade, subject remark, and overall summary", () => {
+  const report = {
+    ...reportFor("MID"),
+    subjects: [{
+      id: "subject-english",
+      name: "English",
+      mark: {
+        mid_term: 85,
+        period_marks: { mid_term: 85 },
+        selected_period: "MID",
+        period_score: 85,
+        grade: "A",
+        position: 1,
+        class_size: 4,
+        tr: "Excellent performance in this subject.",
+      },
+    }],
+    summary: {
+      total_score: 85,
+      overall_average: 85,
+      overall_grade: "A",
+      position: 1,
+      class_size: 4,
+    },
+    class_teacher_comment: "Ssantamu Yusuf has shown good progress.",
+  };
+  const html = window.ReportCardPreview.render(report, { template: "1", period: "MID" });
+
+  assert.match(html, /<td>85\.0<\/td>/);
+  assert.match(html, /<td>A<\/td>/);
+  assert.match(html, /Excellent performance in this subject/);
+  assert.match(html, /85\.0/);
+  assert.match(html, /Ssantamu Yusuf has shown good progress/);
+});
+
 test("A5 preview uses the B.O.T and Midterm columns only and hides stamp and QR", () => {
   const report = {
     ...reportFor("COMBINED_BM"),
@@ -106,6 +167,8 @@ test("A5 preview uses the B.O.T and Midterm columns only and hides stamp and QR"
     authenticity_qr_data_url: "data:image/png;base64,QUJD",
     class_teacher_comment: "Encouraging progress.",
     principal_comment: "Continue the good work.",
+    grading_scale_preset_key: "primary_ple_upper",
+    summary: { aggregate: 5, aggregate_division: "Division I", aggregate_interpretation: "Top Secondary" },
   };
   const html = window.ReportCardPreview.render(report, {
     template: "1",
@@ -120,6 +183,7 @@ test("A5 preview uses the B.O.T and Midterm columns only and hides stamp and QR"
   }
   assert.doesNotMatch(head, /E\.O\.T|FINAL/);
   assert.match(html, /<td>66\.0<\/td>/);
+  assert.match(html, /PLE aggregate:<\/b> 5 · Division I · Top Secondary/u);
   assert.doesNotMatch(html, /OFFICIAL SCHOOL STAMP|rc-authenticity-qr|data:image\/png;base64,QUJD/);
   assert.match(html, /Class Teacher's signature/);
 });

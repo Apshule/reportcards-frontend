@@ -138,15 +138,12 @@
     const learner = report.learner || {};
     const summary = report.summary || {};
     const level = levelCode(report.class?.level);
-    const address = [school.street, school.po_box, school.city, school.district].filter(Boolean).join(" · ");
-    const secondary = ["O_LEVEL", "A_LEVEL"].includes(level);
-    const contact = secondary
-      ? [
-        school.school_id || school.school_code ? `SCH.ID: ${school.school_code || school.school_id}` : "",
-        school.phone ? `TEL: ${school.phone}` : "",
-        school.email,
-      ].filter(Boolean).join(" · ")
-      : [school.phone, school.email, school.website].filter(Boolean).join(" · ");
+    const address = [school.street, school.po_box, school.city, school.district].filter(Boolean).join(", ");
+    const subtitle = school.school_subtitle || school.subtitle || school.school_type || "";
+    const contact = [
+      school.phone ? `Tel: ${school.phone}` : "",
+      school.email ? `Email: ${school.email}` : "",
+    ].filter(Boolean).join(", ");
     const logo = imageSource(school.logo_base64);
     const photo = imageSource(learner.photo_base64);
     const term = displayTerm(report.term);
@@ -157,9 +154,11 @@
       <div class="rc-brand-image">${logo ? `<img src="${esc(logo)}" alt="School logo">` : `<span>${esc(String(school.name || "S").slice(0, 1))}</span>`}</div>
       <div class="rc-school">
         <h2>${value(school.name)}</h2>
+        ${subtitle ? `<p class="rc-school-subtitle">${value(subtitle)}</p>` : ""}
+        ${address ? `<p class="rc-school-address">${value(address)}</p>` : ""}
+        ${contact ? `<p class="rc-school-contact">${value(contact)}</p>` : ""}
+        ${school.website ? `<p class="rc-school-website">Website: ${value(school.website)}</p>` : ""}
         ${school.motto ? `<p class="rc-motto">${value(school.motto)}</p>` : ""}
-        ${address ? `<p>${value(address)}</p>` : ""}
-        ${contact ? `<p>${value(contact)}</p>` : ""}
       </div>
       <div class="rc-learner-image">${photo ? `<img src="${esc(photo)}" alt="${value(learner.full_name)}">` : `<span>Photo</span>`}</div>
     </header>
@@ -515,6 +514,9 @@
     const learner = report.learner || {};
     const summary = report.summary || {};
     const logo = imageSource(school.logo_base64);
+    const photo = imageSource(learner.photo_base64);
+    const subtitle = school.school_subtitle || school.subtitle || school.school_type || "";
+    const address = [school.street, school.po_box, school.city, school.district].filter(Boolean).join(", ");
     const entries = scoreRows(report);
     const rows = entries.map(({ subject, mark }) => {
       const average = periodTools().periodScore(mark, period.key);
@@ -531,7 +533,10 @@
       report.class_teacher_comment || report.suggested_comment,
       report.principal_comment || report.head_teacher_comment,
     ].filter(Boolean).map((text) => String(text).replace(/\s+/g, " ").trim());
-    const schoolContact = [school.phone, school.email].filter(Boolean).join(" · ");
+    const schoolContact = [
+      school.phone ? `Tel: ${school.phone}` : "",
+      school.email ? `Email: ${school.email}` : "",
+    ].filter(Boolean).join(", ");
     const info = [
       ["Learner", learner.full_name],
       ["Class", report.class?.name],
@@ -542,7 +547,16 @@
       <div class="rc-preview-content rc-a5-content">
         <header class="rc-a5-header">
           ${logo ? `<img src="${esc(logo)}" alt="School logo">` : `<span class="rc-a5-logo-placeholder">${esc(String(school.name || "S").slice(0, 1))}</span>`}
-          <div><h2>${value(school.name)}</h2>${schoolContact ? `<p>${value(schoolContact)}</p>` : ""}<strong>${esc(displayTerm(report.term))} · B.O.T + MIDTERM REPORT</strong></div>
+          <div class="rc-a5-school">
+            <h2>${value(school.name)}</h2>
+            ${subtitle ? `<p class="rc-a5-subtitle">${value(subtitle)}</p>` : ""}
+            ${address ? `<p>${value(address)}</p>` : ""}
+            ${schoolContact ? `<p>${value(schoolContact)}</p>` : ""}
+            ${school.website ? `<p>Website: ${value(school.website)}</p>` : ""}
+            ${school.motto ? `<p class="rc-a5-motto">${value(school.motto)}</p>` : ""}
+            <strong>${esc(displayTerm(report.term))} · B.O.T + MIDTERM REPORT</strong>
+          </div>
+          <div class="rc-a5-learner-image">${photo ? `<img src="${esc(photo)}" alt="${value(learner.full_name)}">` : `<span>Photo</span>`}</div>
         </header>
         <div class="rc-a5-learner-info">${info.map(([label, content]) => `<span><b>${esc(label)}:</b> ${value(content)}</span>`).join("")}</div>
         <div class="rc-a5-table-wrap">${table(

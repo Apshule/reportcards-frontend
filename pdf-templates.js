@@ -143,6 +143,19 @@
     const textWidth = font.widthOfTextAtSize(line, bodySize);
     page.drawText(line, { x: center - textWidth / 2, y, size: bodySize, font, color: fill });
   }
+  function centeredHeaderLine(page, text, center, y, font, size, fill, maxWidth, minimumSize = 7) {
+    if (text === null || text === undefined || String(text).trim() === "") return null;
+    const safeText = String(text).replace(/\s+/g, " ").trim();
+    let renderedSize = size;
+    while (renderedSize > minimumSize && font.widthOfTextAtSize(safeText, renderedSize) > maxWidth) {
+      renderedSize = Math.max(minimumSize, renderedSize - 0.5);
+    }
+    const line = fitted(safeText, font, renderedSize, maxWidth);
+    const textWidth = font.widthOfTextAtSize(line, renderedSize);
+    const x = center - textWidth / 2;
+    page.drawText(line, { x, y, size: renderedSize, font, color: fill });
+    return { x, width: textWidth, size: renderedSize };
+  }
   function alignedText(page, text, x, y, font, size, fill, maxWidth, align = "left", minimumSize = 0) {
     const renderedSize = Math.max(size, minimumSize);
     const line = fitted(text, font, renderedSize, maxWidth);
@@ -202,7 +215,7 @@
       .replace("TERM II", "TERM 2")
       .replace("TERM III", "TERM 3");
     const period = assessmentPeriod(report);
-    return `${term} PROGRESS REPORT — ${period.title}`;
+    return `${term} PROGRESS REPORT - ${period.title}`;
   }
   async function drawHeader(doc, page, report, fonts, theme, title, meta = null) {
     const { width, height } = page.getSize();
@@ -210,8 +223,9 @@
     const learner = report.learner || {};
     const margin = 28;
     const accent = color(theme.accent_color);
-    const headerColor = color(theme.header_color || theme.primary_color);
-    const headerText = color(theme.header_text_color || "#FFFFFF");
+    const maroon = color("#800000");
+    const gold = color("#D4AF37");
+    const ink = rgb(0.12, 0.12, 0.13);
     page.drawRectangle({
       x: margin,
       y: margin,
@@ -220,43 +234,68 @@
       borderColor: colorToPdf(accent),
       borderWidth: 1.5,
     });
-    roundedPanel(page, margin + 1, height - 136, width - (margin + 1) * 2, 118, 12, headerColor);
+    page.drawLine({
+      start: { x: margin + 1, y: height - 29 },
+      end: { x: width - margin - 1, y: height - 29 },
+      thickness: 3,
+      color: maroon,
+    });
+    page.drawLine({
+      start: { x: margin + 1, y: height - 33 },
+      end: { x: width - margin - 1, y: height - 33 },
+      thickness: 1,
+      color: gold,
+    });
     const schoolLogo = await embedImage(doc, school.logo_base64);
     const photo = await embedImage(doc, learner.photo_base64);
-    placeImage(page, schoolLogo, margin + 10, height - 120, 85, 85);
+    const imageY = height - 119;
+    const imageSize = 72;
+    placeImage(page, schoolLogo, margin + 9, imageY, imageSize, imageSize);
     if (!schoolLogo) {
-      page.drawRectangle({ x: margin + 10, y: height - 120, width: 85, height: 85, borderColor: colorToPdf(accent), borderWidth: 1 });
-      centered(page, String(school.name || "S").slice(0, 1).toUpperCase(), margin + 52.5, height - 82, fonts.bold, 20, headerText, 70);
+      centeredHeaderLine(page, String(school.name || "S").slice(0, 1).toUpperCase(), margin + 45, height - 84, fonts.bold, 20, maroon, 60, 14);
     }
-    const photoX = width - margin - 95;
-    const photoY = height - 133;
-    if (photo) placeImage(page, photo, photoX, photoY, 85, 112);
-    else page.drawRectangle({ x: photoX, y: photoY, width: 85, height: 112, borderColor: colorToPdf(accent), borderWidth: 1 });
+    const photoX = width - margin - imageSize - 9;
+    if (photo) placeImage(page, photo, photoX, imageY, imageSize, imageSize);
+    else centeredHeaderLine(page, "Photo", photoX + imageSize / 2, height - 84, fonts.regular, 9, rgb(0.48, 0.48, 0.5), imageSize, 7);
     const center = width / 2;
-    const maxCenter = width - 220;
-    centered(page, str(school.name), center, height - 40, fonts.bold, reportFonts.heading, headerText, maxCenter);
-    if (school.motto) centered(page, school.motto, center, height - 59, fonts.italic, reportFonts.subheading, headerText, maxCenter);
-    const address = [school.street, school.po_box, school.city, school.district].filter(Boolean).join(" · ");
-    const contact = levelCode(report.class?.level) === "O_LEVEL" || levelCode(report.class?.level) === "A_LEVEL"
-      ? [
-        school.school_id || school.school_code ? `SCH.ID: ${school.school_code || school.school_id}` : "",
-        school.phone ? `TEL: ${school.phone}` : "",
-        school.email,
-      ].filter(Boolean).join(" · ")
-      : [school.phone, school.email, school.website].filter(Boolean).join(" · ");
-    if (address) centered(page, address, center, height - 74, fonts.regular, reportFonts.body, headerText, maxCenter);
-    if (contact) centered(page, contact, center, height - 90, fonts.regular, reportFonts.body, headerText, maxCenter);
-    centered(page, title, center, height - 110, fonts.bold, reportFonts.heading, headerText, maxCenter);
-    if (!photo) centered(page, "Learner photo", photoX + 42.5, height - 75, fonts.regular, reportFonts.body, headerText, 75);
+    const maxCenter = width - (margin * 2) - (imageSize * 2) - 36;
+    centeredHeaderLine(page, school.name || "School", center, height - 47, fonts.bold, 16, maroon, maxCenter, 11);
+    const subtitle = school.school_subtitle || school.subtitle || school.school_type || "";
+    const address = [school.street, school.po_box, school.city, school.district].filter(Boolean).join(", ");
+    const contact = [
+      school.phone ? `Tel: ${school.phone}` : "",
+      school.email ? `Email: ${school.email}` : "",
+    ].filter(Boolean).join(", ");
+    centeredHeaderLine(page, subtitle, center, height - 62, fonts.regular, 9, ink, maxCenter);
+    centeredHeaderLine(page, address, center, height - 74, fonts.regular, 8.5, ink, maxCenter);
+    centeredHeaderLine(page, contact, center, height - 86, fonts.regular, 8.5, ink, maxCenter);
+    centeredHeaderLine(page, school.website ? `Website: ${school.website}` : "", center, height - 98, fonts.regular, 8.5, ink, maxCenter);
+    const motto = school.motto
+      ? centeredHeaderLine(page, school.motto, center, height - 111, fonts.bold, 9, maroon, maxCenter)
+      : null;
+    if (motto) {
+      page.drawLine({
+        start: { x: motto.x, y: height - 113 },
+        end: { x: motto.x + motto.width, y: height - 113 },
+        thickness: 0.7,
+        color: maroon,
+      });
+    }
     page.drawLine({
       start: { x: margin + 2, y: height - 132 },
       end: { x: width - margin - 2, y: height - 132 },
-      thickness: 2,
-      color: colorToPdf(accent),
+      thickness: 1.5,
+      color: gold,
     });
     const titleY = height - 164;
-    page.drawRectangle({ x: margin, y: titleY - 27, width: width - margin * 2, height: 24, color: accent });
-    centered(page, reportCardBanner(report), width / 2, titleY - 18, fonts.bold, reportFonts.heading, contrastColor(accent), width - margin * 2 - 12);
+    page.drawRectangle({ x: margin, y: titleY - 27, width: width - margin * 2, height: 24, color: rgb(1, 1, 1) });
+    page.drawLine({
+      start: { x: margin, y: titleY - 27 },
+      end: { x: width - margin, y: titleY - 27 },
+      thickness: 1,
+      color: gold,
+    });
+    centered(page, reportCardBanner(report), width / 2, titleY - 18, fonts.bold, reportFonts.heading, color("#800000"), width - margin * 2 - 12);
     const infoTop = titleY - 32;
     const level = levelCode(report.class?.level);
     const showPosition = reportPositionEnabled(report, meta);
@@ -1843,6 +1882,8 @@
     const accent = color(theme.accent_color);
     const headerFill = color(theme.table_header_color || theme.accent_color);
     const headerText = color(theme.table_header_text_color || theme.primary_color);
+    const maroon = color("#800000");
+    const gold = color("#D4AF37");
     const ink = rgb(0.16, 0.16, 0.18);
     const white = rgb(1, 1, 1);
     const x = 18;
@@ -1850,15 +1891,46 @@
     const school = report.school || {};
     const learner = report.learner || {};
     const logo = await embedImage(doc, school.logo_base64);
-    if (logo) placeImage(page, logo, x, height - 48, 28, 28);
-    const headerX = logo ? x + 34 : x;
-    const headerWidth = contentWidth - (headerX - x);
-    drawA5Text(page, school.name || "School", headerX, height - 28, fonts.bold, 10, primary, headerWidth, "center");
-    drawA5Text(page, [school.phone, school.email].filter(Boolean).join(" · "), headerX, height - 39, fonts.regular, 7.5, ink, headerWidth, "center");
-    drawA5Text(page, `${str(displayTerm(report.term))} · B.O.T + MIDTERM REPORT`, headerX, height - 50, fonts.bold, 8.5, primary, headerWidth, "center");
-    page.drawLine({ start: { x, y: height - 57 }, end: { x: width - x, y: height - 57 }, thickness: 1, color: primary });
+    const photo = await embedImage(doc, learner.photo_base64);
+    const subtitle = school.school_subtitle || school.subtitle || school.school_type || "";
+    const address = [school.street, school.po_box, school.city, school.district].filter(Boolean).join(", ");
+    const contact = [
+      school.phone ? `Tel: ${school.phone}` : "",
+      school.email ? `Email: ${school.email}` : "",
+    ].filter(Boolean).join(", ");
+    const logoBox = 28;
+    const logoX = x;
+    const photoX = width - x - logoBox;
+    page.drawLine({ start: { x, y: height - 17 }, end: { x: width - x, y: height - 17 }, thickness: 2.5, color: maroon });
+    page.drawLine({ start: { x, y: height - 20 }, end: { x: width - x, y: height - 20 }, thickness: 0.8, color: gold });
+    if (logo) placeImage(page, logo, logoX, height - 52, logoBox, logoBox);
+    else drawA5Text(page, String(school.name || "S").slice(0, 1).toUpperCase(), logoX, height - 42, fonts.bold, 16, maroon, logoBox, "center");
+    if (photo) placeImage(page, photo, photoX, height - 52, logoBox, logoBox);
+    else drawA5Text(page, "Photo", photoX, height - 40, fonts.regular, 6.5, ink, logoBox, "center");
+    const center = width / 2;
+    const headerX = x + logoBox + 4;
+    const headerWidth = contentWidth - (logoBox + 4) * 2;
+    drawA5Text(page, school.name || "School", headerX, height - 29, fonts.bold, 10, maroon, headerWidth, "center");
+    drawA5Text(page, subtitle, headerX, height - 38, fonts.regular, 6.8, ink, headerWidth, "center");
+    drawA5Text(page, address, headerX, height - 46, fonts.regular, 6.5, ink, headerWidth, "center");
+    drawA5Text(page, contact, headerX, height - 54, fonts.regular, 6.5, ink, headerWidth, "center");
+    drawA5Text(page, school.website ? `Website: ${school.website}` : "", headerX, height - 62, fonts.regular, 6.5, ink, headerWidth, "center");
+    const motto = school.motto || "";
+    drawA5Text(page, motto, headerX, height - 70, fonts.bold, 7.2, maroon, headerWidth, "center");
+    if (motto) {
+      const line = fitted(motto, fonts.bold, 7.2, headerWidth);
+      const lineWidth = fonts.bold.widthOfTextAtSize(line, 7.2);
+      page.drawLine({
+        start: { x: center - lineWidth / 2, y: height - 71.5 },
+        end: { x: center + lineWidth / 2, y: height - 71.5 },
+        thickness: 0.55,
+        color: maroon,
+      });
+    }
+    drawA5Text(page, `${str(displayTerm(report.term))} - B.O.T + MIDTERM REPORT`, headerX, height - 79, fonts.bold, 7.2, primary, headerWidth, "center");
+    page.drawLine({ start: { x, y: height - 83 }, end: { x: width - x, y: height - 83 }, thickness: 1, color: gold });
 
-    const infoTop = height - 64;
+    const infoTop = height - 88;
     const infoHeight = 33;
     page.drawRectangle({ x, y: infoTop - infoHeight, width: contentWidth, height: infoHeight, borderColor: accent, borderWidth: 0.7 });
     const info = [
