@@ -5,11 +5,15 @@ import test from "node:test";
 const window = {};
 let pages = [];
 let drawnText = [];
+let drawnTextOptions = [];
 let drawnImages = [];
 const page = () => ({
   drawRectangle() {},
   drawLine() {},
-  drawText(value) { drawnText.push(String(value)); },
+  drawText(value, options = {}) {
+    drawnText.push(String(value));
+    drawnTextOptions.push({ text: String(value), ...options });
+  },
   drawImage(_image, options) { drawnImages.push(options); },
   drawEllipse() {},
   getWidth: () => 595.28,
@@ -39,6 +43,7 @@ window.PDFLib = {
     async create() {
       pages = [];
       drawnText = [];
+      drawnTextOptions = [];
       drawnImages = [];
       return document;
     },
@@ -170,7 +175,37 @@ test("Upper Primary PLE PDF shows the four-subject aggregate and stays on one pa
   assert.equal(pdf[0], 1);
   assert.equal(drawnText.some((text) => text.includes("Aggregate")), true);
   assert.equal(drawnText.some((text) => text.includes("5 · Div I")), true);
-  assert.equal(drawnText.some((text) => text.includes("PLE KEY: 4–12 Top Secondary")), true);
+  assert.equal(drawnText.some((text) => text.includes("PLE KEY: 4–12 Top Secondary")), false);
+});
+
+test("A4 header uses the requested exact hierarchy and complete remarks fit without ellipses", async () => {
+  const report = {
+    ...baseReport,
+    term_dates: {
+      term_ended_on: "2026-10-23",
+      next_term_begins: "2027-02-01",
+    },
+    class_teacher_comment: `A detailed class teacher report that must remain complete, not shortened, even when it is longer than the available space in the remarks box. ${"Careful progress and consistent effort. ".repeat(4)}TEACHER-REMARK-END`,
+    principal_comment: `A detailed principal report that must remain complete, not shortened, even when it is longer than the available space in the remarks box. ${"Continue building confidence and curiosity. ".repeat(4)}PRINCIPAL-REMARK-END`,
+  };
+  const pdf = await window.ReportCardPdf.renderPrimary(report);
+  assert.equal(pdf[0], 1, "the comments must remain on one page");
+
+  for (const [label, size] of [
+    ["Example School", 15],
+    ["P.O. Box 123, Kampala", 14],
+    ["Tel: 0750002345, Email: info@school.com", 14],
+    ["Website: www.school.com", 14],
+    ["Mixed Day & Boarding Primary School", 12],
+    ["Learning with ease", 12],
+  ]) {
+    assert.equal(drawnTextOptions.find((entry) => entry.text.includes(label))?.size, size, `${label} should be ${size}pt`);
+  }
+  assert.ok(drawnText.includes("Term Ends On: 23 Oct 2026"));
+  assert.ok(drawnText.includes("Next Term Begins: 1 Feb 2027"));
+  assert.ok(drawnText.some((text) => text.includes("TEACHER-REMARK-END")));
+  assert.ok(drawnText.some((text) => text.includes("PRINCIPAL-REMARK-END")));
+  assert.equal(drawnTextOptions.some((entry) => entry.text.includes("REMARK-END") && entry.text.includes("...")), false);
 });
 
 test("PDF maps top-level class rank, singleton class size, subject remarks, and active PLE scale", async () => {

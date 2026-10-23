@@ -387,14 +387,18 @@
       : qrSide === "center"
         ? `<div class="rc-grading-scale rc-grading-scale--qr-center"><span><b>GRADING SCALE:</b> ${esc(gradeParts.slice(0, midpoint).join(" · "))}</span><span aria-hidden="true"></span><span>${esc(gradeParts.slice(midpoint).join(" · "))}</span></div>`
         : `<div class="rc-grading-scale rc-grading-scale--qr-right"><span><b>GRADING SCALE:</b> ${esc(gradeScale)}</span><span aria-hidden="true"></span></div>`;
+    const termDates = `<div class="rc-early-footer-line">
+      <span><b>Term Ends On:</b> ${formatReportDate(dates.term_ended_on)}</span>
+      <span><b>Next Term Begins:</b> ${formatReportDate(dates.next_term_begins)}</span>
+    </div>`;
     const footerDetails = level === "NURSERY"
-      ? `<div class="rc-early-footer-line"><span><b>Date of Issue:</b> ${formatReportDate(report.printed_at || report.generated_at || new Date())}</span><span><b>Next Term Begins:</b> ${formatReportDate(dates.next_term_begins)}</span></div><div class="rc-school-requirements"><b>School Requirements:</b> ${value(school.school_requirements)}</div>`
+      ? `${termDates}<div class="rc-early-footer-line"><span><b>Date of Issue:</b> ${formatReportDate(report.printed_at || report.generated_at || new Date())}</span></div><div class="rc-school-requirements"><b>School Requirements:</b> ${value(school.school_requirements)}</div>`
       : level === "PRIMARY"
-        ? `<div class="rc-early-footer-line"><span><b>Next term will begin on:</b> ${formatReportDate(dates.next_term_begins)}</span></div><div class="rc-school-requirements"><b>PLE KEY:</b> 4–12 Top Secondary (Division I) · 13–23 Division II · 24–29 Division III · 30–34 Division IV</div>`
+        ? termDates
         : `<div class="rc-footer-details">
           <span><b>School term / year</b> ${value(dates.current_term)} / ${value(dates.current_year)}</span>
-          <span><b>Term ended</b> ${formatReportDate(dates.term_ended_on)}</span>
-          <span><b>Next term begins</b> ${formatReportDate(dates.next_term_begins)}</span>
+          <span><b>Term Ends On:</b> ${formatReportDate(dates.term_ended_on)}</span>
+          <span><b>Next Term Begins:</b> ${formatReportDate(dates.next_term_begins)}</span>
           <span><b>Next term fees</b> ${value(dates.next_term_fees)}</span>
           <span><b>Fees balance</b> ${value(fees.balance)}</span>
         </div>`;
@@ -530,9 +534,9 @@
       ];
     }).map((cells) => `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`);
     const comments = [
-      report.class_teacher_comment || report.suggested_comment,
-      report.principal_comment || report.head_teacher_comment,
-    ].filter(Boolean).map((text) => String(text).replace(/\s+/g, " ").trim());
+      ["Class Teacher", report.class_teacher_comment || report.suggested_comment],
+      ["Principal", report.principal_comment || report.head_teacher_comment],
+    ].filter(([, text]) => text).map(([label, text]) => `<p><b>${esc(label)}:</b> ${value(String(text).replace(/\s+/g, " ").trim())}</p>`);
     const schoolContact = [
       school.phone ? `Tel: ${school.phone}` : "",
       school.email ? `Email: ${school.email}` : "",
@@ -541,6 +545,8 @@
       ["Learner", learner.full_name],
       ["Class", report.class?.name],
       ["Term / Year", `${displayTerm(report.term)} ${report.year ?? ""}`.trim()],
+      ["Term Ends On", formatReportDate(report.term_dates?.term_ended_on)],
+      ["Next Term Begins", formatReportDate(report.term_dates?.next_term_begins)],
       ["Reg. No. / House", [learner.reg_no, learner.house ? `House ${learner.house}` : ""].filter(Boolean).join(" · ")],
     ];
     return `<article ${previewAttrs(report, level, options)}>
@@ -567,7 +573,7 @@
           "",
         )}</div>
         <section class="rc-a5-bottom">
-          <p class="rc-a5-remarks"><b>Teacher / Principal:</b> ${value(comments.join(" · ") || "—")}</p>
+          <div class="rc-a5-remarks">${comments.join("") || "<p>—</p>"}</div>
           <p class="rc-a5-grading-key">${summary.aggregate !== null && summary.aggregate !== undefined ? `<b>PLE aggregate:</b> ${value(summary.aggregate)}${summary.aggregate_division ? ` · ${value(summary.aggregate_division)}` : ""}${summary.aggregate_interpretation ? ` · ${value(summary.aggregate_interpretation)}` : ""} &nbsp; · &nbsp; ` : ""}<b>Grading key:</b> ${esc(gradeLegend(report, level))}</p>
           <div class="rc-a5-signature"><span></span><b>Class Teacher's signature</b></div>
         </section>

@@ -477,7 +477,8 @@ html .rc-preview .rc-stamp-logo{max-width:50%;max-height:50%}
 .rc-preview-a5-condensed .rc-a5-table th:nth-child(5),.rc-preview-a5-condensed .rc-a5-table td:nth-child(5){width:10%}
 .rc-preview-a5-condensed .rc-a5-table th:nth-child(6),.rc-preview-a5-condensed .rc-a5-table td:nth-child(6){width:33%}
 .rc-preview-a5-condensed .rc-a5-bottom{display:grid;gap:1.2mm;margin-top:auto;font-size:7pt;line-height:1.15}
-.rc-a5-remarks,.rc-a5-grading-key{margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-a5-remarks,.rc-a5-grading-key{margin:0;white-space:normal;overflow-wrap:anywhere}
+.rc-a5-remarks p{margin:0 0 .6mm}
 .rc-a5-signature{display:flex;align-items:flex-end;gap:2mm}
 .rc-a5-signature span{width:48mm;height:4mm;border-bottom:1px solid #777}
 .rc-a5-signature b{font-size:7pt}
@@ -492,8 +493,8 @@ html .rc-preview .rc-stamp-logo{max-width:50%;max-height:50%}
 html .rc-preview .rc-head{
   position:relative;isolation:isolate;display:grid;
   grid-template-columns:20mm minmax(0,1fr) 20mm;gap:2mm;align-items:center;
-  min-height:34mm;padding:5mm 2mm 2.5mm;border:0;border-top:1px solid #e7d9d9;
-  border-radius:0;background:#fff;color:#171717;overflow:hidden
+  min-height:42mm;padding:5mm 2mm 2.5mm;border:0;border-top:1px solid #e7d9d9;
+  border-radius:0;background:#fff;color:#171717;overflow:visible
 }
 html .rc-preview .rc-head::before{
   content:"";position:absolute;z-index:0;inset:0 0 auto;height:3mm;
@@ -512,11 +513,11 @@ html .rc-preview .rc-school h2{
   margin:0 0 1mm;color:#800000;font-size:15pt;line-height:1.05;font-weight:800;letter-spacing:.1px
 }
 html .rc-preview .rc-school p{
-  margin:.35mm 0;color:#171717;font-size:7.5pt;line-height:1.12;opacity:1;overflow-wrap:anywhere
+  margin:.35mm 0;color:#171717;font-size:14pt;line-height:1.05;opacity:1;overflow-wrap:anywhere
 }
-html .rc-preview .rc-school .rc-school-subtitle{font-size:8.5pt}
+html .rc-preview .rc-school .rc-school-subtitle{font-size:12pt;font-weight:700}
 html .rc-preview .rc-school .rc-motto{
-  margin-top:.65mm;color:#800000;font-size:8.5pt;line-height:1.05;font-weight:800;
+  margin-top:.65mm;color:#800000;font-size:12pt;line-height:1.05;font-weight:800;
   font-style:normal;text-decoration:underline;text-decoration-color:#800000;text-underline-offset:1px
 }
 html .rc-preview .rc-accent-rule{height:1.5mm;margin:0 0 3mm;background:#d4af37}
@@ -526,9 +527,9 @@ html .rc-preview .rc-report-title{
 }
 html .rc-preview-a5-condensed .rc-a5-header{
   position:relative;display:grid;grid-template-columns:14mm minmax(0,1fr) 14mm;
-  gap:1.2mm;align-items:center;min-height:20mm;padding:3.1mm 0 1mm;
+  gap:1.2mm;align-items:center;min-height:40mm;padding:3.1mm 0 1mm;
   border:0;border-top:1px solid #eadfdf;border-bottom:1px solid #d4af37;
-  background:#fff;text-align:center;overflow:hidden
+  background:#fff;text-align:center;overflow:visible
 }
 html .rc-preview-a5-condensed .rc-a5-header::before{
   content:"";position:absolute;inset:0 0 auto;height:1.6mm;
@@ -542,14 +543,14 @@ html .rc-preview-a5-condensed .rc-a5-learner-image{
 }
 html .rc-preview-a5-condensed .rc-a5-learner-image{overflow:hidden;color:#555}
 html .rc-preview-a5-condensed .rc-a5-learner-image img{width:100%;height:100%;object-fit:cover}
-html .rc-preview-a5-condensed .rc-a5-school h2{margin:0;color:#800000;font-size:8.5pt;line-height:1.05}
+html .rc-preview-a5-condensed .rc-a5-school h2{margin:0;color:#800000;font-size:15pt;line-height:1.05;font-weight:800}
 html .rc-preview-a5-condensed .rc-a5-school p{
-  margin:.2mm 0;color:#171717;font-size:5.4pt;line-height:1.05;overflow-wrap:anywhere
+  margin:.2mm 0;color:#171717;font-size:14pt;line-height:1.02;overflow-wrap:anywhere
 }
-html .rc-preview-a5-condensed .rc-a5-school .rc-a5-subtitle{font-size:5.8pt}
+html .rc-preview-a5-condensed .rc-a5-school .rc-a5-subtitle{font-size:12pt;font-weight:700}
 html .rc-preview-a5-condensed .rc-a5-school .rc-a5-motto{
   margin-bottom:.35mm;padding-bottom:.3mm;border-bottom:1px solid #d4af37;
-  color:#800000;font-size:6.2pt;font-weight:800;text-decoration:underline;text-underline-offset:.3mm
+  color:#800000;font-size:12pt;font-weight:800;text-decoration:underline;text-underline-offset:.3mm
 }
 html .rc-preview-a5-condensed .rc-a5-school strong{
   display:block;margin-top:.3mm;color:#171717;font-size:5.8pt;line-height:1.05
@@ -557,7 +558,4 @@ html .rc-preview-a5-condensed .rc-a5-school strong{
 @media(max-width:760px){
   html .rc-preview .rc-head{grid-template-columns:14mm minmax(0,1fr) 14mm;gap:1mm;min-height:29mm;padding:4mm 1mm 2mm}
   html .rc-preview .rc-brand-image,html .rc-preview .rc-learner-image{width:13mm;height:17mm}
-  html .rc-preview .rc-school h2{font-size:12pt}
-  html .rc-preview .rc-school p{font-size:6.5pt}
-  html .rc-preview .rc-school .rc-school-subtitle,html .rc-preview .rc-school .rc-motto{font-size:7pt}
 }

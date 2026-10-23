@@ -209,8 +209,39 @@ test("PDF footer formats ISO dates as readable UTC dates", () => {
     term_dates: { next_term_begins: rawDate },
   };
   const html = window.ReportCardPreview.render(report, { template: "5", period: "EOT" });
-  assert.match(html, /Next term will begin on:<\/b> 22 Mar 2027/);
+  assert.match(html, /Next Term Begins:<\/b> 22 Mar 2027/);
+  assert.match(html, /Term Ends On:<\/b>/);
   assert.ok(!html.includes(rawDate));
+});
+
+test("primary preview omits the obsolete PLE aggregate legend and keeps the active grade key", () => {
+  const html = window.ReportCardPreview.render({
+    ...reportFor("EOT"),
+    class: { name: "P.7", level: "PRIMARY" },
+    grading_scale_preset_key: "primary_ple_upper",
+    term_dates: { term_ended_on: "2026-10-23", next_term_begins: "2027-02-01" },
+  }, { template: "5", period: "EOT" });
+  assert.ok(!html.includes("4–12 Top Secondary"));
+  assert.match(html, /D1=1 · D2=2/u);
+  assert.match(html, /Term Ends On:<\/b> 23 Oct 2026/u);
+  assert.match(html, /Next Term Begins:<\/b> 1 Feb 2027/u);
+});
+
+test("A5 preview displays both term dates and wraps complete teacher and principal remarks", () => {
+  const html = window.ReportCardPreview.render({
+    ...reportFor("COMBINED_BM"),
+    class: { name: "P.7", level: "PRIMARY" },
+    layout_format: "A5_CONDENSED",
+    term_dates: { term_ended_on: "2026-10-23", next_term_begins: "2027-02-01" },
+    class_teacher_comment: "A complete class teacher comment ending with A5-TEACHER-END",
+    principal_comment: "A complete principal comment ending with A5-PRINCIPAL-END",
+  }, { template: "5", period: "COMBINED_BM", layoutFormat: "A5_CONDENSED" });
+  assert.match(html, /Term Ends On:<\/b> 23 Oct 2026/u);
+  assert.match(html, /Next Term Begins:<\/b> 1 Feb 2027/u);
+  assert.match(html, /A5-TEACHER-END/u);
+  assert.match(html, /A5-PRINCIPAL-END/u);
+  assert.match(html, /Class Teacher:<\/b>/u);
+  assert.match(html, /Principal:<\/b>/u);
 });
 
 test("HTML preview shows the configured stamp and school logo settings", () => {

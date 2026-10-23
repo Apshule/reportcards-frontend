@@ -133,6 +133,66 @@
     }
     return `${value}...`;
   }
+  function completeWrappedLines(text, font, size, maxWidth) {
+    const value = String(text ?? "")
+      .replace(/\s+/g, " ")
+      .replace(/[^\x00-\xFF\u2013\u2014\u2018\u2019\u2022]/g, "?")
+      .trim();
+    if (!value) return [];
+    const lines = [];
+    let line = "";
+    for (const word of value.split(" ")) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (font.widthOfTextAtSize(candidate, size) <= maxWidth) {
+        line = candidate;
+        continue;
+      }
+      if (line) lines.push(line);
+      line = "";
+      for (const character of Array.from(word)) {
+        const next = line + character;
+        if (line && font.widthOfTextAtSize(next, size) > maxWidth) {
+          lines.push(line);
+          line = character;
+        } else {
+          line = next;
+        }
+      }
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+  function fitCompleteText(text, font, maxWidth, maxLines, maximumSize = reportFonts.body, minimumSize = 4) {
+    for (let size = maximumSize; size >= minimumSize; size -= 0.5) {
+      const lines = completeWrappedLines(text, font, size, maxWidth);
+      if (lines.length <= maxLines) return { lines, size };
+    }
+    return { lines: completeWrappedLines(text, font, minimumSize, maxWidth), size: minimumSize };
+  }
+  function drawCenteredHeaderRows(page, rows, center, startY, maxWidth) {
+    let y = startY;
+    let lastBaseline = startY;
+    for (const row of rows) {
+      if (row.text === null || row.text === undefined || String(row.text).trim() === "") continue;
+      const lines = completeWrappedLines(row.text, row.font, row.size, maxWidth);
+      for (const line of lines) {
+        const textWidth = row.font.widthOfTextAtSize(line, row.size);
+        const x = center - textWidth / 2;
+        page.drawText(line, { x, y, size: row.size, font: row.font, color: row.fill });
+        if (row.underline) {
+          page.drawLine({
+            start: { x, y: y - 1.5 },
+            end: { x: x + textWidth, y: y - 1.5 },
+            thickness: 0.65,
+            color: row.fill,
+          });
+        }
+        lastBaseline = y;
+        y -= row.size + 1;
+      }
+    }
+    return lastBaseline;
+  }
   function drawText(page, text, x, y, font, size = reportFonts.body, fill = rgb(0.16, 0.17, 0.19), maxWidth = 200) {
     const bodySize = Math.max(reportFonts.body, size);
     page.drawText(fitted(text, font, bodySize, maxWidth), { x, y, size: bodySize, font, color: fill });
@@ -259,35 +319,28 @@
     else centeredHeaderLine(page, "Photo", photoX + imageSize / 2, height - 84, fonts.regular, 9, rgb(0.48, 0.48, 0.5), imageSize, 7);
     const center = width / 2;
     const maxCenter = width - (margin * 2) - (imageSize * 2) - 36;
-    centeredHeaderLine(page, school.name || "School", center, height - 47, fonts.bold, 16, maroon, maxCenter, 11);
     const subtitle = school.school_subtitle || school.subtitle || school.school_type || "";
     const address = [school.street, school.po_box, school.city, school.district].filter(Boolean).join(", ");
     const contact = [
       school.phone ? `Tel: ${school.phone}` : "",
       school.email ? `Email: ${school.email}` : "",
     ].filter(Boolean).join(", ");
-    centeredHeaderLine(page, subtitle, center, height - 62, fonts.regular, 9, ink, maxCenter);
-    centeredHeaderLine(page, address, center, height - 74, fonts.regular, 8.5, ink, maxCenter);
-    centeredHeaderLine(page, contact, center, height - 86, fonts.regular, 8.5, ink, maxCenter);
-    centeredHeaderLine(page, school.website ? `Website: ${school.website}` : "", center, height - 98, fonts.regular, 8.5, ink, maxCenter);
-    const motto = school.motto
-      ? centeredHeaderLine(page, school.motto, center, height - 111, fonts.bold, 9, maroon, maxCenter)
-      : null;
-    if (motto) {
-      page.drawLine({
-        start: { x: motto.x, y: height - 113 },
-        end: { x: motto.x + motto.width, y: height - 113 },
-        thickness: 0.7,
-        color: maroon,
-      });
-    }
+    const lastHeaderBaseline = drawCenteredHeaderRows(page, [
+      { text: school.name || "School", font: fonts.bold, size: 15, fill: maroon },
+      { text: address, font: fonts.regular, size: 14, fill: ink },
+      { text: contact, font: fonts.regular, size: 14, fill: ink },
+      { text: school.website ? `Website: ${school.website}` : "", font: fonts.regular, size: 14, fill: ink },
+      { text: subtitle, font: fonts.bold, size: 12, fill: ink, underline: true },
+      { text: school.motto || "", font: fonts.bold, size: 12, fill: maroon, underline: true },
+    ], center, height - 47, maxCenter);
+    const dividerY = Math.min(height - 132, lastHeaderBaseline - 10);
     page.drawLine({
-      start: { x: margin + 2, y: height - 132 },
-      end: { x: width - margin - 2, y: height - 132 },
+      start: { x: margin + 2, y: dividerY },
+      end: { x: width - margin - 2, y: dividerY },
       thickness: 1.5,
       color: gold,
     });
-    const titleY = height - 164;
+    const titleY = dividerY - 32;
     page.drawRectangle({ x: margin, y: titleY - 27, width: width - margin * 2, height: 24, color: rgb(1, 1, 1) });
     page.drawLine({
       start: { x: margin, y: titleY - 27 },
@@ -609,20 +662,22 @@
       const isNursery = level === "NURSERY";
       const isPrimary = level === "PRIMARY";
       const gradeKey = options.gradeKey || gradeScale(level, report);
+      const dateColumnWidth = (width - 72) / 2;
+      drawText(page, `Term Ends On: ${formatReportDate(dates.term_ended_on)}`, 28, 125, fonts.regular, reportFonts.body, ink, dateColumnWidth);
+      drawText(page, `Next Term Begins: ${formatReportDate(dates.next_term_begins)}`, width / 2 + 8, 125, fonts.regular, reportFonts.body, ink, dateColumnWidth);
       if (isOLevel) {
         const asAt = formatReportDate(report.printed_at || report.generated_at || new Date());
-        drawText(page, `Outstanding school fees balance is UGX ${str(fees.balance)} as at ${asAt}`, 28, 134, fonts.regular, reportFonts.body, ink, width - 56);
-        drawText(page, "T = Topic; EOTI = end of term 1", 28, 104, fonts.regular, reportFonts.body, ink, width - 56);
+        const details = `Outstanding school fees balance is UGX ${str(fees.balance)} as at ${asAt} · T = Topic; EOTI = end of term 1`;
+        page.drawText(fitted(details, fonts.regular, 9, width - 56), { x: 28, y: 108, size: 9, font: fonts.regular, color: ink });
       } else if (isNursery) {
         const issueDate = formatReportDate(report.printed_at || report.generated_at || new Date());
-        drawText(page, `Date of Issue: ${issueDate}   ·   Next Term Begins: ${formatReportDate(dates.next_term_begins)}`, 28, 134, fonts.regular, reportFonts.body, ink, width - 56);
-        drawText(page, `School Requirements: ${str(school.school_requirements)}`, 28, 119, fonts.regular, reportFonts.body, ink, width - 56);
+        const details = `Date of Issue: ${issueDate} · School Requirements: ${str(school.school_requirements)}`;
+        page.drawText(fitted(details, fonts.regular, 9, width - 56), { x: 28, y: 108, size: 9, font: fonts.regular, color: ink });
       } else if (isPrimary) {
-        drawText(page, `Next term will begin on: ${formatReportDate(dates.next_term_begins)}`, 28, 134, fonts.regular, reportFonts.body, ink, width - 56);
-        drawText(page, "PLE KEY: 4–12 Top Secondary (Division I) · 13–23 Division II · 24–29 Division III · 30–34 Division IV", 28, 119, fonts.regular, reportFonts.body, ink, width - 56);
+        // The active grading key below is the only PLE key shown on the card.
       } else {
-        drawText(page, `School term/year: ${str(dates.current_term)} / ${str(dates.current_year)}   ·   Term ended: ${formatReportDate(dates.term_ended_on)}`, 28, 245, fonts.regular, reportFonts.body, ink, width - 56);
-        drawText(page, `Next term fees: ${str(dates.next_term_fees)}   ·   Fees balance: ${str(fees.balance)}`, 28, 230, fonts.regular, reportFonts.body, ink, width - 56);
+        const details = `School term/year: ${str(dates.current_term)} / ${str(dates.current_year)} · Next term fees: ${str(dates.next_term_fees)} · Fees balance: ${str(fees.balance)}`;
+        page.drawText(fitted(details, fonts.regular, 9, width - 56), { x: 28, y: 108, size: 9, font: fonts.regular, color: ink });
       }
       const gradeText = `GRADING SCALE: ${str(gradeKey)}`;
       if (report.authenticity_qr_data_url) {
@@ -676,8 +731,15 @@
         const boxBottom = remarkTop - remarkHeight;
         page.drawRectangle({ x, y: boxBottom, width: remarkWidth, height: remarkHeight, borderColor: lineAccent, borderWidth: 0.6, color: color(options.backgroundColor || "#FFFFFF") });
         drawText(page, label, x + 4, remarkTop - 11, fonts.bold, reportFonts.body, ink, remarkWidth - 8);
-        wrappedLines(str(content), fonts.italic, reportFonts.body, remarkWidth - 8).slice(0, 2).forEach((line, lineIndex) => {
-          drawText(page, line, x + 4, remarkTop - 25 - lineIndex * 13, fonts.italic, reportFonts.body, ink, remarkWidth - 8);
+        const fittedRemark = fitCompleteText(str(content), fonts.italic, remarkWidth - 8, 2);
+        fittedRemark.lines.forEach((line, lineIndex) => {
+          page.drawText(line, {
+            x: x + 4,
+            y: remarkTop - 25 - lineIndex * 13,
+            size: fittedRemark.size,
+            font: fonts.italic,
+            color: ink,
+          });
         });
         page.drawLine({ start: { x: x + 5, y: 177 }, end: { x: x + remarkWidth - 5, y: 177 }, thickness: 0.55, color: lineAccent });
         if (signature && index === signatures.length - 1) placeImage(page, signature, x + (remarkWidth - 58) / 2, 178, 58, 12);
@@ -1903,51 +1965,48 @@
     const photoX = width - x - logoBox;
     page.drawLine({ start: { x, y: height - 17 }, end: { x: width - x, y: height - 17 }, thickness: 2.5, color: maroon });
     page.drawLine({ start: { x, y: height - 20 }, end: { x: width - x, y: height - 20 }, thickness: 0.8, color: gold });
-    if (logo) placeImage(page, logo, logoX, height - 52, logoBox, logoBox);
-    else drawA5Text(page, String(school.name || "S").slice(0, 1).toUpperCase(), logoX, height - 42, fonts.bold, 16, maroon, logoBox, "center");
-    if (photo) placeImage(page, photo, photoX, height - 52, logoBox, logoBox);
-    else drawA5Text(page, "Photo", photoX, height - 40, fonts.regular, 6.5, ink, logoBox, "center");
+    if (logo) placeImage(page, logo, logoX, height - 68, logoBox, logoBox);
+    else drawA5Text(page, String(school.name || "S").slice(0, 1).toUpperCase(), logoX, height - 50, fonts.bold, 16, maroon, logoBox, "center");
+    if (photo) placeImage(page, photo, photoX, height - 68, logoBox, logoBox);
+    else drawA5Text(page, "Photo", photoX, height - 50, fonts.regular, 6.5, ink, logoBox, "center");
     const center = width / 2;
     const headerX = x + logoBox + 4;
     const headerWidth = contentWidth - (logoBox + 4) * 2;
-    drawA5Text(page, school.name || "School", headerX, height - 29, fonts.bold, 10, maroon, headerWidth, "center");
-    drawA5Text(page, subtitle, headerX, height - 38, fonts.regular, 6.8, ink, headerWidth, "center");
-    drawA5Text(page, address, headerX, height - 46, fonts.regular, 6.5, ink, headerWidth, "center");
-    drawA5Text(page, contact, headerX, height - 54, fonts.regular, 6.5, ink, headerWidth, "center");
-    drawA5Text(page, school.website ? `Website: ${school.website}` : "", headerX, height - 62, fonts.regular, 6.5, ink, headerWidth, "center");
-    const motto = school.motto || "";
-    drawA5Text(page, motto, headerX, height - 70, fonts.bold, 7.2, maroon, headerWidth, "center");
-    if (motto) {
-      const line = fitted(motto, fonts.bold, 7.2, headerWidth);
-      const lineWidth = fonts.bold.widthOfTextAtSize(line, 7.2);
-      page.drawLine({
-        start: { x: center - lineWidth / 2, y: height - 71.5 },
-        end: { x: center + lineWidth / 2, y: height - 71.5 },
-        thickness: 0.55,
-        color: maroon,
-      });
-    }
-    drawA5Text(page, `${str(displayTerm(report.term))} - B.O.T + MIDTERM REPORT`, headerX, height - 79, fonts.bold, 7.2, primary, headerWidth, "center");
-    page.drawLine({ start: { x, y: height - 83 }, end: { x: width - x, y: height - 83 }, thickness: 1, color: gold });
+    const lastHeaderBaseline = drawCenteredHeaderRows(page, [
+      { text: school.name || "School", font: fonts.bold, size: 15, fill: maroon },
+      { text: address, font: fonts.regular, size: 14, fill: ink },
+      { text: contact, font: fonts.regular, size: 14, fill: ink },
+      { text: school.website ? `Website: ${school.website}` : "", font: fonts.regular, size: 14, fill: ink },
+      { text: subtitle, font: fonts.bold, size: 12, fill: ink, underline: true },
+      { text: school.motto || "", font: fonts.bold, size: 12, fill: maroon, underline: true },
+    ], center, height - 29, headerWidth);
+    const headerRuleY = Math.min(height - 111, lastHeaderBaseline - 8);
+    page.drawLine({ start: { x, y: headerRuleY }, end: { x: width - x, y: headerRuleY }, thickness: 1, color: gold });
+    const titleY = headerRuleY - 11;
+    drawA5Text(page, `${str(displayTerm(report.term))} - B.O.T + MIDTERM REPORT`, headerX, titleY, fonts.bold, 7.2, primary, headerWidth, "center");
 
-    const infoTop = height - 88;
-    const infoHeight = 33;
+    const infoTop = titleY - 13;
+    const infoHeight = 45;
     page.drawRectangle({ x, y: infoTop - infoHeight, width: contentWidth, height: infoHeight, borderColor: accent, borderWidth: 0.7 });
+    const dates = report.term_dates || {};
     const info = [
       ["Learner", learner.full_name],
       ["Class", report.class?.name],
       ["Term / Year", `${displayTerm(report.term)} ${report.year ?? ""}`.trim()],
+      ["Term Ends On", formatReportDate(dates.term_ended_on)],
+      ["Next Term Begins", formatReportDate(dates.next_term_begins)],
       ["Reg. No. / House", [learner.reg_no, learner.house ? `House ${learner.house}` : ""].filter(Boolean).join(" · ")],
     ];
     const cellWidth = contentWidth / 2;
+    const infoRowHeight = infoHeight / 3;
     info.forEach(([label, value], index) => {
       const row = Math.floor(index / 2);
       const column = index % 2;
       const cellX = x + column * cellWidth;
-      const cellTop = infoTop - row * (infoHeight / 2);
-      if (column) page.drawLine({ start: { x: cellX, y: cellTop }, end: { x: cellX, y: cellTop - infoHeight / 2 }, thickness: 0.5, color: accent });
+      const cellTop = infoTop - row * infoRowHeight;
+      if (column) page.drawLine({ start: { x: cellX, y: cellTop }, end: { x: cellX, y: cellTop - infoRowHeight }, thickness: 0.5, color: accent });
       if (row) page.drawLine({ start: { x, y: cellTop }, end: { x: width - x, y: cellTop }, thickness: 0.5, color: accent });
-      drawA5Text(page, `${label}: ${str(value)}`, cellX + 4, cellTop - 11, fonts.regular, 7.5, ink, cellWidth - 8);
+      drawA5Text(page, `${label}: ${str(value)}`, cellX + 4, cellTop - 10, fonts.regular, 7.5, ink, cellWidth - 8);
     });
 
     const tableTop = infoTop - infoHeight - 20;
@@ -2016,18 +2075,31 @@
     });
 
     const comments = [
-      `Class Teacher: ${str(report.class_teacher_comment || report.suggested_comment || autoOverallRemark(report, "teacher"))}`,
-      `Principal: ${str(report.principal_comment || report.head_teacher_comment || autoOverallRemark(report, "principal"))}`,
-    ].join("  ·  ");
-    const footerY = Math.max(footerBottom - 3, rowTop - 16);
+      ["Class Teacher", report.class_teacher_comment || report.suggested_comment || autoOverallRemark(report, "teacher")],
+      ["Principal", report.principal_comment || report.head_teacher_comment || autoOverallRemark(report, "principal")],
+    ].filter(([, content]) => printableValue(content));
+    const footerY = Math.max(80, rowTop - 16);
     page.drawLine({ start: { x, y: footerY + 8 }, end: { x: width - x, y: footerY + 8 }, thickness: 0.6, color: accent });
-    drawA5Text(page, comments, x + 2, footerY, fonts.regular, 7.5, ink, contentWidth - 4);
+    const commentText = comments.map(([label, content]) => `${label}: ${str(content)}`).join("  ·  ");
+    const maxCommentLines = Math.max(1, Math.floor((footerY - 64) / 8.5));
+    const fittedComments = fitCompleteText(commentText, fonts.regular, contentWidth - 4, maxCommentLines, 7.5, 3.5);
+    const commentLeading = fittedComments.size + 1;
+    fittedComments.lines.forEach((line, index) => {
+      page.drawText(line, {
+        x: x + 2,
+        y: footerY - index * commentLeading,
+        size: fittedComments.size,
+        font: fonts.regular,
+        color: ink,
+      });
+    });
     const summary = report.summary || {};
     const aggregateText = summary.aggregate !== null && summary.aggregate !== undefined
       ? `PLE aggregate: ${str(summary.aggregate)}${summary.aggregate_division ? ` · ${str(summary.aggregate_division)}` : ""}${summary.aggregate_interpretation ? ` · ${str(summary.aggregate_interpretation)}` : ""}  ·  `
       : "";
     const key = `${aggregateText}Grading key: ${gradeScale(classLevel, report)}`;
-    drawA5Text(page, key, x + 2, footerY - 13, fonts.regular, 7, ink, contentWidth - 4);
+    const keyY = footerY - fittedComments.lines.length * commentLeading - 2;
+    drawA5Text(page, key, x + 2, keyY, fonts.regular, 7, ink, contentWidth - 4);
     const signatureY = 27;
     page.drawLine({ start: { x, y: signatureY + 12 }, end: { x: width - x, y: signatureY + 12 }, thickness: 0.5, color: accent });
     page.drawLine({ start: { x, y: signatureY }, end: { x: x + 93, y: signatureY }, thickness: 0.6, color: ink });

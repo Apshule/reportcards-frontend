@@ -5,6 +5,7 @@ import test from "node:test";
 const window = {};
 const pageSizes = [];
 const drawnText = [];
+const drawnTextOptions = [];
 let stampApplied = false;
 let qrApplied = false;
 
@@ -18,7 +19,10 @@ const document = {
       drawRectangle() {},
       drawLine() {},
       drawImage() {},
-      drawText(text) { drawnText.push(String(text)); },
+      drawText(text, options = {}) {
+        drawnText.push(String(text));
+        drawnTextOptions.push({ text: String(text), ...options });
+      },
       getWidth: () => size[0],
       getHeight: () => size[1],
       getSize: () => ({ width: size[0], height: size[1] }),
@@ -29,7 +33,7 @@ const document = {
 };
 
 window.PDFLib = {
-  PDFDocument: { async create() { pageSizes.length = 0; drawnText.length = 0; return document; } },
+  PDFDocument: { async create() { pageSizes.length = 0; drawnText.length = 0; drawnTextOptions.length = 0; return document; } },
   StandardFonts: { Helvetica: "regular", HelveticaBold: "bold" },
   rgb: (red, green, blue) => ({ red, green, blue }),
 };
@@ -143,4 +147,31 @@ test("A5 format refuses assessment periods other than B.O.T + Midterm", async ()
     window.ReportCardPdf.render({ ...report, period: "EOT" }, "PRIMARY", "1", false, "A5_CONDENSED"),
     /requires Combined \(B\.O\.T \+ Midterm\)/,
   );
+});
+
+test("A5 header keeps the requested font hierarchy and full comments with term dates", async () => {
+  const reportWithFullText = {
+    ...report,
+    term_dates: { term_ended_on: "2026-10-23", next_term_begins: "2027-02-01" },
+    class_teacher_comment: `A detailed teacher comment that must remain complete without abbreviations. ${"Keep learning and keep trying. ".repeat(3)}A5-TEACHER-END`,
+    principal_comment: `A detailed principal comment that must remain complete without abbreviations. ${"Work steadily and be kind. ".repeat(3)}A5-PRINCIPAL-END`,
+  };
+  const bytes = await window.ReportCardPdf.render(reportWithFullText, "PRIMARY", "1", true, "A5_CONDENSED");
+  assert.deepEqual(pageSizes, [[419.53, 595.28]]);
+  assert.equal(bytes[0], 1);
+  for (const [label, size] of [
+    ["A5 Test School", 15],
+    ["P.O. Box 123, Kampala", 14],
+    ["Tel: 0750002345, Email: info@school.com", 14],
+    ["Website: www.school.com", 14],
+    ["Mixed Day & Boarding Primary School", 12],
+    ["Learning with ease", 12],
+  ]) {
+    assert.equal(drawnTextOptions.find((entry) => entry.text.includes(label))?.size, size, `${label} should be ${size}pt`);
+  }
+  assert.ok(drawnText.includes("Term Ends On: 23 Oct 2026"));
+  assert.ok(drawnText.includes("Next Term Begins: 1 Feb 2027"));
+  assert.ok(drawnText.some((text) => text.includes("A5-TEACHER-END")));
+  assert.ok(drawnText.some((text) => text.includes("A5-PRINCIPAL-END")));
+  assert.equal(drawnTextOptions.some((entry) => entry.text.includes("A5-") && entry.text.includes("...")), false);
 });
