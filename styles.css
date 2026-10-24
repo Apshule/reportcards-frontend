@@ -621,3 +621,4 @@ html .rc-preview-a5-condensed .rc-a5-school strong{
   html .rc-preview .rc-head{grid-template-columns:14mm minmax(0,1fr) 14mm;gap:1mm;min-height:42mm;padding:4mm 1mm 2mm}
   html .rc-preview .rc-brand-image,html .rc-preview .rc-learner-image{width:13mm;height:17mm}
 }
+.marks-mobile-wrap table#marks-table,.marks-mobile-wrap table#teacher-marks-table{min-width:760px}
