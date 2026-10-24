@@ -949,32 +949,12 @@
     state.modal={type:"mark-comment-choice",pending,rows,commentRows,learnerIds,learnerName:marks.find(row=>String(row.learner_id)===String(learnerId))?.full_name||"",customComment:field?.value||""};
     render();
   }
-  function periodScoreFromRow(row){
-    if(!row)return null;
-    const scores=markEntryPeriod().fields.map(({key})=>row[key]).filter(value=>value!==null&&value!==undefined&&value!==""&&Number.isFinite(Number(value))).map(Number);
-    return scores.length?scores.reduce((sum,value)=>sum+value,0)/scores.length:null;
-  }
-  function generatedCommentFromPeriodRow(learnerId,rows){
-    const row=(rows||[]).find(item=>String(item.learner_id)===String(learnerId));
-    const score=periodScoreFromRow(row);
-    if(score===null)return null;
-    const teacher=state.role==="teacher";
-    const selectedClass=(state.data.classes||[]).find(item=>String(item.id)===String(state.filter.class_id));
-    const level=teacher?state.rm.class?.level:selectedClass?.level;
-    const className=teacher?state.rm.class?.name:selectedClass?.name;
-    const subjectId=teacher?state.rm.subject?.id:state.filter.subject_id;
-    const grade=uiGradeForScore(level,score,null,className,subjectId,teacher);
-    if(!grade)return null;
-    const gradeRows=teacher?(state.rm.gradeScales||[]):(state.data.grading||[]);
-    const band=gradeRows.find(item=>item.level===level&&String(item.grade_code)===String(grade));
-    const detail=String(band?.comment||band?.descriptor||subjectRemarkForUi(grade)||"").trim();
-    const learner=(teacher?(state.rm.marks||[]):(state.data.marks||[])).find(item=>String(item.learner_id)===String(learnerId));
-    const name=learner?.full_name||state.modal?.learnerName||"The learner";
-    const subject=teacher?state.rm.subject?.name:(state.data.subjects||[]).find(item=>String(item.id)===String(subjectId))?.name;
-    const period=markEntryPeriod();
-    return `${name} has achieved grade ${grade}${subject?` in ${subject}`:""} during ${period.title} (${score.toFixed(1)}%).${detail?` ${detail}`:""}`;
-  }
-  function markRowHasUnsavedPeriodScore(row){
+   function periodScoreFromRow(row){
+     if(!row)return null;
+     const scores=markEntryPeriod().fields.map(({key})=>row[key]).filter(value=>value!==null&&value!==undefined&&value!==""&&Number.isFinite(Number(value))).map(Number);
+     return scores.length?scores.reduce((sum,value)=>sum+value,0)/scores.length:null;
+   }
+   function markRowHasUnsavedPeriodScore(row){
     if(!row)return false;
     const savedRows=state.role==="teacher"?(state.rm.marks||[]):(state.data.marks||[]);
     const saved=savedRows.find(item=>String(item.learner_id)===String(row.learner_id));
@@ -986,22 +966,17 @@
   }
   async function saveAutoComment(learnerId,modal){
     const commentRows=modal.commentRows||modal.rows||[];
-    const periodComment=generatedCommentFromPeriodRow(learnerId,commentRows);
-    const useCurrentInput=periodComment&&markRowHasUnsavedPeriodScore(commentRows.find(row=>String(row.learner_id)===String(learnerId)));
     const baseBody={term:state.filter.term,year:Number(state.filter.academic_year),...(state.filter.subject_id?{subject_id:state.filter.subject_id}:{})};
-    if(useCurrentInput){
-      await api(`/api/rm/cards/${encodeURIComponent(learnerId)}/class-teacher-comment`,{method:"POST",body:{...baseBody,comment_mode:"custom",comment:periodComment}});
-      return;
+     const marksSavedInThisFlow=["admin-save","teacher-save","teacher-submit"].includes(modal.pending);
+     const editedRow=commentRows.find(row=>String(row.learner_id)===String(learnerId));
+     if(!marksSavedInThisFlow&&markRowHasUnsavedPeriodScore(editedRow)){
+       throw new Error("Please save marks first, then generate the overall class teacher comment.");
     }
     try{
       await api(`/api/rm/cards/${encodeURIComponent(learnerId)}/class-teacher-comment`,{method:"POST",body:{...baseBody,comment_mode:"auto"}});
     }catch(error){
-      if(periodComment&&/Enter marks for this learner before generating a grade-based comment/iu.test(error.message)){
-        await api(`/api/rm/cards/${encodeURIComponent(learnerId)}/class-teacher-comment`,{method:"POST",body:{...baseBody,comment_mode:"custom",comment:periodComment}});
-        return;
-      }
       if(/Enter marks for this learner before generating a grade-based comment/iu.test(error.message)){
-        throw new Error("Please save marks first, then generate the grade-based comment.");
+         throw new Error("Please save marks first, then generate the overall class teacher comment.");
       }
       throw error;
     }
