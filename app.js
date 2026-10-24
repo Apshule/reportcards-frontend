@@ -11,6 +11,13 @@
     {value:"COMBINED_BE",label:"Combined (B.O.T + E.O.T)",title:"Combined (B.O.T + E.O.T)",fields:[{key:"bot",label:"B.O.T"},{key:"eot_period",label:"E.O.T"}]},
     {value:"COMBINED_ME",label:"Combined (Mid + E.O.T)",title:"Combined (Mid + E.O.T)",fields:[{key:"mid_term",label:"Mid-Term"},{key:"eot_period",label:"E.O.T"}]},
   ];
+  const MARK_ENTRY_LEVEL_GROUPS = [
+    {value:"NURSERY",label:"Nursery( Baby - Top )",classLevels:["NURSERY","PREPRIMARY"],subjectLevels:["NURSERY","PREPRIMARY"]},
+    {value:"LOWER_PRIMARY",label:"Lower Primary (P.1 - P.3)",classLevels:["PRIMARY"],subjectLevels:["PRIMARY"],classRange:[1,3]},
+    {value:"UPPER_PRIMARY",label:"Upper Primary (P.4 - P.7)",classLevels:["PRIMARY"],subjectLevels:["PRIMARY"],classRange:[4,7]},
+    {value:"O_LEVEL",label:"O-Level (S.1 - S.4)",classLevels:["OLEVEL","ORDINARYLEVEL"],subjectLevels:["OLEVEL","ORDINARYLEVEL"]},
+    {value:"A_LEVEL",label:"A-Level (S.5 - S.6)",classLevels:["ALEVEL","ADVANCEDLEVEL"],subjectLevels:["ALEVEL","ADVANCEDLEVEL"]},
+  ];
   const NURSERY_ACTIVITY_NAMES = ["Writing","Listening","Reading","Speaking","Drawing","Games","Rhymes / Stories","Music","Health Habits","Toilet Habits"];
   const requestedPath = location.pathname.replace(/\/+$/u,"")||"/";
   const authRequested = () => requestedPath==="/login"||requestedPath==="/signup";
@@ -23,7 +30,7 @@
     ["attendance","Attendance","fa-calendar-check"],["announcements","Announcements","fa-bullhorn"],["parent-feedback","Parent feedback","fa-comment-dots"],
     ["finance","Finance","fa-coins"],["settings","School settings","fa-calendar-days"],["review","Marks review","fa-clipboard-check"]
   ];
-    const state = {token:localStorage.getItem(TOKEN_KEY)||"",school:null,user:null,role:"school_admin",mustChangePassword:false,route:"dashboard",loading:false,modal:null,toast:null,filter:{level:"",class_id:"",subject_id:"",academic_year:String(new Date().getFullYear()),term:"TERM_1",assessment_period:"EOT",search:""},data:{},authMode:authPathMode(),finance:{tab:"overview",term:"TERM_1",year:String(new Date().getFullYear()),loading:false,error:"",data:{},incomeFilters:{},expenseFilters:{},schoolpayFilters:{},reportClass:"",feeBalanceClass:""},rm:{classes:null,marks:null,submission:null,comments:{},signature:null,review:null,reviewBusy:false,promotionClassId:"",promotion:null,promotionBusy:false,promotionError:"",markEntryMode:"CBC",rawMarkMax:100,commentOptions:[]},parentAdmin:{announcements:[],feedback:[],loading:false,error:""}};
+    const state = {token:localStorage.getItem(TOKEN_KEY)||"",school:null,user:null,role:"school_admin",mustChangePassword:false,route:"dashboard",loading:false,modal:null,toast:null,filter:{level:"",mark_entry_level:"",class_id:"",subject_id:"",academic_year:String(new Date().getFullYear()),term:"TERM_1",assessment_period:"EOT",search:""},data:{},authMode:authPathMode(),finance:{tab:"overview",term:"TERM_1",year:String(new Date().getFullYear()),loading:false,error:"",data:{},incomeFilters:{},expenseFilters:{},schoolpayFilters:{},reportClass:"",feeBalanceClass:""},rm:{classes:null,marks:null,submission:null,comments:{},signature:null,review:null,reviewBusy:false,promotionClassId:"",promotion:null,promotionBusy:false,promotionError:"",markEntryMode:"CBC",rawMarkMax:100,commentOptions:[]},parentAdmin:{announcements:[],feedback:[],loading:false,error:""}};
   const reportState = {classId:"",learnerId:"",term:"TERM_1",year:String(new Date().getFullYear()),template:"1",period:"EOT",layoutFormat:"A4",includeStamp:true,zoom:100,fullscreen:false,data:null,learners:[],busy:false,rosterBusy:false,rosterRequestId:0,rosterError:"",error:"",promotionError:"",promotionBusy:false,verifications:{},verificationBusy:false,verificationError:"",verificationRequestId:0};
   const projectState = {classId:"",term:"TERM_1",year:String(new Date().getFullYear()),data:null,busy:false,error:""};
   const root = document.getElementById("app");
@@ -33,6 +40,44 @@
   const MAX_LEARNER_PHOTO_BYTES=2*1024*1024;
   const levelLabel = level => LEVELS.find(x=>x[0]===level)?.[1]||level||"—";
   const isALevel = level => /^(ALEVEL|S[56])/.test(String(level||"").toUpperCase().replace(/[^A-Z0-9]/g,""));
+  const normalizedMarkLevel = value => String(value||"").toUpperCase().replace(/[^A-Z0-9]/g,"");
+  function markClassGroup(item){
+    const level=normalizedMarkLevel(item?.level||item?.class_level);
+    const name=normalizedMarkLevel(item?.class_name||item?.name);
+    if(["NURSERY","PREPRIMARY","PRESCHOOL"].includes(level))return "NURSERY";
+    if(["LOWERPRIMARY"].includes(level))return "LOWER_PRIMARY";
+    if(["UPPERPRIMARY"].includes(level))return "UPPER_PRIMARY";
+    if(["OLEVEL","ORDINARYLEVEL"].includes(level))return "O_LEVEL";
+    if(["ALEVEL","ADVANCEDLEVEL"].includes(level))return "A_LEVEL";
+    const secondary=name.match(/^S([1-6])(?:[A-Z]+)?$/u);
+    if(secondary)return Number(secondary[1])<=4?"O_LEVEL":"A_LEVEL";
+    const primary=name.match(/^(?:P|PRIMARY)([1-7])(?:[A-Z]+)?$/u);
+    if(primary)return Number(primary[1])<=3?"LOWER_PRIMARY":"UPPER_PRIMARY";
+    return null;
+  }
+  function markEntryLevelForClass(classes,classId,preferred=""){
+    if(MARK_ENTRY_LEVEL_GROUPS.some(group=>group.value===preferred))return preferred;
+    const selected=(classes||[]).find(item=>String(item.id??item.class_id)===String(classId));
+    const selectedGroup=selected?markClassGroup(selected):null;
+    if(selectedGroup)return selectedGroup;
+    return MARK_ENTRY_LEVEL_GROUPS.find(group=>(classes||[]).some(item=>markClassGroup(item)===group.value))?.value||MARK_ENTRY_LEVEL_GROUPS[0].value;
+  }
+  function markClassesForLevel(classes,groupValue){
+    const unique=(classes||[]).filter((item,index,list)=>list.findIndex(other=>String(other.id??other.class_id)===String(item.id??item.class_id))===index);
+    return unique.filter(item=>markClassGroup(item)===groupValue);
+  }
+  function markSubjectsForLevel(subjects,groupValue){
+    const group=MARK_ENTRY_LEVEL_GROUPS.find(item=>item.value===groupValue);
+    if(!group)return[];
+    return (subjects||[]).filter(subject=>group.subjectLevels.includes(normalizedMarkLevel(subject.level)));
+  }
+  function markEntryLevelOptions(selected){
+    return MARK_ENTRY_LEVEL_GROUPS.map(group=>`<option value="${group.value}" ${group.value===selected?"selected":""}>${esc(group.label)}</option>`).join("");
+  }
+  function markEntryClassOptions(classes,selectedId,groupValue){
+    const rows=markClassesForLevel(classes,groupValue);
+    return `<option value="">${rows.length?"Choose a class":"No classes in this level"}</option>${rows.map(item=>{const id=item.id??item.class_id,name=item.name??item.class_name;return `<option value="${esc(id)}" ${String(id)===String(selectedId)?"selected":""}>${esc(name)}${item.stream?` · ${esc(item.stream)}`:""}</option>`}).join("")}`;
+  }
   const fmt = value => value===null||value===undefined||value===""?"—":esc(value);
   const idOf = item => item?.id ?? "";
   function toast(message,kind="success"){state.toast={message,kind};render();setTimeout(()=>{state.toast=null;render()},4000)}
@@ -167,9 +212,19 @@
   async function loadMarks(){
     state.data.marks=null;state.data.marksError=null;render();
     if(!state.filter.class_id||!state.filter.subject_id){state.data.marks=[];render();return}
+    const selectedClass=(state.data.classes||[]).find(c=>String(c.id)===String(state.filter.class_id));
+    const groupValue=markEntryLevelForClass(state.data.classes||[],state.filter.class_id,state.filter.mark_entry_level);
+    const validSubject=markSubjectsForLevel(state.data.subjects||[],groupValue).some(subject=>String(subject.id)===String(state.filter.subject_id));
+    if(!selectedClass||markClassGroup(selectedClass)!==groupValue||!validSubject){
+      state.filter.class_id="";
+      state.filter.subject_id="";
+      state.data.marks=[];
+      render();
+      return;
+    }
     const q=new URLSearchParams({class_id:state.filter.class_id,subject_id:state.filter.subject_id,academic_year:state.filter.academic_year,term:state.filter.term});
     try{
-      const level=(state.data.classes||[]).find(c=>String(c.id)===String(state.filter.class_id))?.level;
+      const level=selectedClass.level;
       const [marks,grading]=await Promise.all([api("/api/marks?"+q),api("/api/grading"+(level?`?level=${encodeURIComponent(level)}`:""))]);
       state.data.marks=marks.marks||[];state.data.grading=grading.grading||[];state.data.subjectGrading=grading.subject_grading||[];state.data.activeGradingScale=grading.active_scale||null;state.data.gradingScales=grading.scales||[];state.data.activeGradingScales=grading.active_scales||[];state.data.gradingPointsScheme=grading.points_scheme||{};state.data.commentOptions=[...new Set((grading.grading||[]).map(row=>String(row.comment||"").trim()).filter(Boolean))];state.data.markEntryMode=marks.mark_entry_mode||"CBC";state.data.rawMarkMax=Number(marks.raw_mark_max)||100;
     }catch(error){state.data.marksError=error.message}
@@ -197,7 +252,7 @@
   }
   async function loadTeacherClasses(){
     const rm=state.rm;rm.classes=null;rm.error="";rm.signatureStatus={text:"Loading saved signature…",kind:"success"};render();
-    try{const result=await api("/api/rm/my-classes");rm.classes=result.classes||[];if(rm.classes.length&&!rm.classes.some(c=>String(c.class_id)===String(state.filter.class_id)&&String(c.subject_id||"")===String(state.filter.subject_id||""))){state.filter.class_id=String(rm.classes[0].class_id);state.filter.subject_id=String(rm.classes[0].subject_id||"")}try{rm.signature=(await api("/api/rm/teachers/signature")).signature||null;rm.signatureStatus=null}catch(error){rm.signature=null;rm.signatureStatus={text:`Could not load saved signature: ${error.message}`,kind:"error"}}}catch(error){rm.error=error.message}
+    try{const result=await api("/api/rm/my-classes");rm.classes=result.classes||[];if(rm.classes.length){const selected=rm.classes.find(c=>String(c.class_id)===String(state.filter.class_id)&&String(c.subject_id||"")===String(state.filter.subject_id||""))||rm.classes[0];state.filter.class_id=String(selected.class_id);state.filter.subject_id=String(selected.subject_id||"");state.filter.mark_entry_level=markEntryLevelForClass(rm.classes,selected.class_id,markClassGroup(selected))}try{rm.signature=(await api("/api/rm/teachers/signature")).signature||null;rm.signatureStatus=null}catch(error){rm.signature=null;rm.signatureStatus={text:`Could not load saved signature: ${error.message}`,kind:"error"}}}catch(error){rm.error=error.message}
     render();
   }
   function teacherDashboard(){
@@ -212,11 +267,14 @@
   }
    function signaturePanel(){const sig=state.rm.signature;return `<section class="card section-card signature-card"><div class="section-title"><div><h2>Teacher signature</h2><p>Upload a signature image or draw one below. Saved for your account.</p></div></div>${state.rm.signatureStatus?`<div class="alert ${state.rm.signatureStatus.kind}" role="status">${esc(state.rm.signatureStatus.text)}</div>`:""}${sig?.data_url?`<img class="signature-preview" src="${esc(sig.data_url)}" alt="Saved teacher signature">`:""}<div class="signature-tools"><label class="btn btn-outline upload-signature">${icon("fa-upload")} Upload image<input type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" data-signature-file></label><button class="btn btn-quiet" data-action="clear-signature">${icon("fa-eraser")} Clear canvas</button><button class="btn btn-primary" data-action="save-signature">${icon("fa-floppy-disk")} Save signature</button></div><canvas id="signature-canvas" width="600" height="160" aria-label="Signature drawing canvas" tabindex="0" role="application"></canvas><p class="field-hint">Draw with pointer or touch. Keyboard: focus the canvas, then use arrow keys to draw; hold Shift to erase.</p></section>`}
   function teacherMarksPage(){
-     const list=state.rm.classes||[],matching=list.filter(c=>String(c.class_id)===String(state.filter.class_id)),subjects=matching.filter(c=>c.subject_id);
+      const list=state.rm.classes||[];
+      const groupValue=markEntryLevelForClass(list,state.filter.class_id,state.filter.mark_entry_level);
+      const filteredAssignments=list.filter(c=>markClassGroup(c)===groupValue);
+      const matching=filteredAssignments.filter(c=>String(c.class_id)===String(state.filter.class_id)),subjects=matching.filter(c=>c.subject_id);
       const selectedSubject=subjects.find(c=>String(c.subject_id)===String(state.filter.subject_id));
      const aLevel=matching.some(c=>isALevel(c.level));
       const period=markEntryPeriod();
-    const classOptions=list.filter((c,i,a)=>a.findIndex(x=>String(x.class_id)===String(c.class_id))===i).map(c=>`<option value="${esc(c.class_id)}" ${String(c.class_id)===String(state.filter.class_id)?"selected":""}>${esc(c.class_name)}</option>`).join("");
+     const classOptionsMarkup=markEntryClassOptions(list,state.filter.class_id,groupValue);
      const isClassTeacher=matching.some(c=>c.is_class_teacher);
       const subjectOptions=`${isClassTeacher?`<option value="" ${!state.filter.subject_id?"selected":""}>Class teacher comments</option>`:""}${subjects.map(c=>`<option value="${esc(c.subject_id)}" ${String(c.subject_id)===String(state.filter.subject_id)?"selected":""}>${esc(c.subject_name)}${c.is_compulsory?" *":""}${c.category==="OTHER"?" · Other":""}</option>`).join("")}`;
      const commentOnly=isClassTeacher&&!state.filter.subject_id;
@@ -224,7 +282,7 @@
      const actions=commentOnly?"":`<button class="btn btn-outline" data-action="save-teacher-marks" ${!learners.length?"disabled":""}>${icon("fa-floppy-disk")} Save draft</button><button class="btn btn-primary" data-action="submit-marks-review" ${!learners.length||["submitted","reviewed","published"].includes(state.rm.submission?.status)?"disabled":""}>${icon("fa-paper-plane")} Submit for review</button>`;
         const level=state.rm.class?.level||matching[0]?.level;
         const content=commentOnly?`<div class="table-wrap"><table><thead><tr><th>Learner</th><th>Class-teacher comment</th><th></th></tr></thead><tbody>${learners.map(m=>`<tr><td><strong>${esc(m.full_name)}</strong><span class="row-sub">${esc(m.reg_no||"")}</span></td><td><textarea data-comment="${esc(m.learner_id)}" maxlength="1500" aria-label="Class-teacher comment for ${esc(m.full_name)}">${esc(state.rm.comments[m.learner_id]||m.suggested_comment||"")}</textarea></td><td><button class="btn btn-quiet btn-small" data-action="save-comment" data-learner="${esc(m.learner_id)}">Choose comment</button><span data-comment-state="${esc(m.learner_id)}" role="status"></span></td></tr>`).join("")}</tbody></table></div>`:`<div class="formula-note">${esc(markEntryDescription(level,period))}</div><div class="table-wrap marks-mobile-wrap"><table id="teacher-marks-table"><thead>${markEntryTableHeaders(period,level)}</thead><tbody>${learners.map(m=>markEntryRow(m,period,level,true,isClassTeacher,state.rm.subject?.id||"")).join("")}</tbody></table></div>`;
-       return `${heading(commentOnly?"Class-teacher comments":"Marks register",commentOnly?"Add comments for learners in your assigned class.":markEntryDescription(level,period),actions)}<section class="card section-card"><div class="period-bar"><div class="field"><label for="rm-class">Assigned class</label><select id="rm-class" data-rm-filter="class_id">${classOptions}</select></div><div class="field"><label for="rm-subject">Assigned subject</label><select id="rm-subject" data-rm-filter="subject_id" ${!subjects.length?"disabled":""}>${subjectOptions}</select>${selectedSubject?.is_compulsory?'<span class="compulsory-note" role="status"><strong>* Compulsory subject</strong> — required by the school.</span>':""}</div><div class="field"><label for="rm-year">Academic year</label><input id="rm-year" type="number" min="2000" max="2100" value="${esc(state.filter.academic_year)}" data-rm-filter="academic_year"></div><div class="field"><label for="rm-term">Term</label><select id="rm-term" data-rm-filter="term">${["TERM_1","TERM_2","TERM_3"].map(t=>`<option value="${t}" ${t===state.filter.term?"selected":""}>${t.replace("_"," ")}</option>`).join("")}</select></div>${markEntryPeriodSelect("rm-assessment-period")}<button class="btn btn-quiet" data-action="load-teacher-marks">${icon("fa-arrow-right")} Load ${commentOnly?"learners":"register"}</button></div>${state.rm.submission?`<p class="submission-status"><span class="badge">${esc(state.rm.submission.status)}</span>${state.rm.submission.submitted_at?` Submitted ${esc(new Date(state.rm.submission.submitted_at).toLocaleString("en-UG"))}`:""}</p>`:""}</section>${state.rm.error?errorBox(state.rm.error,"marks"):""}<section class="card section-card"><div class="section-title"><div><h2>${esc(state.rm.class?.name||"Assessment register")}${state.rm.subject?.name?` · ${esc(state.rm.subject.name)}`:""}${state.rm.subject?.is_compulsory?' <span class="badge orange">* Compulsory</span>':""}</h2><p>${commentOnly?"Comments can be updated by the assigned class teacher.":esc(markEntryDescription(level,period))}</p></div></div>${!state.filter.class_id?empty("No assigned class","Your administrator can assign classes and subjects."):state.rm.marks===null?loading():learners.length?content:empty("No learners in this class","The assigned class has no active learners.")}</section>${signaturePanel()}`;
+        return `${heading(commentOnly?"Class-teacher comments":"Marks register",commentOnly?"Add comments for learners in your assigned class.":markEntryDescription(level,period),actions)}<section class="card section-card"><div class="period-bar"><div class="field"><label for="rm-level">Level</label><select id="rm-level" data-mark-entry-level>${markEntryLevelOptions(groupValue)}</select></div><div class="field"><label for="rm-class">Assigned class</label><select id="rm-class" data-rm-filter="class_id">${classOptionsMarkup}</select></div><div class="field"><label for="rm-subject">Assigned subject</label><select id="rm-subject" data-rm-filter="subject_id" ${!subjects.length?"disabled":""}>${subjectOptions}</select>${selectedSubject?.is_compulsory?'<span class="compulsory-note" role="status"><strong>* Compulsory subject</strong> — required by the school.</span>':""}</div><div class="field"><label for="rm-year">Academic year</label><input id="rm-year" type="number" min="2000" max="2100" value="${esc(state.filter.academic_year)}" data-rm-filter="academic_year"></div><div class="field"><label for="rm-term">Term</label><select id="rm-term" data-rm-filter="term">${["TERM_1","TERM_2","TERM_3"].map(t=>`<option value="${t}" ${t===state.filter.term?"selected":""}>${t.replace("_"," ")}</option>`).join("")}</select></div>${markEntryPeriodSelect("rm-assessment-period")}<button class="btn btn-quiet" data-action="load-teacher-marks">${icon("fa-arrow-right")} Load ${commentOnly?"learners":"register"}</button></div>${state.rm.submission?`<p class="submission-status"><span class="badge">${esc(state.rm.submission.status)}</span>${state.rm.submission.submitted_at?` Submitted ${esc(new Date(state.rm.submission.submitted_at).toLocaleString("en-UG"))}`:""}</p>`:""}</section>${state.rm.error?errorBox(state.rm.error,"marks"):""}<section class="card section-card"><div class="section-title"><div><h2>${esc(state.rm.class?.name||"Assessment register")}${state.rm.subject?.name?` · ${esc(state.rm.subject.name)}`:""}${state.rm.subject?.is_compulsory?' <span class="badge orange">* Compulsory</span>':""}</h2><p>${commentOnly?"Comments can be updated by the assigned class teacher.":esc(markEntryDescription(level,period))}</p></div></div>${!state.filter.class_id?empty("No assigned class","Your administrator can assign classes and subjects."):state.rm.marks===null?loading():learners.length?content:empty("No learners in this class","The assigned class has no active learners.")}</section>${signaturePanel()}`;
   }
    async function loadReviewQueue(){state.rm.review=null;state.rm.error="";state.rm.promotion=null;state.rm.promotionError="";render();try{const q=new URLSearchParams({term:state.filter.term,year:String(state.filter.academic_year)});const pending=[api(`/api/rm/review-queue?${q}`)];if(!Array.isArray(state.data.classes))pending.push(api("/api/classes").then(result=>{state.data.classes=result.classes||[]}));const [queue]=await Promise.all(pending);state.rm.review=queue.submissions||[];const classes=state.data.classes||[];if(!state.rm.promotionClassId||!classes.some(c=>String(c.id)===String(state.rm.promotionClassId)))state.rm.promotionClassId=classes[0]?.id||"";if(state.filter.term==="TERM_3"&&state.rm.promotionClassId){try{state.rm.promotion=await api(`/api/class/${encodeURIComponent(state.rm.promotionClassId)}/promotion-suggestions?${q}`)}catch(e){state.rm.promotionError=e.message}}}catch(e){state.rm.error=e.message}render()}
    function promotionText(decision,currentClass="",nextClass=""){if(decision==="promoted")return `Promoted to ${nextClass||"next class"}`;if(decision==="try_another")return "Try another class";if(decision==="repeat")return `Advised to repeat ${currentClass||"current class"}`;return "Pending"}
@@ -344,15 +402,18 @@
     }
   function marksPage(){
     const marks=state.data.marks,classes=state.data.classes||[],subjects=state.data.subjects||[];
-    const selectedClass=classes.find(c=>String(c.id)===String(state.filter.class_id));
-    const level=selectedClass?.level,options=subjects.filter(s=>!level||s.level===level);
+    const groupValue=markEntryLevelForClass(classes,state.filter.class_id,state.filter.mark_entry_level);
+    const classRows=markClassesForLevel(classes,groupValue);
+    const selectedClass=classRows.find(c=>String(c.id)===String(state.filter.class_id));
+    const level=selectedClass?.level,options=markSubjectsForLevel(subjects,groupValue);
     const selectedSubject=options.find(s=>String(s.id)===String(state.filter.subject_id));
-    const canLoad=!!state.filter.class_id&&!!state.filter.subject_id;
+    const canLoad=!!selectedClass&&markClassGroup(selectedClass)===groupValue&&!!selectedSubject;
     const period=markEntryPeriod();
     const legacy=marks?.some(m=>(m.ca1_score!=null||m.ca2_score!=null||m.exam_score!=null)&&m.a1==null&&m.a2==null&&m.a3==null&&m.eot==null);
     return `${heading("Marks",markEntryDescription(level,period),`<button class="btn btn-quiet" data-action="save-marks" ${!canLoad||!marks?.length||state.data.savingMarks?"disabled":""}>${icon("fa-floppy-disk")} ${state.data.savingMarks?"Saving…":"Save marks"}</button>`)}
       <section class="card section-card"><div class="period-bar">
-        <div class="field"><label for="marks-class">Class</label><select id="marks-class" data-filter="class_id">${classOptions(state.filter.class_id)}</select></div>
+        <div class="field"><label for="marks-level">Level</label><select id="marks-level" data-mark-entry-level>${markEntryLevelOptions(groupValue)}</select></div>
+        <div class="field"><label for="marks-class">Class</label><select id="marks-class" data-filter="class_id">${markEntryClassOptions(classRows,state.filter.class_id,groupValue)}</select></div>
          <div class="field"><label for="marks-subject">Subject</label><select id="marks-subject" data-filter="subject_id"><option value="">Choose a subject</option>${options.map(s=>`<option value="${esc(s.id)}" ${String(s.id)===String(state.filter.subject_id)?"selected":""}>${esc(s.name)}${s.is_compulsory?" *":""}${s.category==="OTHER"?" · Other":""}</option>`).join("")}</select>${selectedSubject?.is_compulsory?'<span class="compulsory-note" role="status"><strong>* Compulsory subject</strong> — this subject is required by the school.</span>':""}</div>
         <div class="field"><label for="marks-year">Academic year</label><input id="marks-year" type="number" min="2000" max="2100" value="${esc(state.filter.academic_year)}" data-filter="academic_year"></div>
         <div class="field"><label for="marks-term">Term</label><select id="marks-term" data-filter="term">${["TERM_1","TERM_2","TERM_3"].map(t=>`<option value="${t}" ${state.filter.term===t?"selected":""}>${t.replace("_"," ")}</option>`).join("")}</select></div>
@@ -973,7 +1034,7 @@
   async function saveAutoComment(learnerId,modal){
     const commentRows=modal.commentRows||modal.rows||[];
     const baseBody={term:state.filter.term,year:Number(state.filter.academic_year),...(state.filter.subject_id?{subject_id:state.filter.subject_id}:{})};
-     const marksSavedInThisFlow=["admin-save","teacher-save","teacher-submit"].includes(modal.pending);
+      const marksSavedInThisFlow=["teacher-save","teacher-submit"].includes(modal.pending);
      const editedRow=commentRows.find(row=>String(row.learner_id)===String(learnerId));
      if(!marksSavedInThisFlow&&markRowHasUnsavedPeriodScore(editedRow)){
        throw new Error("Please save marks first, then generate the overall class teacher comment.");
@@ -994,9 +1055,7 @@
     if(mode!=="auto"&&!comment){toast(mode==="saved"?"Choose a saved comment first.":"Enter a custom comment first.","error");return}
     state.modal=null;render();
     try{
-      if(modal.pending==="admin-save"){
-        if(!await saveMarks(modal.rows,false))return;
-      }else if(modal.pending==="teacher-save"||modal.pending==="teacher-submit"){
+      if(modal.pending==="teacher-save"||modal.pending==="teacher-submit"){
         if(!await saveTeacherMarks(false,modal.rows))return;
       }
       for(const learnerId of modal.learnerIds){
@@ -1005,7 +1064,7 @@
       }
       if(modal.pending==="comment-only"||modal.pending==="teacher-save"||modal.pending==="teacher-submit"){
         await loadTeacherMarks();
-      }else if(modal.pending==="admin-save")await loadMarks();
+      }
       if(modal.pending==="teacher-submit"){
         await api(`/api/rm/class/${encodeURIComponent(state.filter.class_id)}/submit-for-review`,{method:"POST",body:{subject_id:state.filter.subject_id,term:state.filter.term,year:Number(state.filter.academic_year),assessment_period:markEntryPeriod().value}});
         await loadTeacherMarks();toast("Marks submitted for review.");
@@ -1116,7 +1175,7 @@
     if(a==="save-review-edit"){const m=state.modal;if(!m)return;const rows=[...document.querySelectorAll("#review-edit-table tbody tr")].map(tr=>{const out={learner_id:tr.dataset.learner};tr.querySelectorAll("[data-review-score]").forEach(i=>out[i.dataset.reviewScore]=i.value===""?null:Number(i.value));const original=m.learners.find(l=>String(l.learner_id)===String(tr.dataset.learner));return {...out,paper_number:original?.paper_number??null,teacher_initials:original?.teacher_initials??null}});try{await api(`/api/rm/class/${encodeURIComponent(m.submission.class_id)}/marks-bulk`,{method:"POST",body:{...m.period,rows}});toast("Review edits saved.");state.modal=null;await loadReviewQueue()}catch(e){toast(e.message,"error")}return}
      if(a==="approve-submission"||a==="return-submission"){const comment=a==="return-submission"?prompt("Add a note for the teacher (optional):"):"";if(comment===null)return;try{await api(`/api/rm/submissions/${encodeURIComponent(id)}/review`,{method:"POST",body:{decision:a==="approve-submission"?"approve":"return",...(comment?{comment}: {})}});toast(a==="approve-submission"?"Submission approved.":"Submission returned to teacher.");await loadReviewQueue()}catch(e){toast(e.message,"error")}return}
     if(a==="publish-submission"){if(!confirm("Publish these results to report cards?"))return;try{await api(`/api/rm/submissions/${encodeURIComponent(id)}/publish`,{method:"POST",body:{}});toast("Results published.");await loadReviewQueue()}catch(e){toast(e.message,"error")}return}
-     if(a==="save-marks"){openMarkCommentFlow("admin-save");return}
+     if(a==="save-marks"){await saveMarks();return}
      if(a==="toggle-mark-fullscreen"){toggleMarkFullscreen();return}
     if(a==="load-report-class"){await loadReportClass();return}
     if(a==="load-project-register"){await loadProjectRegister();return}
@@ -1184,6 +1243,12 @@
   function livePeriodScore(values){
     const scores=values.map(value=>value===""||value===null||value===undefined?null:Number(value)).filter(score=>Number.isFinite(score)&&score>=0&&score<=100);
     return scores.length?scores.reduce((sum,score)=>sum+score,0)/scores.length:null;
+  }
+  function updateLiveMarkInput(target){
+    const input=target?.closest?.("[data-score],[data-mark-period-score]");
+    if(!input)return false;
+    calculateMarks(input.closest("tr"));
+    return true;
   }
   function calculateMarks(tr){
     const vals={};tr.querySelectorAll("[data-score]").forEach(input=>vals[input.dataset.score]=input.value===""?null:Number(input.value));
@@ -1627,8 +1692,33 @@
   });
    root.addEventListener("click",e=>{const financeTab=e.target.closest("[data-fin-tab]");if(financeTab){e.preventDefault();state.finance.tab=financeTab.dataset.finTab;loadRoute("finance");return}const financeButton=e.target.closest("[data-fin-action]");if(financeButton){e.preventDefault();financeAction(financeButton);return}const link=e.target.closest("[data-route]");if(link){e.preventDefault();go(link.dataset.route);return}const btn=e.target.closest("[data-action]");if(btn)action(btn,e)});
     root.addEventListener("change",e=>{const target=e.target,mode=target.closest("[data-tr-mode]");if(mode){const row=mode.closest("tr"),selected=mode.value;row?.querySelectorAll("[data-tr-input]").forEach(input=>{input.hidden=input.dataset.trInput!==selected});const auto=row?.querySelector('[data-tr-panel="auto"]');if(auto)auto.hidden=selected!=="auto";if(selected==="auto"&&row)calculateMarks(row)}if(target.matches("[data-ple-subject]")){if(state.modal)state.modal.subjectId=target.value;render();return}if(target.matches("[data-overall-grade],[data-grade-point-type]"))calculateMarks(target.closest("tr"))});
+  root.addEventListener("change",e=>{
+    const target=e.target;
+    if(target.matches("[data-mark-entry-level]")){
+      state.filter.mark_entry_level=target.value;
+      state.filter.class_id="";
+      state.filter.subject_id="";
+      state.data.marks=[];
+      state.data.marksError="";
+      state.rm.marks=null;
+      state.rm.class=null;
+      state.rm.subject=null;
+      state.rm.submission=null;
+      state.rm.error="";
+      render();
+      return;
+    }
+    if(target.matches('[data-filter="class_id"]')&&state.route==="marks"){
+      const selected=(state.data.classes||[]).find(item=>String(item.id)===String(target.value));
+      if(selected)state.filter.mark_entry_level=markClassGroup(selected)||state.filter.mark_entry_level;
+    }
+    if(target.matches('[data-rm-filter="class_id"]')&&state.route==="marks"&&state.role==="teacher"){
+      const selected=(state.rm.classes||[]).find(item=>String(item.class_id)===String(target.value));
+      if(selected)state.filter.mark_entry_level=markClassGroup(selected)||state.filter.mark_entry_level;
+    }
+  });
   root.addEventListener("change",e=>{const input=e.target.closest("[data-activity-icon-file]");if(input&&input.files?.[0])uploadNurseryActivityIcon(input)});
-  root.addEventListener("input",e=>{if(e.target.matches("[data-score],[data-mark-period-score]"))calculateMarks(e.target.closest("tr"));if(e.target.matches("[data-watermark-opacity]")){const output=root.querySelector("#watermark-opacity-value");if(output)output.textContent=`${e.target.value}%`}});
+  root.addEventListener("input",e=>{updateLiveMarkInput(e.target);if(e.target.matches("[data-watermark-opacity]")){const output=root.querySelector("#watermark-opacity-value");if(output)output.textContent=`${e.target.value}%`}});
     root.addEventListener("change",e=>{const t=e.target;if(t.matches("[data-score],[data-mark-period-score]"))calculateMarks(t.closest("tr"));if(t.matches("[data-mark-period]")){state.filter.assessment_period=t.value;render()}if(t.matches("[data-filter]")){state.filter[t.dataset.filter]=t.value;if(t.dataset.filter==="class_id"&&state.route==="marks"){state.filter.subject_id="";loadRoute("marks")}else if(t.dataset.filter==="level"&&["subjects","grading"].includes(state.route)){state.filter.level=t.value;loadRoute(state.route)}}if(t.matches("[data-rm-filter]")){state.filter[t.dataset.rmFilter]=t.value;if(t.dataset.rmFilter==="class_id"){const first=(state.rm.classes||[]).find(c=>String(c.class_id)===String(t.value));state.filter.subject_id=first?.subject_id||""}if(state.route==="review")loadReviewQueue();else render()}if(t.matches("[data-report-filter]")){const key=t.dataset.reportFilter;if(key==="includeStamp"){reportState.includeStamp=t.checked;render()}else{reportState[key]=t.value;if(key==="template"||key==="period"){reportState.error="";if(reportState.data)loadReportClass();else render()}else if(key==="learnerId"){reportState.verificationError="";render();loadSelectedReportVerification()}else{reportState.verificationRequestId++;reportState.verifications={};reportState.verificationBusy=false;reportState.verificationError="";reportState.data=null;reportState.learners=[];reportState.learnerId="";reportState.error="";render()}}}if(t.matches("[data-fin-filter]")){state.finance[t.dataset.finFilter]=t.value;if(t.dataset.finFilter==="reportClass")state.finance.reportClass=t.value;loadRoute("finance")}if(t.matches("[data-signature-file]")&&t.files?.[0]){const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const c=document.getElementById("signature-canvas"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);const scale=Math.min(c.width/img.width,c.height/img.height);ctx.drawImage(img,(c.width-img.width*scale)/2,(c.height-img.height*scale)/2,img.width*scale,img.height*scale)};img.src=reader.result};reader.readAsDataURL(t.files[0])}if(t.id==="csv-file"&&t.files?.[0])importCsv(t.files[0]);if(t.id==="finance-csv"&&t.files?.[0])importFinanceCsv(t.files[0])});
   root.addEventListener("change",e=>{const filter=e.target.closest("[data-project-filter]");if(!filter)return;projectState[filter.dataset.projectFilter]=filter.value;projectState.error="";state.data.projectRegister=null;render()});
    root.addEventListener("change",e=>{const select=e.target.closest("[data-promotion-class]");if(select){state.rm.promotionClassId=select.value;loadReviewQueue()}});
