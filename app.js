@@ -294,7 +294,7 @@
        : `${grade||"—"}${points!==null?` · ${points} pts`:""}`;
      return `<span class="badge" data-grade-label>${esc(label||"—")}</span>${oldLevel?`<div class="alevel-overall-grade"><label class="sr-only" for="overall-${esc(mark.learner_id)}">Overall A–F grade</label><select id="overall-${esc(mark.learner_id)}" data-overall-grade aria-label="${esc(mark.full_name)} overall grade"><option value="">Overall grade</option>${["A","B","C","D","E","O","F"].map(code=>`<option value="${code}" ${overall===code?"selected":""}>${code}</option>`).join("")}</select><label class="grade-point-type"><input type="checkbox" data-grade-point-type ${type==="subsidiary"?"checked":""}> Subsidiary</label></div>`:""}`;
    }
-    function subjectRemarkCell(mark,teacher=false){
+     function subjectRemarkCell(mark,teacher=false,subjectId=mark.subject_id||""){
       const level=teacher?state.rm.class?.level:(state.data.classes||[]).find(item=>String(item.id)===String(state.filter.class_id))?.level;
       const gradeRows=teacher?state.rm.gradeScales||[]:state.data.grading||[];
       const configured=gradeRows.filter(row=>!level||row.level===level).map(row=>String(row.comment||"").trim()).filter(Boolean);
@@ -302,15 +302,21 @@
      const mode=["auto","dropdown","custom"].includes(mark.tr_mode)?mark.tr_mode:mark.tr?"custom":"auto";
      const value=mode==="auto"?"":typeof mark.tr==="string"?mark.tr:"";
      const prefix=`${esc(mark.learner_id)}-remark`;
-     return `<td class="subject-remark-cell"><label class="sr-only" for="${prefix}-mode">${esc(mark.full_name)} subject remark mode</label><select id="${prefix}-mode" data-tr-mode><option value="auto" ${mode==="auto"?"selected":""}>Auto</option><option value="dropdown" ${mode==="dropdown"?"selected":""}>Dropdown</option><option value="custom" ${mode==="custom"?"selected":""}>Custom</option></select><div class="subject-remark-auto" data-tr-panel="auto" ${mode!=="auto"?"hidden":""}>${esc(mode==="auto"?(value||subjectRemarkForUi(mark.grade||mark.grade_code)||"Generated from grade"):"")}</div><select class="mark-input mark-remark-input" data-teacher-remark data-tr-input="dropdown" aria-label="${esc(mark.full_name)} saved subject remark" ${mode!=="dropdown"?"hidden":""}><option value="">Choose a remark</option>${options.map(option=>`<option value="${esc(option)}" ${value===option?"selected":""}>${esc(option)}</option>`).join("")}</select><textarea class="mark-input mark-remark-input" data-teacher-remark data-tr-input="custom" maxlength="500" aria-label="${esc(mark.full_name)} custom subject remark" ${mode!=="custom"?"hidden":""}>${esc(value)}</textarea></td>`;
+      const subjectName=subjectNameForUi(teacher,subjectId);
+      return `<td class="subject-remark-cell"><label class="sr-only" for="${prefix}-mode">${esc(mark.full_name)} subject remark mode</label><select id="${prefix}-mode" data-tr-mode><option value="auto" ${mode==="auto"?"selected":""}>Auto</option><option value="dropdown" ${mode==="dropdown"?"selected":""}>Dropdown</option><option value="custom" ${mode==="custom"?"selected":""}>Custom</option></select><div class="subject-remark-auto" data-tr-panel="auto" ${mode!=="auto"?"hidden":""}>${esc(mode==="auto"?(value||subjectRemarkForUi(mark.grade||mark.grade_code,subjectName)||"Generated from grade"):"")}</div><select class="mark-input mark-remark-input" data-teacher-remark data-tr-input="dropdown" aria-label="${esc(mark.full_name)} saved subject remark" ${mode!=="dropdown"?"hidden":""}><option value="">Choose a remark</option>${options.map(option=>`<option value="${esc(option)}" ${value===option?"selected":""}>${esc(option)}</option>`).join("")}</select><textarea class="mark-input mark-remark-input" data-teacher-remark data-tr-input="custom" maxlength="500" aria-label="${esc(mark.full_name)} custom subject remark" ${mode!=="custom"?"hidden":""}>${esc(value)}</textarea></td>`;
    }
-   function subjectRemarkForUi(grade){
+    function subjectNameForUi(teacher=false,subjectId=""){
+      const subject=teacher?state.rm.subject:(state.data.subjects||[]).find(item=>String(item.id)===String(subjectId));
+      return String(subject?.name||"this subject").trim();
+    }
+    function subjectRemarkForUi(grade,subjectName="this subject"){
      const code=String(grade||"").toUpperCase();
-     if(["A","D1","D2","3","2A"].includes(code))return "Excellent performance in this subject.";
-     if(["B","C3","C4","C5","C6"].includes(code))return "Very good performance in this subject.";
-     if(["C","2","2B","P7"].includes(code))return "Satisfactory performance in this subject.";
-     if(["D","1A","P8"].includes(code))return "Needs improvement in this subject.";
-     if(["E","F","F9","1B"].includes(code))return "Needs additional support in this subject.";
+      const subject=String(subjectName||"this subject").trim()||"this subject";
+      if(["A","D1","D2","3","2A"].includes(code))return `Excellent performance in ${subject}.`;
+      if(["B","C3","C4","C5","C6"].includes(code))return `Very good performance in ${subject}.`;
+      if(["C","2","2B","P7"].includes(code))return `Satisfactory performance in ${subject}.`;
+      if(["D","1A","P8"].includes(code))return `Needs improvement in ${subject}.`;
+      if(["E","F","F9","1B"].includes(code))return `Needs additional support in ${subject}.`;
      return "";
    }
     function markEntryPeriod(value=state.filter.assessment_period){
@@ -332,7 +338,7 @@
       const displayMark={...m,grade:m.grade||m.grade_code||""};
       const periodCells=period.fields.map(field=>`<td><input class="mark-input" type="number" min="0" max="100" step="0.01" value="${m[field.key]??""}" data-mark-period-score="${field.key}" aria-label="${esc(m.full_name)} ${esc(field.label)} score"></td>`).join("");
       const paperCell=level==="A_LEVEL"?`<td><input class="mark-input" type="number" min="1" max="20" step="1" value="${m.paper_number??""}" data-score="paper_number" aria-label="${esc(m.full_name)} paper number"></td>`:"";
-      const ancillary=`${paperCell}<td><input class="mark-input initials-input" maxlength="30" value="${esc(m.teacher_initials||"")}" data-initials aria-label="${esc(m.full_name)} teacher initials"></td><td data-result="grade">${gradeCellMarkup(displayMark,level,teacher,subjectId)}</td>${subjectRemarkCell(displayMark,teacher)}`;
+      const ancillary=`${paperCell}<td><input class="mark-input initials-input" maxlength="30" value="${esc(m.teacher_initials||"")}" data-initials aria-label="${esc(m.full_name)} teacher initials"></td><td data-result="grade">${gradeCellMarkup(displayMark,level,teacher,subjectId)}</td>${subjectRemarkCell(displayMark,teacher,subjectId)}`;
       const comment=isClassTeacher?`<tr class="comment-row"><td colspan="${1+period.fields.length+(level==="A_LEVEL"?1:0)+3}"><label for="comment-${esc(m.learner_id)}">Class-teacher comment · ${esc(m.full_name)}</label><textarea id="comment-${esc(m.learner_id)}" data-comment="${esc(m.learner_id)}" maxlength="1500">${esc(m.class_teacher_comment||m.suggested_comment||"")}</textarea><button class="btn btn-quiet btn-small" data-action="save-comment" data-learner="${esc(m.learner_id)}">${icon("fa-comment")} Choose comment</button><span data-comment-state="${esc(m.learner_id)}" role="status"></span></td></tr>`:"";
       return `<tr data-learner="${esc(m.learner_id)}"><td><strong>${esc(m.full_name)}</strong><span class="row-sub">${esc(m.reg_no||"")}</span></td>${periodCells}${ancillary}</tr>${comment}`;
     }
@@ -1175,11 +1181,14 @@
     if(level==="A_LEVEL")return score>=75?"A":score>=65?"B":score>=50?"C":score>=35?"D":"E";
     return score>=80?"A":score>=70?"B":score>=60?"C":score>=50?"D":"E";
   }
+  function livePeriodScore(values){
+    const scores=values.map(value=>value===""||value===null||value===undefined?null:Number(value)).filter(score=>Number.isFinite(score)&&score>=0&&score<=100);
+    return scores.length?scores.reduce((sum,score)=>sum+score,0)/scores.length:null;
+  }
   function calculateMarks(tr){
     const vals={};tr.querySelectorAll("[data-score]").forEach(input=>vals[input.dataset.score]=input.value===""?null:Number(input.value));
     const periodInputs=[...tr.querySelectorAll("[data-mark-period-score]")];
-    const periodScores=periodInputs.map(input=>input.value===""?null:Number(input.value)).filter(Number.isFinite);
-    const periodScore=periodScores.length?periodScores.reduce((sum,value)=>sum+value,0)/periodScores.length:null;
+    const periodScore=livePeriodScore(periodInputs.map(input=>input.value));
     const rawMode=Object.hasOwn(vals,"raw_mark"),teacher=state.role==="teacher";
     const max=Number(tr.querySelector('[data-score="raw_mark"]')?.max)||(teacher?state.rm.rawMarkMax:state.data.rawMarkMax)||100;
     let avg=null,pct20=null,pct80=null,pct100=null,identifier=null;
@@ -1208,7 +1217,7 @@
      }
      const remarkMode=tr.querySelector("[data-tr-mode]")?.value||"auto";
      const autoPanel=tr.querySelector('[data-tr-panel="auto"]');
-     if(autoPanel&&remarkMode==="auto")autoPanel.textContent=subjectRemarkForUi(grade)||"Generated from grade";
+      if(autoPanel&&remarkMode==="auto")autoPanel.textContent=subjectRemarkForUi(grade,subjectNameForUi(teacher,subjectId))||"Enter a valid mark to generate this subject remark.";
   }
   async function loadReportLearners(classId=reportState.classId){
     const requestId=++reportState.rosterRequestId;
@@ -1617,10 +1626,10 @@
     }
   });
    root.addEventListener("click",e=>{const financeTab=e.target.closest("[data-fin-tab]");if(financeTab){e.preventDefault();state.finance.tab=financeTab.dataset.finTab;loadRoute("finance");return}const financeButton=e.target.closest("[data-fin-action]");if(financeButton){e.preventDefault();financeAction(financeButton);return}const link=e.target.closest("[data-route]");if(link){e.preventDefault();go(link.dataset.route);return}const btn=e.target.closest("[data-action]");if(btn)action(btn,e)});
-    root.addEventListener("change",e=>{const target=e.target,mode=target.closest("[data-tr-mode]");if(mode){const row=mode.closest("tr"),selected=mode.value;row?.querySelectorAll("[data-tr-input]").forEach(input=>{input.hidden=input.dataset.trInput!==selected});const auto=row?.querySelector('[data-tr-panel="auto"]');if(auto)auto.hidden=selected!=="auto"}if(target.matches("[data-ple-subject]")){if(state.modal)state.modal.subjectId=target.value;render();return}if(target.matches("[data-overall-grade],[data-grade-point-type]"))calculateMarks(target.closest("tr"))});
+    root.addEventListener("change",e=>{const target=e.target,mode=target.closest("[data-tr-mode]");if(mode){const row=mode.closest("tr"),selected=mode.value;row?.querySelectorAll("[data-tr-input]").forEach(input=>{input.hidden=input.dataset.trInput!==selected});const auto=row?.querySelector('[data-tr-panel="auto"]');if(auto)auto.hidden=selected!=="auto";if(selected==="auto"&&row)calculateMarks(row)}if(target.matches("[data-ple-subject]")){if(state.modal)state.modal.subjectId=target.value;render();return}if(target.matches("[data-overall-grade],[data-grade-point-type]"))calculateMarks(target.closest("tr"))});
   root.addEventListener("change",e=>{const input=e.target.closest("[data-activity-icon-file]");if(input&&input.files?.[0])uploadNurseryActivityIcon(input)});
   root.addEventListener("input",e=>{if(e.target.matches("[data-score],[data-mark-period-score]"))calculateMarks(e.target.closest("tr"));if(e.target.matches("[data-watermark-opacity]")){const output=root.querySelector("#watermark-opacity-value");if(output)output.textContent=`${e.target.value}%`}});
-    root.addEventListener("change",e=>{const t=e.target;if(t.matches("[data-mark-period]")){state.filter.assessment_period=t.value;render()}if(t.matches("[data-filter]")){state.filter[t.dataset.filter]=t.value;if(t.dataset.filter==="class_id"&&state.route==="marks"){state.filter.subject_id="";loadRoute("marks")}else if(t.dataset.filter==="level"&&["subjects","grading"].includes(state.route)){state.filter.level=t.value;loadRoute(state.route)}}if(t.matches("[data-rm-filter]")){state.filter[t.dataset.rmFilter]=t.value;if(t.dataset.rmFilter==="class_id"){const first=(state.rm.classes||[]).find(c=>String(c.class_id)===String(t.value));state.filter.subject_id=first?.subject_id||""}if(state.route==="review")loadReviewQueue();else render()}if(t.matches("[data-report-filter]")){const key=t.dataset.reportFilter;if(key==="includeStamp"){reportState.includeStamp=t.checked;render()}else{reportState[key]=t.value;if(key==="template"||key==="period"){reportState.error="";if(reportState.data)loadReportClass();else render()}else if(key==="learnerId"){reportState.verificationError="";render();loadSelectedReportVerification()}else{reportState.verificationRequestId++;reportState.verifications={};reportState.verificationBusy=false;reportState.verificationError="";reportState.data=null;reportState.learners=[];reportState.learnerId="";reportState.error="";render()}}}if(t.matches("[data-fin-filter]")){state.finance[t.dataset.finFilter]=t.value;if(t.dataset.finFilter==="reportClass")state.finance.reportClass=t.value;loadRoute("finance")}if(t.matches("[data-signature-file]")&&t.files?.[0]){const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const c=document.getElementById("signature-canvas"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);const scale=Math.min(c.width/img.width,c.height/img.height);ctx.drawImage(img,(c.width-img.width*scale)/2,(c.height-img.height*scale)/2,img.width*scale,img.height*scale)};img.src=reader.result};reader.readAsDataURL(t.files[0])}if(t.id==="csv-file"&&t.files?.[0])importCsv(t.files[0]);if(t.id==="finance-csv"&&t.files?.[0])importFinanceCsv(t.files[0])});
+    root.addEventListener("change",e=>{const t=e.target;if(t.matches("[data-score],[data-mark-period-score]"))calculateMarks(t.closest("tr"));if(t.matches("[data-mark-period]")){state.filter.assessment_period=t.value;render()}if(t.matches("[data-filter]")){state.filter[t.dataset.filter]=t.value;if(t.dataset.filter==="class_id"&&state.route==="marks"){state.filter.subject_id="";loadRoute("marks")}else if(t.dataset.filter==="level"&&["subjects","grading"].includes(state.route)){state.filter.level=t.value;loadRoute(state.route)}}if(t.matches("[data-rm-filter]")){state.filter[t.dataset.rmFilter]=t.value;if(t.dataset.rmFilter==="class_id"){const first=(state.rm.classes||[]).find(c=>String(c.class_id)===String(t.value));state.filter.subject_id=first?.subject_id||""}if(state.route==="review")loadReviewQueue();else render()}if(t.matches("[data-report-filter]")){const key=t.dataset.reportFilter;if(key==="includeStamp"){reportState.includeStamp=t.checked;render()}else{reportState[key]=t.value;if(key==="template"||key==="period"){reportState.error="";if(reportState.data)loadReportClass();else render()}else if(key==="learnerId"){reportState.verificationError="";render();loadSelectedReportVerification()}else{reportState.verificationRequestId++;reportState.verifications={};reportState.verificationBusy=false;reportState.verificationError="";reportState.data=null;reportState.learners=[];reportState.learnerId="";reportState.error="";render()}}}if(t.matches("[data-fin-filter]")){state.finance[t.dataset.finFilter]=t.value;if(t.dataset.finFilter==="reportClass")state.finance.reportClass=t.value;loadRoute("finance")}if(t.matches("[data-signature-file]")&&t.files?.[0]){const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const c=document.getElementById("signature-canvas"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);const scale=Math.min(c.width/img.width,c.height/img.height);ctx.drawImage(img,(c.width-img.width*scale)/2,(c.height-img.height*scale)/2,img.width*scale,img.height*scale)};img.src=reader.result};reader.readAsDataURL(t.files[0])}if(t.id==="csv-file"&&t.files?.[0])importCsv(t.files[0]);if(t.id==="finance-csv"&&t.files?.[0])importFinanceCsv(t.files[0])});
   root.addEventListener("change",e=>{const filter=e.target.closest("[data-project-filter]");if(!filter)return;projectState[filter.dataset.projectFilter]=filter.value;projectState.error="";state.data.projectRegister=null;render()});
    root.addEventListener("change",e=>{const select=e.target.closest("[data-promotion-class]");if(select){state.rm.promotionClassId=select.value;loadReviewQueue()}});
    root.addEventListener("submit",async e=>{if(e.target.id==="auth-form"){e.preventDefault();await submitAuth(e.target)}else if(e.target.id==="modal-form"){e.preventDefault();await handleModalSubmit(e.target)}else if(e.target.matches("[data-fin-form]")){e.preventDefault();await handleFinanceSubmit(e.target)}else if(e.target.id==="settings-form"){e.preventDefault();await saveSchoolSettings(e.target)}else if(e.target.id==="school-profile-form"){e.preventDefault();await saveSchoolProfile(e.target)}else if(e.target.id==="school-theme-form"){e.preventDefault();await saveSchoolTheme(e.target)}else if(e.target.id==="promotion-rules-form"){e.preventDefault();await savePromotionRules(e.target)}else if(e.target.id==="report-card-stamp-builder"){e.preventDefault();await saveStampSettings(e.target)}});
