@@ -941,11 +941,70 @@
     const field=learnerId?document.querySelector(`[data-comment="${CSS.escape(learnerId)}"]`):null;
     const isTeacher=state.role==="teacher";
     const marks=isTeacher?(state.rm.marks||[]):(state.data.marks||[]);
-    const rows=pending==="comment-only"?[]:collectMarkRows(isTeacher?"teacher-marks-table":"marks-table");
+    const tableId=isTeacher?"teacher-marks-table":"marks-table";
+    const commentRows=document.getElementById(tableId)?collectMarkRows(tableId):[];
+    const rows=pending==="comment-only"?[]:commentRows;
     const learnerIds=learnerId?[learnerId]:rows.length?rows.map(row=>row.learner_id):marks.map(row=>row.learner_id);
     if(!learnerIds.length){toast("Load a class with learners before saving marks or submitting comments.","error");return}
-    state.modal={type:"mark-comment-choice",pending,rows,learnerIds,learnerName:marks.find(row=>String(row.learner_id)===String(learnerId))?.full_name||"",customComment:field?.value||""};
+    state.modal={type:"mark-comment-choice",pending,rows,commentRows,learnerIds,learnerName:marks.find(row=>String(row.learner_id)===String(learnerId))?.full_name||"",customComment:field?.value||""};
     render();
+  }
+  function periodScoreFromRow(row){
+    if(!row)return null;
+    const scores=markEntryPeriod().fields.map(({key})=>row[key]).filter(value=>value!==null&&value!==undefined&&value!==""&&Number.isFinite(Number(value))).map(Number);
+    return scores.length?scores.reduce((sum,value)=>sum+value,0)/scores.length:null;
+  }
+  function generatedCommentFromPeriodRow(learnerId,rows){
+    const row=(rows||[]).find(item=>String(item.learner_id)===String(learnerId));
+    const score=periodScoreFromRow(row);
+    if(score===null)return null;
+    const teacher=state.role==="teacher";
+    const selectedClass=(state.data.classes||[]).find(item=>String(item.id)===String(state.filter.class_id));
+    const level=teacher?state.rm.class?.level:selectedClass?.level;
+    const className=teacher?state.rm.class?.name:selectedClass?.name;
+    const subjectId=teacher?state.rm.subject?.id:state.filter.subject_id;
+    const grade=uiGradeForScore(level,score,null,className,subjectId,teacher);
+    if(!grade)return null;
+    const gradeRows=teacher?(state.rm.gradeScales||[]):(state.data.grading||[]);
+    const band=gradeRows.find(item=>item.level===level&&String(item.grade_code)===String(grade));
+    const detail=String(band?.comment||band?.descriptor||subjectRemarkForUi(grade)||"").trim();
+    const learner=(teacher?(state.rm.marks||[]):(state.data.marks||[])).find(item=>String(item.learner_id)===String(learnerId));
+    const name=learner?.full_name||state.modal?.learnerName||"The learner";
+    const subject=teacher?state.rm.subject?.name:(state.data.subjects||[]).find(item=>String(item.id)===String(subjectId))?.name;
+    const period=markEntryPeriod();
+    return `${name} has achieved grade ${grade}${subject?` in ${subject}`:""} during ${period.title} (${score.toFixed(1)}%).${detail?` ${detail}`:""}`;
+  }
+  function markRowHasUnsavedPeriodScore(row){
+    if(!row)return false;
+    const savedRows=state.role==="teacher"?(state.rm.marks||[]):(state.data.marks||[]);
+    const saved=savedRows.find(item=>String(item.learner_id)===String(row.learner_id));
+    return markEntryPeriod().fields.some(({key})=>{
+      const current=row[key]===null||row[key]===undefined||row[key]===""?null:Number(row[key]);
+      const previous=saved?.[key]===null||saved?.[key]===undefined||saved?.[key]===""?null:Number(saved[key]);
+      return current!==previous;
+    });
+  }
+  async function saveAutoComment(learnerId,modal){
+    const commentRows=modal.commentRows||modal.rows||[];
+    const periodComment=generatedCommentFromPeriodRow(learnerId,commentRows);
+    const useCurrentInput=periodComment&&markRowHasUnsavedPeriodScore(commentRows.find(row=>String(row.learner_id)===String(learnerId)));
+    const baseBody={term:state.filter.term,year:Number(state.filter.academic_year),...(state.filter.subject_id?{subject_id:state.filter.subject_id}:{})};
+    if(useCurrentInput){
+      await api(`/api/rm/cards/${encodeURIComponent(learnerId)}/class-teacher-comment`,{method:"POST",body:{...baseBody,comment_mode:"custom",comment:periodComment}});
+      return;
+    }
+    try{
+      await api(`/api/rm/cards/${encodeURIComponent(learnerId)}/class-teacher-comment`,{method:"POST",body:{...baseBody,comment_mode:"auto"}});
+    }catch(error){
+      if(periodComment&&/Enter marks for this learner before generating a grade-based comment/iu.test(error.message)){
+        await api(`/api/rm/cards/${encodeURIComponent(learnerId)}/class-teacher-comment`,{method:"POST",body:{...baseBody,comment_mode:"custom",comment:periodComment}});
+        return;
+      }
+      if(/Enter marks for this learner before generating a grade-based comment/iu.test(error.message)){
+        throw new Error("Please save marks first, then generate the grade-based comment.");
+      }
+      throw error;
+    }
   }
   async function applyMarkCommentChoice(){
     const modal=state.modal;if(!modal)return;
@@ -960,7 +1019,8 @@
         if(!await saveTeacherMarks(false,modal.rows))return;
       }
       for(const learnerId of modal.learnerIds){
-        await api(`/api/rm/cards/${encodeURIComponent(learnerId)}/class-teacher-comment`,{method:"POST",body:{term:state.filter.term,year:Number(state.filter.academic_year),comment_mode:mode,...(mode==="auto"?{}:{comment}),...(state.filter.subject_id?{subject_id:state.filter.subject_id}:{})}});
+        if(mode==="auto")await saveAutoComment(learnerId,modal);
+        else await api(`/api/rm/cards/${encodeURIComponent(learnerId)}/class-teacher-comment`,{method:"POST",body:{term:state.filter.term,year:Number(state.filter.academic_year),comment_mode:mode,comment,...(state.filter.subject_id?{subject_id:state.filter.subject_id}:{})}});
       }
       if(modal.pending==="comment-only"||modal.pending==="teacher-save"||modal.pending==="teacher-submit"){
         await loadTeacherMarks();
@@ -1142,6 +1202,9 @@
   }
   function calculateMarks(tr){
     const vals={};tr.querySelectorAll("[data-score]").forEach(input=>vals[input.dataset.score]=input.value===""?null:Number(input.value));
+    const periodInputs=[...tr.querySelectorAll("[data-mark-period-score]")];
+    const periodScores=periodInputs.map(input=>input.value===""?null:Number(input.value)).filter(Number.isFinite);
+    const periodScore=periodScores.length?periodScores.reduce((sum,value)=>sum+value,0)/periodScores.length:null;
     const rawMode=Object.hasOwn(vals,"raw_mark"),teacher=state.role==="teacher";
     const max=Number(tr.querySelector('[data-score="raw_mark"]')?.max)||(teacher?state.rm.rawMarkMax:state.data.rawMarkMax)||100;
     let avg=null,pct20=null,pct80=null,pct100=null,identifier=null;
@@ -1155,7 +1218,9 @@
     const level=teacher?state.rm.class?.level:selectedClass?.level;
     const className=teacher?state.rm.class?.name:selectedClass?.name;
      const subjectId=teacher?state.rm.subject?.id:state.filter.subject_id;
-     const grade=pct100===null?null:uiGradeForScore(level,pct100,avg,className,subjectId,teacher);
+     const gradeScore=periodInputs.length?periodScore:pct100;
+     const gradeAverage=periodInputs.length?null:avg;
+     const grade=gradeScore===null?null:uiGradeForScore(level,gradeScore,gradeAverage,className,subjectId,teacher);
     const write=(key,value)=>{const el=tr.querySelector(`[data-result="${key}"]`);if(el)el.textContent=value===null?"—":Number(value).toFixed(2)};
     write("avg",avg);write("pct20",pct20);write("pct80",pct80);write("pct100",pct100);write("identifier",identifier);
      const gradeEl=tr.querySelector('[data-result="grade"] [data-grade-label]');
@@ -1579,7 +1644,7 @@
    root.addEventListener("click",e=>{const financeTab=e.target.closest("[data-fin-tab]");if(financeTab){e.preventDefault();state.finance.tab=financeTab.dataset.finTab;loadRoute("finance");return}const financeButton=e.target.closest("[data-fin-action]");if(financeButton){e.preventDefault();financeAction(financeButton);return}const link=e.target.closest("[data-route]");if(link){e.preventDefault();go(link.dataset.route);return}const btn=e.target.closest("[data-action]");if(btn)action(btn,e)});
     root.addEventListener("change",e=>{const target=e.target,mode=target.closest("[data-tr-mode]");if(mode){const row=mode.closest("tr"),selected=mode.value;row?.querySelectorAll("[data-tr-input]").forEach(input=>{input.hidden=input.dataset.trInput!==selected});const auto=row?.querySelector('[data-tr-panel="auto"]');if(auto)auto.hidden=selected!=="auto"}if(target.matches("[data-ple-subject]")){if(state.modal)state.modal.subjectId=target.value;render();return}if(target.matches("[data-overall-grade],[data-grade-point-type]"))calculateMarks(target.closest("tr"))});
   root.addEventListener("change",e=>{const input=e.target.closest("[data-activity-icon-file]");if(input&&input.files?.[0])uploadNurseryActivityIcon(input)});
-  root.addEventListener("input",e=>{if(e.target.matches("[data-score]"))calculateMarks(e.target.closest("tr"));if(e.target.matches("[data-watermark-opacity]")){const output=root.querySelector("#watermark-opacity-value");if(output)output.textContent=`${e.target.value}%`}});
+  root.addEventListener("input",e=>{if(e.target.matches("[data-score],[data-mark-period-score]"))calculateMarks(e.target.closest("tr"));if(e.target.matches("[data-watermark-opacity]")){const output=root.querySelector("#watermark-opacity-value");if(output)output.textContent=`${e.target.value}%`}});
     root.addEventListener("change",e=>{const t=e.target;if(t.matches("[data-mark-period]")){state.filter.assessment_period=t.value;render()}if(t.matches("[data-filter]")){state.filter[t.dataset.filter]=t.value;if(t.dataset.filter==="class_id"&&state.route==="marks"){state.filter.subject_id="";loadRoute("marks")}else if(t.dataset.filter==="level"&&["subjects","grading"].includes(state.route)){state.filter.level=t.value;loadRoute(state.route)}}if(t.matches("[data-rm-filter]")){state.filter[t.dataset.rmFilter]=t.value;if(t.dataset.rmFilter==="class_id"){const first=(state.rm.classes||[]).find(c=>String(c.class_id)===String(t.value));state.filter.subject_id=first?.subject_id||""}if(state.route==="review")loadReviewQueue();else render()}if(t.matches("[data-report-filter]")){const key=t.dataset.reportFilter;if(key==="includeStamp"){reportState.includeStamp=t.checked;render()}else{reportState[key]=t.value;if(key==="template"||key==="period"){reportState.error="";if(reportState.data)loadReportClass();else render()}else if(key==="learnerId"){reportState.verificationError="";render();loadSelectedReportVerification()}else{reportState.verificationRequestId++;reportState.verifications={};reportState.verificationBusy=false;reportState.verificationError="";reportState.data=null;reportState.learners=[];reportState.learnerId="";reportState.error="";render()}}}if(t.matches("[data-fin-filter]")){state.finance[t.dataset.finFilter]=t.value;if(t.dataset.finFilter==="reportClass")state.finance.reportClass=t.value;loadRoute("finance")}if(t.matches("[data-signature-file]")&&t.files?.[0]){const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const c=document.getElementById("signature-canvas"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);const scale=Math.min(c.width/img.width,c.height/img.height);ctx.drawImage(img,(c.width-img.width*scale)/2,(c.height-img.height*scale)/2,img.width*scale,img.height*scale)};img.src=reader.result};reader.readAsDataURL(t.files[0])}if(t.id==="csv-file"&&t.files?.[0])importCsv(t.files[0]);if(t.id==="finance-csv"&&t.files?.[0])importFinanceCsv(t.files[0])});
   root.addEventListener("change",e=>{const filter=e.target.closest("[data-project-filter]");if(!filter)return;projectState[filter.dataset.projectFilter]=filter.value;projectState.error="";state.data.projectRegister=null;render()});
    root.addEventListener("change",e=>{const select=e.target.closest("[data-promotion-class]");if(select){state.rm.promotionClassId=select.value;loadReviewQueue()}});
