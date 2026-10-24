@@ -1149,6 +1149,14 @@
     });
     return items.slice(0, nurseryActivityDefaults.length);
   }
+  function nurserySchoolIcon(report, name) {
+    const icons = report.school?.activity_icons;
+    const normalized = String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+    const row = Array.isArray(icons)
+      ? icons.find((item) => String(item.activity_name || "").toLowerCase().replace(/[^a-z0-9]+/g, "") === normalized)
+      : icons?.[name];
+    return row?.icon_base64 || row?.icon || "";
+  }
   function primaryOtherSubjectRows(report, includeDefaults = true) {
     const source = Array.isArray(report.activities) ? report.activities
       : Array.isArray(report.other_subjects) ? report.other_subjects : [];
@@ -1268,7 +1276,8 @@
 
   async function renderNursery(learnerOrReport, school, marksData, meta = null) {
     const report = asReport(learnerOrReport, school, marksData);
-    const { doc, page, fonts, theme, y } = await prepare(report, "NURSERY", "Nursery Learning Report", meta);
+    const period = assessmentPeriod(report);
+    const { doc, page, fonts, theme, y } = await prepare(report, "NURSERY", `${period.title} Nursery Learning Report`, meta);
     const width = page.getWidth();
     const x = 28;
     const contentWidth = width - 56;
@@ -1288,7 +1297,7 @@
         mark: {},
       };
     });
-    const period = assessmentPeriod(report);
+    const combinedPeriod = period.key === "COMBINED_BM";
     const sourceActivities = nurseryActivityItems(report);
     const activityByName = new Map(sourceActivities.map((item) => [
       String(item.name || "").toLowerCase().replace(/[^a-z0-9]+/g, ""),
@@ -1319,12 +1328,16 @@
       page.drawRectangle({ x: panelX, y: top - sectionHeight, width: panelWidth, height: sectionHeight, color: white, borderColor: maroon, borderWidth: 0.7 });
       drawNurseryWrappedText(page, label, panelX + 5, top - 3, panelWidth - 10, sectionHeight - 5, fonts.bold, size, maroon, "center", 7);
     };
-    panelTitle(x, leftWidth, "ACHIEVEMENT SCORES IN THE 5 LEARNING AREAS", 10);
+    panelTitle(x, leftWidth, `ACHIEVEMENT SCORES — ${period.title}`, 10);
     panelTitle(rightX, rightWidth, "PERFORMANCE IN THE LEARNING ACTIVITIES", 9.5);
 
     page.drawRectangle({ x, y: rowTopStart, width: leftWidth, height: headerHeight, color: white, borderColor: border, borderWidth: 0.55 });
-    const areaWidths = [leftWidth * 0.48, leftWidth * 0.38, leftWidth * 0.14];
-    const areaHeads = ["Area", "Score and Comment", "Signature"];
+    const areaWidths = combinedPeriod
+      ? [leftWidth * 0.31, leftWidth * 0.10, leftWidth * 0.10, leftWidth * 0.10, leftWidth * 0.08, leftWidth * 0.22, leftWidth * 0.09]
+      : [leftWidth * 0.48, leftWidth * 0.38, leftWidth * 0.14];
+    const areaHeads = combinedPeriod
+      ? ["Area", "B.O.T", "Midterm", "Average", "Grade", "Teacher's Remark", "Signature"]
+      : ["Area", period.fields[0]?.label || "E.O.T", "Signature"];
     let headerX = x;
     areaHeads.forEach((label, index) => {
       drawNurseryWrappedText(page, label, headerX + 3, rowTopStart + headerHeight - 3, areaWidths[index] - 6, headerHeight - 5, fonts.bold, 8.5, maroon, "center", 6.5);
@@ -1333,10 +1346,13 @@
     });
     let rowTop = rowTopStart;
     const maxScore = 500;
-    const scored = report.summary?.total_score ?? entries.reduce((sum, { mark }) => {
-      const parsed = scoreForMark(mark, report) ?? periodScore(mark, period);
+    const calculatedScored = entries.reduce((sum, { mark }) => {
+      const parsed = periodScore(mark, period);
       return parsed === null ? sum : sum + parsed;
     }, 0);
+    const scored = combinedPeriod
+      ? calculatedScored
+      : (report.summary?.total_score ?? calculatedScored);
     entries.forEach(({ subject, mark }, index) => {
       const rowBottom = rowTop - rowHeight;
       page.drawRectangle({ x, y: rowBottom, width: leftWidth, height: rowHeight, color: index % 2 ? white : pale, borderColor: border, borderWidth: 0.45 });
@@ -1347,19 +1363,37 @@
       });
       const name = str(subject.name || `Learning Area ${index + 1}`);
       const description = subject.learning_area_description || subject.description || subject.learning_outcome || subject.details || "";
-      drawNurseryWrappedText(page, name, x + 5, rowTop - 3, areaWidths[0] - 10, 19, fonts.bold, 8.5, ink, "center", 6);
-      if (description) {
-        drawNurseryWrappedText(page, description, x + 5, rowTop - 21, areaWidths[0] - 10, rowHeight - 23, fonts.regular, 7.8, ink, "center", 5.5);
-      }
-      const score = scoreForMark(mark, report) ?? periodScore(mark, period);
-      const scoreText = score === null ? "SCORE: —" : `SCORE: ${Number.isInteger(score) ? score : num(score, 1)}`;
-      const scoreX = x + areaWidths[0];
-      const scoreWidth = areaWidths[1];
-      drawNurseryWrappedText(page, scoreText, scoreX + 4, rowTop - 8, scoreWidth - 8, 12, fonts.bold, 9.5, maroon, "center", 7);
       const remark = subjectRemark(mark, report);
-      drawNurseryWrappedText(page, remark === "—" ? "" : `Remark: ${remark}`, scoreX + 5, rowTop - 23, scoreWidth - 10, rowHeight - 26, fonts.italic, 7.7, ink, "center", 5.2);
-      const signX = x + areaWidths[0] + areaWidths[1];
-      page.drawLine({ start: { x: signX + 5, y: rowBottom + 8 }, end: { x: signX + areaWidths[2] - 5, y: rowBottom + 8 }, thickness: 0.45, color: border });
+      if (combinedPeriod) {
+        drawNurseryWrappedText(page, name, x + 3, rowTop - 3, areaWidths[0] - 6, 12, fonts.bold, 7, ink, "left", 5.5);
+        drawNurseryWrappedText(page, description, x + 3, rowTop - 16, areaWidths[0] - 6, rowHeight - 17, fonts.regular, 5.9, ink, "left", 4.8);
+        let valueX = x + areaWidths[0];
+        period.fields.forEach(({ key }) => {
+          const value = periodValue(mark, key, period);
+          drawNurseryWrappedText(page, value === null ? "—" : num(value), valueX + 1, rowTop - 3, areaWidths[1] - 2, rowHeight - 5, fonts.bold, 6.7, maroon, "center", 5.2);
+          valueX += areaWidths[1];
+        });
+        const average = periodScore(mark, period);
+        drawNurseryWrappedText(page, average === null ? "—" : num(average), valueX + 1, rowTop - 3, areaWidths[3] - 2, rowHeight - 5, fonts.bold, 6.7, maroon, "center", 5.2);
+        valueX += areaWidths[3];
+        const configuredGrade = gradeForScore(average, report) || printableValue(mark.grade || mark.grade_code);
+        drawNurseryWrappedText(page, configuredGrade || "—", valueX + 1, rowTop - 3, areaWidths[4] - 2, rowHeight - 5, fonts.bold, 6.3, maroon, "center", 5);
+        valueX += areaWidths[4];
+        drawNurseryWrappedText(page, remark === "—" ? "" : remark, valueX + 2, rowTop - 3, areaWidths[5] - 4, rowHeight - 5, fonts.italic, 6.2, ink, "left", 4.8);
+      } else {
+        drawNurseryWrappedText(page, name, x + 5, rowTop - 3, areaWidths[0] - 10, 19, fonts.bold, 8.5, ink, "center", 6);
+        if (description) {
+          drawNurseryWrappedText(page, description, x + 5, rowTop - 21, areaWidths[0] - 10, rowHeight - 23, fonts.regular, 7.8, ink, "center", 5.5);
+        }
+        const score = periodScore(mark, period);
+        const scoreText = score === null ? "SCORE: —" : `SCORE: ${Number.isInteger(score) ? score : num(score, 1)}`;
+        const scoreX = x + areaWidths[0];
+        const scoreWidth = areaWidths[1];
+        drawNurseryWrappedText(page, scoreText, scoreX + 4, rowTop - 8, scoreWidth - 8, 12, fonts.bold, 9.5, maroon, "center", 7);
+        drawNurseryWrappedText(page, remark === "—" ? "" : `Remark: ${remark}`, scoreX + 5, rowTop - 23, scoreWidth - 10, rowHeight - 26, fonts.italic, 7.7, ink, "center", 5.2);
+      }
+      const signX = x + areaWidths.slice(0, -1).reduce((sum, value) => sum + value, 0);
+      page.drawLine({ start: { x: signX + 3, y: rowBottom + 8 }, end: { x: signX + areaWidths[areaWidths.length - 1] - 3, y: rowBottom + 8 }, thickness: 0.45, color: border });
       rowTop = rowBottom;
     });
     const totalTop = rowTop;
@@ -1391,7 +1425,10 @@
       const iconSize = Math.min(27, cardHeight - 10, cardWidth * 0.25);
       const iconX = cardX + 5;
       const iconY = cardBottom + (cardHeight - iconSize) / 2;
-      const customImage = item.image ? await embedImage(doc, item.image) : null;
+      const schoolIcon = nurserySchoolIcon(report, item.name || nurseryActivityDefaults[index]);
+      const customImage = schoolIcon
+        ? await embedImage(doc, schoolIcon)
+        : item.image ? await embedImage(doc, item.image) : null;
       const icon = customImage || await embedNurseryIcon(doc, nurseryActivityIconKeys[index]);
       if (icon) {
         placeImage(page, icon, iconX, iconY, iconSize, iconSize);
@@ -1414,7 +1451,7 @@
     }
     const remarks = [
       ["Class Teacher's Report", resolvedRemarkContent("Class Teacher's Report", report.class_teacher_comment || report.suggested_comment, report), report.class?.class_teacher_name],
-      ["Behaviors / Cleanliness", report.behaviors_comment || report.behaviour_comment || report.cleanliness_comment || "", report.behaviors_teacher_name || report.class?.class_teacher_name],
+      ["Behaviors / Cleanliness", report.behaviors_comment || report.behaviour_comment || report.cleanliness_comment || "Good behavior and maintains cleanliness.", report.behaviors_teacher_name || report.class?.class_teacher_name],
       ["Head Teacher's Comment", resolvedRemarkContent("Head Teacher's Comment", report.head_of_infants_comment || report.head_teacher_comment, report), report.school?.head_of_infants_name || report.school?.head_teacher_name],
     ];
     const remarkTop = totalTop - totalHeight - 12;
@@ -2166,6 +2203,230 @@
     return `${grade}${points ? ` (${points})` : ""}` || "—";
   }
 
+  async function renderNurseryA5Condensed(report) {
+    const period = assessmentPeriod(report);
+    if (period.key !== "COMBINED_BM") {
+      throw new Error("The Nursery A5 layout requires Combined (B.O.T + Midterm).");
+    }
+    if (!PDFDocument) throw new Error("The PDF library is unavailable; check your connection and reload.");
+    const doc = await PDFDocument.create();
+    const width = 419.53;
+    const height = 595.28;
+    const page = doc.addPage([width, height]);
+    const school = report.school || {};
+    const learner = report.learner || {};
+    const summary = report.summary || {};
+    const fonts = {
+      regular: await doc.embedFont(StandardFonts.Helvetica),
+      bold: await doc.embedFont(StandardFonts.HelveticaBold),
+      italic: await doc.embedFont(StandardFonts.HelveticaOblique),
+    };
+    const theme = window.ReportCardThemeEngine?.getTheme("NURSERY", report.level_theme || school.level_theme, school) || {
+      primary_color: "#800000",
+      accent_color: "#E6C8C8",
+      background_color: "#FFFFFF",
+      font_color: "#24242A",
+    };
+    const maroon = color("#800000");
+    const gold = color("#D4AF37");
+    const border = color(theme.accent_color || "#E6C8C8");
+    const pale = color("#FFF8F7");
+    const ink = theme.font_color ? color(theme.font_color) : rgb(0.17, 0.18, 0.2);
+    const white = rgb(1, 1, 1);
+    const x = 14;
+    const contentWidth = width - x * 2;
+    page.drawRectangle({ x: 0, y: 0, width, height, color: color(theme.background_color || "#FFFFFF") });
+    page.drawLine({ start: { x, y: height - 13 }, end: { x: width - x, y: height - 13 }, thickness: 2.3, color: maroon });
+    page.drawLine({ start: { x, y: height - 16 }, end: { x: width - x, y: height - 16 }, thickness: 0.75, color: gold });
+    const logo = await embedImage(doc, school.logo_base64);
+    const photo = await embedImage(doc, learner.photo_base64);
+    const imageSize = 25;
+    if (logo) placeImage(page, logo, x, height - 54, imageSize, imageSize);
+    if (photo) placeImage(page, photo, width - x - imageSize, height - 54, imageSize, imageSize);
+    const headerX = x + imageSize + 5;
+    const headerWidth = contentWidth - (imageSize + 5) * 2;
+    const headerRows = [
+      [school.name || "School", fonts.bold, 9, maroon],
+      [school.school_subtitle || school.subtitle || school.school_type || "", fonts.regular, 5.8, ink],
+      [[school.street, school.po_box, school.city, school.district].filter(Boolean).join(", "), fonts.regular, 5.5, ink],
+      [[school.phone ? `Tel: ${school.phone}` : "", school.email ? `Email: ${school.email}` : ""].filter(Boolean).join(" · "), fonts.regular, 5.5, ink],
+      [school.website ? `Website: ${school.website}` : "", fonts.regular, 5.2, ink],
+      [school.motto || "", fonts.bold, 5.8, maroon],
+    ];
+    headerRows.forEach(([text, font, size, fill], index) => {
+      drawNurseryWrappedText(page, text, headerX, height - 20 - index * 8, headerWidth, 7.5, font, size, fill, "center", 4.5);
+    });
+    page.drawLine({ start: { x, y: height - 61 }, end: { x: width - x, y: height - 61 }, thickness: 0.8, color: gold });
+    const title = `${displayTerm(report.term)} · ${period.title.toUpperCase()} REPORT CARD`;
+    drawNurseryWrappedText(page, title, x, height - 64, contentWidth, 11, fonts.bold, 7.2, maroon, "center", 5.5);
+
+    const infoTop = height - 79;
+    const infoRowHeight = 12;
+    const infoRows = [
+      [
+        ["Reg No", learner.reg_no],
+        ["Class", report.class?.name],
+        ["Fees Bal", report.fees?.balance],
+        ["SchoolPay Code", learner.schoolpay_code || school.schoolpay_code],
+      ],
+      [
+        ["Name", learner.full_name],
+        ["Days Attended", report.days_attended ?? report.days_present],
+        ["Absent", report.days_absent ?? learner.days_absent ?? report.absence],
+        ["Total", report.total_days ?? report.school_days],
+      ],
+    ];
+    infoRows.forEach((row, rowIndex) => row.forEach(([label, value], columnIndex) => {
+      const cellWidth = contentWidth / 4;
+      const cellX = x + columnIndex * cellWidth;
+      const cellTop = infoTop - rowIndex * infoRowHeight;
+      const cellY = cellTop - infoRowHeight;
+      page.drawRectangle({ x: cellX, y: cellY, width: cellWidth, height: infoRowHeight, color: rowIndex ? pale : white, borderColor: border, borderWidth: 0.4 });
+      drawNurseryWrappedText(page, `${label}: ${value === null || value === undefined || value === "" ? "—" : value}`, cellX + 2, cellTop - 2, cellWidth - 4, infoRowHeight - 3, fonts.regular, 5.3, ink, "left", 4.3);
+    }));
+
+    const gap = 5;
+    const panelTop = infoTop - infoRowHeight * 2 - 10;
+    const panelTitleHeight = 14;
+    const tableHeaderHeight = 14;
+    const rowHeight = 31;
+    const totalHeight = 12;
+    const leftWidth = (contentWidth - gap) * 0.6;
+    const rightWidth = contentWidth - gap - leftWidth;
+    const rightX = x + leftWidth + gap;
+    const bodyTop = panelTop - panelTitleHeight - tableHeaderHeight;
+    const bodyBottom = bodyTop - rowHeight * 5;
+    const areaWidths = [
+      leftWidth * 0.31, leftWidth * 0.10, leftWidth * 0.10,
+      leftWidth * 0.10, leftWidth * 0.08, leftWidth * 0.22,
+      leftWidth * 0.09,
+    ];
+    const drawPanelTitle = (panelX, panelWidth, label) => {
+      page.drawRectangle({ x: panelX, y: panelTop - panelTitleHeight, width: panelWidth, height: panelTitleHeight, color: white, borderColor: maroon, borderWidth: 0.55 });
+      drawNurseryWrappedText(page, label, panelX + 2, panelTop - 2, panelWidth - 4, panelTitleHeight - 3, fonts.bold, 6, maroon, "center", 4.6);
+    };
+    drawPanelTitle(x, leftWidth, "ACHIEVEMENT SCORES IN THE 5 LEARNING AREAS");
+    drawPanelTitle(rightX, rightWidth, "PERFORMANCE IN LEARNING ACTIVITIES");
+    const heads = ["Area", "B.O.T", "Midterm", "Average", "Grade", "Remark", "Sign"];
+    let currentX = x;
+    heads.forEach((label, index) => {
+      page.drawRectangle({ x: currentX, y: bodyTop, width: areaWidths[index], height: tableHeaderHeight, color: pale, borderColor: border, borderWidth: 0.45 });
+      drawNurseryWrappedText(page, label, currentX + 1, bodyTop + tableHeaderHeight - 2, areaWidths[index] - 2, tableHeaderHeight - 3, fonts.bold, 5.2, maroon, "center", 4.1);
+      currentX += areaWidths[index];
+    });
+    const entries = marks(report);
+    const fixedEntries = nurseryLearningAreaDefaults.map((name, index) => entries.find(({ subject }) =>
+      String(subject.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "") === name.toLowerCase().replace(/[^a-z0-9]+/g, "")
+    ) || entries[index] || { subject: { name }, mark: {} });
+    const scored = fixedEntries.reduce((sum, { mark }) => sum + (periodScore(mark, period) ?? 0), 0);
+    fixedEntries.forEach(({ subject, mark }, rowIndex) => {
+      const rowTop = bodyTop - rowIndex * rowHeight;
+      const rowBottom = rowTop - rowHeight;
+      let cellX = x;
+      areaWidths.forEach((cellWidth, colIndex) => {
+        page.drawRectangle({ x: cellX, y: rowBottom, width: cellWidth, height: rowHeight, color: rowIndex % 2 ? white : pale, borderColor: border, borderWidth: 0.4 });
+        cellX += cellWidth;
+      });
+      const name = subject.name || `Learning Area ${rowIndex + 1}`;
+      const description = subject.learning_area_description || subject.description || subject.learning_outcome || "";
+      const remark = subjectRemark(mark, report);
+      drawNurseryWrappedText(page, name, x + 2, rowTop - 2, areaWidths[0] - 4, 10, fonts.bold, 5.5, ink, "left", 4.5);
+      drawNurseryWrappedText(page, [description, remark === "—" ? "" : remark].filter(Boolean).join(" · "), x + 2, rowTop - 12, areaWidths[0] - 4, rowHeight - 13, fonts.regular, 4.6, ink, "left", 3.8);
+      let cellStartX = x + areaWidths[0];
+      const values = [
+        periodValue(mark, "bot", period),
+        periodValue(mark, "mid_term", period),
+        periodScore(mark, period),
+      ];
+      values.forEach((value, index) => {
+        drawNurseryWrappedText(page, value === null ? "—" : num(value), cellStartX + 1, rowTop - 3, areaWidths[index + 1] - 2, rowHeight - 5, fonts.bold, 5.5, maroon, "center", 4.2);
+        cellStartX += areaWidths[index + 1];
+      });
+      const grade = gradeForScore(periodScore(mark, period), report) || printableValue(mark.grade || mark.grade_code) || "—";
+      drawNurseryWrappedText(page, grade, cellStartX + 1, rowTop - 3, areaWidths[4] - 2, rowHeight - 5, fonts.bold, 5.3, maroon, "center", 4.1);
+      const signX = x + areaWidths.slice(0, -1).reduce((sum, value) => sum + value, 0);
+      page.drawLine({ start: { x: signX + 2, y: rowBottom + 5 }, end: { x: signX + areaWidths[6] - 2, y: rowBottom + 5 }, thickness: 0.4, color: border });
+    });
+    const totalTop = bodyBottom;
+    const showPosition = reportPositionEnabled(report);
+    const totalLabels = ["TOTAL: 500", `SCORED: ${num(scored, 0)}`, `POSITION: ${overallPositionValue(report) || "—"} / ${overallClassSizeValue(report) || "—"}`];
+    const totalWidths = showPosition ? [leftWidth * 0.28, leftWidth * 0.3, leftWidth * 0.42] : [leftWidth * 0.5, leftWidth * 0.5];
+    const visibleTotals = showPosition ? totalLabels : totalLabels.slice(0, 2);
+    let totalX = x;
+    page.drawRectangle({ x, y: totalTop - totalHeight, width: leftWidth, height: totalHeight, color: maroon, borderColor: maroon, borderWidth: 0.4 });
+    visibleTotals.forEach((label, index) => {
+      drawNurseryWrappedText(page, label, totalX + 1, totalTop - 2, totalWidths[index] - 2, totalHeight - 3, fonts.bold, 5.3, white, "center", 4.2);
+      if (index) page.drawLine({ start: { x: totalX, y: totalTop }, end: { x: totalX, y: totalTop - totalHeight }, thickness: 0.4, color: white });
+      totalX += totalWidths[index];
+    });
+
+    const sourceActivities = nurseryActivityItems(report);
+    const activityByName = new Map(sourceActivities.map((item) => [String(item.name || "").toLowerCase().replace(/[^a-z0-9]+/g, ""), item]));
+    const activities = nurseryActivityDefaults.map((name, index) =>
+      activityByName.get(name.toLowerCase().replace(/[^a-z0-9]+/g, "")) || sourceActivities[index] || { name, remark: "", image: "" },
+    );
+    const activityTop = panelTop - panelTitleHeight;
+    const activityHeight = activityTop - bodyBottom;
+    const cardWidth = rightWidth / 2;
+    const cardHeight = activityHeight / 5;
+    for (let index = 0; index < activities.length; index += 1) {
+      const item = activities[index];
+      const column = index % 2;
+      const row = Math.floor(index / 2);
+      const cardX = rightX + column * cardWidth;
+      const cardTop = activityTop - row * cardHeight;
+      const cardBottom = cardTop - cardHeight;
+      page.drawRectangle({ x: cardX, y: cardBottom, width: cardWidth, height: cardHeight, color: index % 2 ? white : pale, borderColor: border, borderWidth: 0.4 });
+      const iconSize = Math.min(15, cardHeight - 5, cardWidth * 0.25);
+      const iconX = cardX + 2;
+      const iconY = cardBottom + (cardHeight - iconSize) / 2;
+      const customSource = nurserySchoolIcon(report, item.name || nurseryActivityDefaults[index]);
+      const customImage = customSource
+        ? await embedImage(doc, customSource)
+        : item.image ? await embedImage(doc, item.image) : null;
+      const icon = customImage || await embedNurseryIcon(doc, nurseryActivityIconKeys[index]);
+      if (icon) placeImage(page, icon, iconX, iconY, iconSize, iconSize);
+      const textX = iconX + iconSize + 2;
+      const textWidth = cardWidth - iconSize - 6;
+      drawNurseryWrappedText(page, nurseryActivityDefaults[index].toUpperCase(), textX, cardTop - 2, textWidth, 11, fonts.bold, 4.5, maroon, "left", 3.7);
+      if (item.remark) drawNurseryWrappedText(page, item.remark, textX, cardTop - 13, textWidth, cardHeight - 15, fonts.italic, 4.4, ink, "left", 3.6);
+    }
+
+    const commentTop = totalTop - totalHeight - 8;
+    const commentHeight = 19;
+    const labelWidth = 69;
+    const signatureWidth = 48;
+    const comments = [
+      ["Class Teacher's Report", resolvedRemarkContent("Class Teacher's Report", report.class_teacher_comment || report.suggested_comment, report), report.class?.class_teacher_name],
+      ["Behaviors / Cleanliness", report.behaviors_comment || report.behaviour_comment || report.cleanliness_comment || "Good behavior and maintains cleanliness.", report.behaviors_teacher_name || report.class?.class_teacher_name],
+      ["Head Teacher's Comment", resolvedRemarkContent("Head Teacher's Comment", report.head_of_infants_comment || report.head_teacher_comment, report), report.school?.head_of_infants_name || report.school?.head_teacher_name],
+    ];
+    comments.forEach(([label, content, signer], index) => {
+      const rowTop = commentTop - index * commentHeight;
+      const rowBottom = rowTop - commentHeight;
+      page.drawRectangle({ x, y: rowBottom, width: contentWidth, height: commentHeight, color: white, borderColor: maroon, borderWidth: 0.45 });
+      page.drawLine({ start: { x: x + labelWidth, y: rowTop }, end: { x: x + labelWidth, y: rowBottom }, thickness: 0.4, color: maroon });
+      page.drawLine({ start: { x: x + contentWidth - signatureWidth, y: rowTop }, end: { x: x + contentWidth - signatureWidth, y: rowBottom }, thickness: 0.4, color: maroon });
+      drawNurseryWrappedText(page, label, x + 2, rowTop - 2, labelWidth - 4, commentHeight - 3, fonts.bold, 5, ink, "left", 4);
+      if (content) drawNurseryWrappedText(page, content, x + labelWidth + 3, rowTop - 2, contentWidth - labelWidth - signatureWidth - 6, commentHeight - 3, fonts.italic, 5, ink, "left", 3.8);
+      if (signer) drawNurseryWrappedText(page, signer, x + contentWidth - signatureWidth + 2, rowTop - 2, signatureWidth - 4, commentHeight - 3, fonts.bold, 4.8, ink, "right", 3.8);
+    });
+    const dates = report.term_dates || {};
+    const footerTop = commentTop - commentHeight * comments.length - 7;
+    const footerText = [
+      `Fees balance UGX ${str(report.fees?.balance)}`,
+      `Next term fees UGX ${str(dates.next_term_fees ?? school.next_term_fees)}`,
+      `Term ended ${formatReportDate(dates.term_ended_on)}`,
+      `Next term begins ${formatReportDate(dates.next_term_begins)}`,
+    ].join("  ·  ");
+    drawNurseryWrappedText(page, footerText, x, footerTop, contentWidth, 12, fonts.regular, 5.2, ink, "left", 4.2);
+    page.drawLine({ start: { x, y: 24 }, end: { x: width - x, y: 24 }, thickness: 0.6, color: maroon });
+    drawNurseryWrappedText(page, school.report_footer_text || school.motto || "Let's learn with ease.", x, 20, contentWidth, 9, fonts.italic, 5.2, maroon, "center", 4.2);
+    doc.setTitle(`${period.title} Nursery Report — ${str(learner.full_name)}`);
+    doc.setAuthor(str(school.name));
+    return doc.save();
+  }
+
   async function renderA5Condensed(report, classLevel) {
     const period = assessmentPeriod(report);
     if (isOfficialPle(report) && Array.isArray(report.incomplete_marks) && report.incomplete_marks.length) {
@@ -2388,7 +2649,11 @@
       throw new Error(`Incomplete marks: ${renderReport.incomplete_marks.join(", ")}`);
     }
     const level = levelCode(classLevel || renderReport.class?.level);
-    if ((layoutFormat || renderReport.layout_format || "A4") === "A5_CONDENSED") return renderA5Condensed(renderReport, level);
+    if ((layoutFormat || renderReport.layout_format || "A4") === "A5_CONDENSED") {
+      return level === "NURSERY"
+        ? renderNurseryA5Condensed(renderReport)
+        : renderA5Condensed(renderReport, level);
+    }
     const id = String(templateId || "1").replace(/^template[_-]?/i, "");
     const meta = templateMeta(level, id);
     const suppliedTheme = renderReport.level_theme || renderReport.school?.level_theme;

@@ -76,7 +76,6 @@
     number(periodTools().periodScore(mark, period.key));
   const periodCells = (mark, period) => [
     ...period.fields.map(({ key }) => periodCell(mark, key, period)),
-    ...(period.combined ? [periodFinal(mark, period)] : []),
   ];
   const periodTotals = (entries, period) => [
     ...period.fields.map(({ key }) => {
@@ -235,6 +234,29 @@
     return rows.map((row) => `<tr>${row.map((cell) => `<td>${value(cell)}</td>`).join("")}</tr>`);
   };
   const nurseryActivityNames = ["Writing", "Listening", "Reading", "Speaking", "Drawing", "Games", "Rhymes / Stories", "Music", "Health Habits", "Toilet Habits"];
+  const nurseryIconKeys = ["writing", "listening", "reading", "speaking", "drawing", "games", "rhymes_stories", "music", "health_habits", "toilet_habits"];
+  const activityKey = (name) => String(name || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const activityIconSource = (report, name) => {
+    const icons = report.school?.activity_icons;
+    const row = Array.isArray(icons)
+      ? icons.find((item) => activityKey(item.activity_name) === activityKey(name))
+      : icons?.[name];
+    return imageSource(row?.icon_base64 || row?.icon || "");
+  };
+  const nurseryGradeForScore = (score, mark, report) => {
+    if (score === null || score === undefined || score === "") return "—";
+    const numericScore = Number(score);
+    const rows = Array.isArray(report.grading_scale)
+      ? report.grading_scale
+      : report.grading_scale?.rows || [];
+    const match = rows.find((row) => {
+      const min = Number(row.min_score ?? row.min);
+      const max = Number(row.max_score ?? row.max);
+      return Number.isFinite(min) && Number.isFinite(max) && numericScore >= min && numericScore <= max;
+    });
+    if (match) return match.grade_code || match.grade || "—";
+    return mark?.grade || mark?.grade_code || (numericScore >= 80 ? "A" : numericScore >= 70 ? "B" : numericScore >= 60 ? "C" : numericScore >= 50 ? "D" : "E");
+  };
   const nurseryActivityItems = (report) => {
     const items = Array.isArray(report.activities) ? report.activities
       : Array.isArray(report.learning_activities) ? report.learning_activities
@@ -244,11 +266,13 @@
       remark: item.remark || item.descriptor || item.teacher_remark || "",
       image: item.image_base64 || item.illustration_base64 || item.photo_base64 || "",
     }));
-    const names = new Set(rows.map((item) => String(item.name).trim().toLowerCase()));
-    if (!report.co_curricular_configured) nurseryActivityNames.forEach((name) => {
-      if (rows.length < nurseryActivityNames.length && !names.has(name.toLowerCase())) rows.push({ name, remark: "", image: "" });
-    });
-    return rows.slice(0, nurseryActivityNames.length);
+    const byName = new Map(rows.map((item) => [activityKey(item.name), item]));
+    return nurseryActivityNames.map((name, index) => ({
+      ...(byName.get(activityKey(name)) || { name, remark: "", image: "" }),
+      name,
+      icon: activityIconSource(report, name),
+      defaultIcon: `/pdf-templates/nursery-icons/${nurseryIconKeys[index]}.png`,
+    }));
   };
   const primaryOtherRows = (report) => {
     const items = Array.isArray(report.activities) ? report.activities
@@ -267,7 +291,7 @@
   const earlyYearsRemarks = (report, level) => {
     const definitions = level === "NURSERY" ? [
       ["Class Teacher's Report", report.class_teacher_comment || report.suggested_comment, "Class Teacher"],
-      ["Behaviors / Cleanliness", report.behaviors_comment || report.behaviour_comment || report.cleanliness_comment, "Behaviors"],
+      ["Behaviors / Cleanliness", report.behaviors_comment || report.behaviour_comment || report.cleanliness_comment || "Good behavior and maintains cleanliness.", "Behaviors"],
       ["Head of Infants Remarks", report.head_of_infants_comment || report.head_teacher_comment, "Head of Infants"],
     ] : [
       ["Class Teacher's Remarks", report.class_teacher_comment || report.suggested_comment, "Class Teacher"],
@@ -617,32 +641,43 @@
     const period = assessmentPeriod(report, options);
     const activities = nurseryActivityItems(report);
     const maxScore = summary.maximum_score ?? summary.total_possible ?? rows.length * 100;
-    const scored = summary.total_score ?? rows.reduce((total, { mark }) => {
+    const scored = rows.reduce((total, { mark }) => {
       const score = periodTools().periodScore(mark, period.key);
       return score === null ? total : total + score;
     }, 0);
+    const combined = period.key === "COMBINED_BM";
     const areaRows = rows.map(({ subject, mark }, index) => {
       const description = subject.learning_area_description || subject.description || subject.learning_outcome || subject.details || "";
+      const average = periodTools().periodScore(mark, period.key);
       const cells = [
         `<b>${value(subject.name || `Learning Area ${index + 1}`)}</b>${description ? `<small>${value(description)}</small>` : ""}`,
-        ...periodCells(mark, period),
+        ...period.fields.map(({ key }) => periodCell(mark, key, period)),
+        ...(combined ? [number(average), value(nurseryGradeForScore(average, mark, report))] : []),
         value(mark.tr || mark.teacher_remark || mark.descriptor || mark.remark),
         "<i aria-hidden=\"true\"></i>",
       ];
       return `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`;
     });
     const activityCards = activities.map((item) => {
-      const source = imageSource(item.image);
-      return `<div class="rc-nursery-activity-card"><div><b>${value(item.name)}</b><span>${value(item.remark)}</span></div>${source ? `<img src="${esc(source)}" alt="">` : `<i aria-hidden="true">${esc(String(item.name || "?").trim().slice(0, 1).toUpperCase())}</i>`}</div>`;
+      const source = item.icon || imageSource(item.image) || item.defaultIcon;
+      return `<div class="rc-nursery-activity-card"><div><b>${value(item.name)}</b><span>${value(item.remark)}</span></div><img src="${esc(source)}" alt="" loading="eager"></div>`;
     }).join("");
+    const headers = [
+      "AREA",
+      ...period.fields.map(({ label }) => label),
+      ...(combined ? ["AVERAGE", "GRADE"] : []),
+      "TEACHER'S REMARK",
+      "SIGNATURE",
+    ];
+    const tableClass = `rc-period-table${combined ? " rc-nursery-combined-table" : ""}`;
     return `<article ${previewAttrs(report, "NURSERY", options)}>
       <div class="rc-preview-content">
-      ${header(report, "Nursery Learning Report", options)}
+      ${header(report, `${period.title} Nursery Learning Report`, options)}
       ${learnerInfo(report, "NURSERY", options)}
       <section class="rc-nursery-panels">
         <div class="rc-nursery-learning">
           <div class="rc-nursery-panel-title">Achievement Scores — ${esc(period.title)}</div>
-          ${table(["AREA", ...period.fields.map(({ label }) => label), ...(period.combined ? ["FINAL"] : []), "COMMENT", "SIGNATURE"], areaRows, "rc-period-table")}
+          ${table(headers, areaRows, tableClass)}
           <div class="rc-nursery-totalbar"><span>TOTAL: ${number(maxScore, 0)}</span><span>SCORED: ${number(scored, 0)}</span>${reportPositionEnabled(report, "NURSERY", templateInfo("NURSERY", options).id) ? `<span>POSITION ${value(summary.position)} OUT OF ${value(summary.class_size)}</span>` : ""}</div>
         </div>
         <div class="rc-nursery-activities">
@@ -655,6 +690,71 @@
       ${stampBlock(report, options)}
        ${authenticityQrBlock(report)}
        ${footer(report, "NURSERY")}
+      </div>
+    </article>`;
+  }
+
+  function renderNurseryA5(report, options = {}) {
+    const period = assessmentPeriod(report, options);
+    if (period.key !== "COMBINED_BM") {
+      return `<article ${previewAttrs(report, "NURSERY", options)}><div class="rc-preview-content"><p class="alert info">The Nursery A5 layout is for Combined (B.O.T + Midterm).</p></div></article>`;
+    }
+    const learner = report.learner || {};
+    const school = report.school || {};
+    const summary = report.summary || {};
+    const entries = scoreRows(report);
+    const activities = nurseryActivityItems(report);
+    const areaRows = entries.map(({ subject, mark }, index) => {
+      const average = periodTools().periodScore(mark, period.key);
+      const description = subject.learning_area_description || subject.description || subject.learning_outcome || "";
+      return [
+        `<b>${value(subject.name || `Learning Area ${index + 1}`)}</b>${description ? `<small>${value(description)}</small>` : ""}<em>${value(mark.tr || mark.teacher_remark || mark.descriptor || mark.remark)}</em>`,
+        periodCell(mark, "bot", period),
+        periodCell(mark, "mid_term", period),
+        number(average),
+        value(nurseryGradeForScore(average, mark, report)),
+      ];
+    });
+    const activityCards = activities.map((item) => {
+      const source = item.icon || imageSource(item.image) || item.defaultIcon;
+      return `<div class="rc-a5-nursery-activity"><img src="${esc(source)}" alt=""><div><b>${value(item.name)}</b><span>${value(item.remark)}</span></div></div>`;
+    }).join("");
+    const behavior = report.behaviors_comment || report.behaviour_comment || report.cleanliness_comment || "Good behavior and maintains cleanliness.";
+    const comments = [
+      ["Class Teacher's Report", report.class_teacher_comment || report.suggested_comment || ""],
+      ["Behaviors / Cleanliness", behavior],
+      ["Head Teacher's Comment", report.head_of_infants_comment || report.head_teacher_comment || ""],
+    ];
+    const total = entries.reduce((sum, { mark }) => sum + (periodTools().periodScore(mark, period.key) ?? 0), 0);
+    const feeBalance = report.fees?.balance ?? "";
+    const nextFees = report.term_dates?.next_term_fees ?? school.next_term_fees ?? "";
+    const termEnd = formatReportDate(report.term_dates?.term_ended_on);
+    const nextTerm = formatReportDate(report.term_dates?.next_term_begins);
+    const logo = imageSource(school.logo_base64);
+    const photo = imageSource(learner.photo_base64);
+    const address = [school.street, school.po_box, school.city, school.district].filter(Boolean).join(", ");
+    const contact = [school.phone ? `Tel: ${school.phone}` : "", school.email ? `Email: ${school.email}` : ""].filter(Boolean).join(" · ");
+    return `<article ${previewAttrs(report, "NURSERY", options)}>
+      <div class="rc-preview-content rc-a5-content rc-a5-nursery-content">
+        <header class="rc-a5-nursery-header">
+          <div class="rc-a5-nursery-logo">${logo ? `<img src="${esc(logo)}" alt="School logo">` : ""}</div>
+          <div class="rc-a5-nursery-school"><h2>${value(school.name)}</h2><p>${value(address)}</p><p>${value(contact)}</p>${school.website ? `<p>Website: ${value(school.website)}</p>` : ""}<strong>${value(school.motto)}</strong></div>
+          <div class="rc-a5-nursery-photo">${photo ? `<img src="${esc(photo)}" alt="${value(learner.full_name)}">` : "Photo"}</div>
+          <div class="rc-a5-nursery-title">${esc(displayTerm(report.term))} · ${esc(period.title)} REPORT CARD</div>
+        </header>
+        <div class="rc-a5-nursery-info">
+          <span><b>Reg No:</b> ${value(learner.reg_no)}</span><span><b>Class:</b> ${value(report.class?.name)}</span><span><b>Fees Bal:</b> ${value(feeBalance)}</span><span><b>SchoolPay Code:</b> ${value(learner.schoolpay_code)}</span>
+          <span><b>Name:</b> ${value(learner.full_name)}</span><span><b>Days Attended:</b> ${value(report.days_attended ?? learner.days_attended ?? report.days_present)}</span><span><b>Absent:</b> ${value(report.days_absent ?? learner.days_absent ?? report.absence)}</span><span><b>Total:</b> ${value(report.total_days ?? learner.total_days ?? report.school_days)}</span>
+        </div>
+        <section class="rc-a5-nursery-panels">
+          <div class="rc-nursery-learning"><h3>Achievement Scores in the 5 Learning Areas</h3>
+            ${table(["AREA", "B.O.T", "MIDTERM", "AVERAGE", "GRADE"], areaRows, "rc-a5-nursery-table")}
+            <div class="rc-nursery-totalbar"><span>TOTAL: ${number(500, 0)}</span><span>SCORED: ${number(total, 0)}</span><span>POSITION: ${value(summary.position)} / ${value(summary.class_size)}</span></div>
+          </div>
+          <div class="rc-nursery-activities"><h3>Performance in the Learning Activities</h3><div class="rc-a5-nursery-grid">${activityCards}</div></div>
+        </section>
+        <section class="rc-a5-nursery-remarks">${comments.map(([label, content]) => `<div><b>${esc(label)}</b><span>${value(content)}</span></div>`).join("")}</section>
+        <div class="rc-a5-nursery-footer"><span>Fees balance: ${value(feeBalance)}</span><span>Next term fees: ${value(nextFees)}</span><span>Term ends: ${value(termEnd)}</span><span>Next term begins: ${value(nextTerm)}</span></div>
       </div>
     </article>`;
   }
@@ -824,8 +924,10 @@
     formatReportDate,
     renderStamp: stampBlock,
     render(report, options = {}) {
-      if ((options.layoutFormat || report.layout_format) === "A5_CONDENSED") return renderA5Condensed(report, options);
       const level = levelCode(report.class?.level);
+      if ((options.layoutFormat || report.layout_format) === "A5_CONDENSED") {
+        return level === "NURSERY" ? renderNurseryA5(report, options) : renderA5Condensed(report, options);
+      }
       if (level === "PRIMARY") return renderPrimary(report, options);
       if (level === "O_LEVEL" || level === "A_LEVEL") return renderSecondary(report, level, options);
       return renderNursery(report, options);

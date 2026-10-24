@@ -3,6 +3,7 @@
   const API = "https://reportcards-api.apshule-migration.workers.dev";
   const TOKEN_KEY = "appshule_reportcards_school_jwt";
   const LEVELS = [["NURSERY","Nursery"],["PRIMARY","Primary"],["O_LEVEL","O Level"],["A_LEVEL","A Level"]];
+  const NURSERY_ACTIVITY_NAMES = ["Writing","Listening","Reading","Speaking","Drawing","Games","Rhymes / Stories","Music","Health Habits","Toilet Habits"];
   const requestedPath = location.pathname.replace(/\/+$/u,"")||"/";
   const authRequested = () => requestedPath==="/login"||requestedPath==="/signup";
   const landingRequested = () => requestedPath==="/";
@@ -98,7 +99,7 @@
       else if(route==="announcements"){if(state.role!=="school_admin")throw new Error("Only school administrators can publish announcements.");state.parentAdmin.error="";state.parentAdmin.announcements=(await api("/api/parents/announcements")).announcements||[]}
       else if(route==="parent-feedback"){if(state.role!=="school_admin")throw new Error("Only school administrators can view parent feedback.");state.parentAdmin.error="";state.parentAdmin.feedback=(await api("/api/parents/feedback")).feedback||[]}
       else if(route==="finance"){if(!hasFinanceAccess())throw new Error("Finance access is not assigned to this account.");await loadFinanceTab()}
-        else if(route==="settings"){if(state.role!=="school_admin")throw new Error("School settings are only available to school administrators.");state.data.settingsTab=state.data.settingsTab||"general";state.data.schoolSettings=null;state.data.promotionSettings=null;state.data.settingsError=null;state.data.subjectsError=null;state.data.gradingError=null;state.data.stampError="";render();const [schoolResult,stampResult,financeResult,subjectsResult,gradingResult]=await Promise.all([api("/api/school/me"),api("/api/schools/stamp"),api("/api/fin/settings"),api("/api/subjects"),api("/api/grading")]);state.data.schoolSettings=schoolResult.school||null;state.data.subjects=subjectsResult.subjects||[];state.data.grading=gradingResult.grading||[];state.data.subjectGrading=gradingResult.subject_grading||[];state.data.activeGradingScale=gradingResult.active_scale||null;state.data.gradingScales=gradingResult.scales||[];state.data.activeGradingScales=gradingResult.active_scales||[];state.data.gradingPointsScheme=gradingResult.points_scheme||{};state.data.stampConfig={...(stampResult.stamp_config||{}),show_stamp:stampResult.show_stamp!==false,stamp_logo_position:stampResult.stamp_logo_position||"inside_center",stamp_logo_size:stampResult.stamp_logo_size??20,stamp_logo_offset_x:stampResult.stamp_logo_offset_x??0,stamp_logo_offset_y:stampResult.stamp_logo_offset_y??0,stamp_logo_rotation:stampResult.stamp_logo_rotation??0,stamp_logo_opacity:stampResult.stamp_logo_opacity??100};state.data.promotionSettings=financeResult.settings||{promotion_pass_mark:50,promotion_try_another_min:40};}
+        else if(route==="settings"){if(state.role!=="school_admin")throw new Error("School settings are only available to school administrators.");state.data.settingsTab=state.data.settingsTab||"general";state.data.schoolSettings=null;state.data.promotionSettings=null;state.data.settingsError=null;state.data.subjectsError=null;state.data.gradingError=null;state.data.activityIconError="";state.data.stampError="";render();const [schoolResult,stampResult,financeResult,subjectsResult,gradingResult,activityIconResult]=await Promise.all([api("/api/school/me"),api("/api/schools/stamp"),api("/api/fin/settings"),api("/api/subjects"),api("/api/grading"),api("/api/school/activity-icons")]);state.data.schoolSettings=schoolResult.school||null;state.data.subjects=subjectsResult.subjects||[];state.data.grading=gradingResult.grading||[];state.data.subjectGrading=gradingResult.subject_grading||[];state.data.activeGradingScale=gradingResult.active_scale||null;state.data.gradingScales=gradingResult.scales||[];state.data.activeGradingScales=gradingResult.active_scales||[];state.data.gradingPointsScheme=gradingResult.points_scheme||{};state.data.activityIcons=activityIconResult.icons||[];state.data.stampConfig={...(stampResult.stamp_config||{}),show_stamp:stampResult.show_stamp!==false,stamp_logo_position:stampResult.stamp_logo_position||"inside_center",stamp_logo_size:stampResult.stamp_logo_size??20,stamp_logo_offset_x:stampResult.stamp_logo_offset_x??0,stamp_logo_offset_y:stampResult.stamp_logo_offset_y??0,stamp_logo_rotation:stampResult.stamp_logo_rotation??0,stamp_logo_opacity:stampResult.stamp_logo_opacity??100};state.data.promotionSettings=financeResult.settings||{promotion_pass_mark:50,promotion_try_another_min:40};}
       else if(route==="review"&&state.role==="school_admin")await loadReviewQueue();
     }catch(error){if(["announcements","parent-feedback"].includes(route))state.parentAdmin.error=error.message;else state.data[route+"Error"]=error.message}
     render();
@@ -452,18 +453,28 @@
        ${brandingSettingsMarkup(school)}
        ${stampMarkup}`;
    }
+  function activityIconsSettingsMarkup(){
+    const icons=state.data.activityIcons||[];
+    const iconKeys=["writing","listening","reading","speaking","drawing","games","rhymes_stories","music","health_habits","toilet_habits"];
+    return `<section class="card section-card"><div class="section-title"><div><h2>Nursery activity icons</h2><p>Upload a school-specific image for each learning activity. Images are automatically resized to 50 × 50 pixels and saved as optimized PNGs.</p></div></div>
+      ${state.data.activityIconError?`<div class="alert error" role="alert">${esc(state.data.activityIconError)}</div>`:""}
+      <div class="nursery-icon-grid">${NURSERY_ACTIVITY_NAMES.map((name,index)=>{const saved=icons.find(item=>item.activity_name===name);const source=saved?.icon_base64?(saved.icon_base64.startsWith("data:image/")?saved.icon_base64:`data:image/png;base64,${saved.icon_base64}`):`/pdf-templates/nursery-icons/${iconKeys[index]}.png`;const busy=state.data.activityIconBusy===name;return `<article class="nursery-icon-card"><img class="nursery-icon-preview" src="${esc(source)}" alt="${esc(name)} icon"><div class="nursery-icon-details"><strong>${esc(name)}</strong><span>${saved?"Custom school icon":"Default icon"}</span><label class="btn btn-outline btn-sm">${busy?"Uploading…":"Upload icon"}<input type="file" accept="image/*" data-activity-icon-file="${esc(name)}" ${busy?"disabled":""}></label>${saved?`<button type="button" class="text-button nursery-icon-remove" data-action="remove-activity-icon" data-name="${esc(name)}">Use default</button>`:""}</div></article>`}).join("")}</div>
+      <p class="field-hint">Custom icons are school-specific and appear in the Nursery activity grid on both the HTML preview and PDF. If none is uploaded, the built-in icon is used.</p>
+    </section>`;
+  }
    function settingsPage(){
      const school=state.data.schoolSettings;
      if(!school)return `${heading("School settings","Set the current school term and the information shown on report cards.")}${state.data.settingsError?errorBox(state.data.settingsError,"settings"):`${loading()}`}`;
      const promotion=state.data.promotionSettings||{promotion_pass_mark:50,promotion_try_another_min:40};
      const active=state.data.settingsTab||"general";
-      const tabs=[["general","School"],["theme","Theme"],["grading","Grading scale"],["subjects","Subjects"],["other","Other / co-curricular"]];
+      const tabs=[["general","School"],["theme","Theme"],["grading","Grading scale"],["subjects","Subjects"],["other","Other / co-curricular"],["activity-icons","Activity Icons"]];
      const tabBar=`<div class="settings-tabs" role="tablist" aria-label="School settings sections">${tabs.map(([key,label])=>`<button type="button" role="tab" aria-selected="${active===key}" class="settings-tab ${active===key?"active":""}" data-action="settings-tab" data-tab="${key}">${label}</button>`).join("")}</div>`;
      let panel="";
       if(active==="theme")panel=themeSettingsMarkup(school);
       else if(active==="grading")panel=gradingPanel();
      else if(active==="subjects")panel=subjectsPanel("CORE");
      else if(active==="other")panel=subjectsPanel("OTHER");
+     else if(active==="activity-icons")panel=activityIconsSettingsMarkup();
      else{
        const stampMarkup=window.ReportCardStampBuilder?window.ReportCardStampBuilder.render(state.data.stampConfig||{},{saving:state.data.savingStamp===true,error:state.data.stampError||""}):errorBox("Digital stamp controls did not load.");
        panel=generalSettingsMarkup(school,promotion,stampMarkup);
@@ -644,6 +655,33 @@
           context.fillStyle="#fff";context.fillRect(0,0,canvas.width,canvas.height);
           context.drawImage(image,0,0,canvas.width,canvas.height);
           resolve(canvas.toDataURL("image/jpeg",0.88));
+        };
+        image.src=String(reader.result||"");
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+  function compressNurseryActivityIcon(file){
+    if(!file?.type?.startsWith("image/"))return Promise.reject(new Error("Choose an image file for this activity."));
+    if(file.size>10*1024*1024)return Promise.reject(new Error("Choose an image smaller than 10 MB."));
+    return new Promise((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onerror=()=>reject(new Error("Could not read the selected image."));
+      reader.onload=()=>{
+        const image=new Image();
+        image.onerror=()=>reject(new Error("This image could not be opened."));
+        image.onload=()=>{
+          const canvas=document.createElement("canvas");
+          canvas.width=50;canvas.height=50;
+          const context=canvas.getContext("2d");
+          if(!context){reject(new Error("Image processing is unavailable in this browser."));return}
+          context.clearRect(0,0,50,50);
+          const scale=Math.min(50/image.naturalWidth,50/image.naturalHeight);
+          const width=image.naturalWidth*scale,height=image.naturalHeight*scale;
+          context.drawImage(image,(50-width)/2,(50-height)/2,width,height);
+          const result=canvas.toDataURL("image/png");
+          if(result.length>65536){reject(new Error("The resized icon is too large to save."));return}
+          resolve(result);
         };
         image.src=String(reader.result||"");
       };
@@ -918,7 +956,8 @@
   }
   async function action(button,clickEvent){
     const a=button.dataset.action,id=button.dataset.id;
-    if(a==="settings-tab"){const tab=button.dataset.tab;if(["general","theme","grading","subjects","other"].includes(tab)){state.data.settingsTab=tab;state.modal=null;render()}return}
+    if(a==="settings-tab"){const tab=button.dataset.tab;if(["general","theme","grading","subjects","other","activity-icons"].includes(tab)){state.data.settingsTab=tab;state.modal=null;render()}return}
+    if(a==="remove-activity-icon"){const activityName=button.dataset.name;if(!activityName)return;try{await api(`/api/school/activity-icons/${encodeURIComponent(activityName)}`,{method:"DELETE"});state.data.activityIcons=(state.data.activityIcons||[]).filter(item=>item.activity_name!==activityName);if(reportState.data?.school)reportState.data.school={...reportState.data.school,activity_icons:state.data.activityIcons};render();toast(`${activityName} now uses the default icon.`)}catch(error){state.data.activityIconError=error.message||"Could not restore the default icon.";render()}return}
     if(a==="toggle-auth"){state.authMode=state.authMode==="signup"?"login":"signup";if(requestedPath==="/"||requestedPath==="/login"||requestedPath==="/signup")history.replaceState(null,"",`/${state.authMode}`);renderAuth();return}
     if(a==="toggle-password"){const input=document.getElementById(button.dataset.target);if(!input)return;const visible=input.type==="password";input.type=visible?"text":"password";button.setAttribute("aria-pressed",String(visible));button.setAttribute("aria-label",visible?"Hide password":"View password");button.innerHTML=icon(visible?"fa-eye-slash":"fa-eye");input.focus();return}
     if(a==="logout"){logout();return}
@@ -1323,6 +1362,21 @@
     finally{reportState.busy=false;render()}
   }
 
+  async function uploadNurseryActivityIcon(input){
+    const activityName=input.dataset.activityIconFile,file=input.files?.[0];
+    if(!activityName||!file)return;
+    state.data.activityIconBusy=activityName;state.data.activityIconError="";render();
+    try{
+      const iconBase64=await compressNurseryActivityIcon(file);
+      const result=await api("/api/school/activity-icons",{method:"PATCH",body:{activity_name:activityName,icon_base64:iconBase64}});
+      const saved=result.icon;
+      state.data.activityIcons=[...(state.data.activityIcons||[]).filter(item=>item.activity_name!==activityName),saved].sort((a,b)=>a.activity_name.localeCompare(b.activity_name));
+      if(reportState.data?.school)reportState.data.school={...reportState.data.school,activity_icons:state.data.activityIcons};
+      state.data.activityIconBusy="";render();toast(`${activityName} icon saved.`);
+    }catch(error){
+      state.data.activityIconBusy="";state.data.activityIconError=error.message||"Could not save the activity icon.";render();
+    }
+  }
   async function saveSchoolSettings(form){
     if(!form.reportValidity())return;
     const fd=new FormData(form);
@@ -1509,6 +1563,7 @@
   });
    root.addEventListener("click",e=>{const financeTab=e.target.closest("[data-fin-tab]");if(financeTab){e.preventDefault();state.finance.tab=financeTab.dataset.finTab;loadRoute("finance");return}const financeButton=e.target.closest("[data-fin-action]");if(financeButton){e.preventDefault();financeAction(financeButton);return}const link=e.target.closest("[data-route]");if(link){e.preventDefault();go(link.dataset.route);return}const btn=e.target.closest("[data-action]");if(btn)action(btn,e)});
     root.addEventListener("change",e=>{const target=e.target,mode=target.closest("[data-tr-mode]");if(mode){const row=mode.closest("tr"),selected=mode.value;row?.querySelectorAll("[data-tr-input]").forEach(input=>{input.hidden=input.dataset.trInput!==selected});const auto=row?.querySelector('[data-tr-panel="auto"]');if(auto)auto.hidden=selected!=="auto"}if(target.matches("[data-ple-subject]")){if(state.modal)state.modal.subjectId=target.value;render();return}if(target.matches("[data-overall-grade],[data-grade-point-type]"))calculateMarks(target.closest("tr"))});
+  root.addEventListener("change",e=>{const input=e.target.closest("[data-activity-icon-file]");if(input&&input.files?.[0])uploadNurseryActivityIcon(input)});
   root.addEventListener("input",e=>{if(e.target.matches("[data-score]"))calculateMarks(e.target.closest("tr"));if(e.target.matches("[data-watermark-opacity]")){const output=root.querySelector("#watermark-opacity-value");if(output)output.textContent=`${e.target.value}%`}});
    root.addEventListener("change",e=>{const t=e.target;if(t.matches("[data-filter]")){state.filter[t.dataset.filter]=t.value;if(t.dataset.filter==="class_id"&&state.route==="marks"){state.filter.subject_id="";loadRoute("marks")}else if(t.dataset.filter==="level"&&["subjects","grading"].includes(state.route)){state.filter.level=t.value;loadRoute(state.route)}}if(t.matches("[data-rm-filter]")){state.filter[t.dataset.rmFilter]=t.value;if(t.dataset.rmFilter==="class_id"){const first=(state.rm.classes||[]).find(c=>String(c.class_id)===String(t.value));state.filter.subject_id=first?.subject_id||""}if(state.route==="review")loadReviewQueue();else render()}if(t.matches("[data-report-filter]")){const key=t.dataset.reportFilter;if(key==="includeStamp"){reportState.includeStamp=t.checked;render()}else{reportState[key]=t.value;if(key==="template"||key==="period"){reportState.error="";if(reportState.data)loadReportClass();else render()}else if(key==="learnerId"){reportState.verificationError="";render();loadSelectedReportVerification()}else{reportState.verificationRequestId++;reportState.verifications={};reportState.verificationBusy=false;reportState.verificationError="";reportState.data=null;reportState.learners=[];reportState.learnerId="";reportState.error="";render()}}}if(t.matches("[data-fin-filter]")){state.finance[t.dataset.finFilter]=t.value;if(t.dataset.finFilter==="reportClass")state.finance.reportClass=t.value;loadRoute("finance")}if(t.matches("[data-signature-file]")&&t.files?.[0]){const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const c=document.getElementById("signature-canvas"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);const scale=Math.min(c.width/img.width,c.height/img.height);ctx.drawImage(img,(c.width-img.width*scale)/2,(c.height-img.height*scale)/2,img.width*scale,img.height*scale)};img.src=reader.result};reader.readAsDataURL(t.files[0])}if(t.id==="csv-file"&&t.files?.[0])importCsv(t.files[0]);if(t.id==="finance-csv"&&t.files?.[0])importFinanceCsv(t.files[0])});
   root.addEventListener("change",e=>{const filter=e.target.closest("[data-project-filter]");if(!filter)return;projectState[filter.dataset.projectFilter]=filter.value;projectState.error="";state.data.projectRegister=null;render()});
