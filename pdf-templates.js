@@ -285,9 +285,9 @@
       ?? report.grading_scale?.preset_key;
     if (["o_level_old_uce", "o_level_new_uce"].includes(presetKey)) return "ANNUAL UCE REPORT";
     const term = displayTerm(report.term)
-      .replace("TERM I", "TERM 1")
+      .replace("TERM III", "TERM 3")
       .replace("TERM II", "TERM 2")
-      .replace("TERM III", "TERM 3");
+      .replace("TERM I", "TERM 1");
     const period = assessmentPeriod(report);
     return `${term} PROGRESS REPORT - ${period.title}`;
   }
@@ -368,21 +368,21 @@
     const showPosition = reportPositionEnabled(report, meta);
     const infoRows = level === "NURSERY" ? [
       [["REG NO", learner.reg_no], ["CLASS", report.class?.name], ["FEES BAL", report.fees?.balance], ["SCHOOLPAY CODE", learner.schoolpay_code || school.schoolpay_code]],
-      [["NAME", learner.full_name], ["DAYS ATTENDED", report.days_attended ?? report.days_present], ["ABSENT", report.days_absent ?? learner.days_absent ?? report.absence], ["TOTAL", report.total_days ?? report.school_days], ["HOUSE", learner.house]],
+      [["NAME", learner.full_name], ["DAYS ATTENDED", report.days_attended ?? report.days_present], ["ABSENT", report.days_absent ?? learner.days_absent ?? report.absence], ["TOTAL", report.total_days ?? report.school_days]],
     ] : level === "PRIMARY" ? [
       [["NAME", learner.full_name], ["AD No", learner.reg_no], ["PRINT DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
        [["CLASS", report.class?.name], ["SEX", learner.sex || learner.gender], ["AGE", learner.age], ["SCHOOLPAY CODE", learner.schoolpay_code]],
       [["HOUSE", learner.house], ["DAYS ABSENT", report.days_absent ?? learner.days_absent ?? report.absence], ["TERM", displayTerm(report.term)], ["YEAR", report.year]],
       [["POSITION", positionValue({}, report)], ["OUT OF", classSizeValue({}, report)]],
     ] : level === "O_LEVEL" ? [
-      [["NAME", learner.full_name], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")], ["YEAR", report.year], ["DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
+      [["NAME", learner.full_name], ["TERM", displayTerm(report.term).replace("TERM III", "TERM 3").replace("TERM II", "TERM 2").replace("TERM I", "TERM 1")], ["YEAR", report.year], ["DATE", formatReportDate(report.printed_at || report.generated_at || new Date())]],
        [["SCHOLAR ID", learner.scholar_id || learner.reg_no], ["CLASS", report.class?.name], ["VCODE", learner.vcode], ["SCHOOLPAY CODE", learner.schoolpay_code]],
       [["LIN/AMIS.NO", learner.lin || learner.amis_no], ["STATE", learner.state], ["RESIDENCE", learner.residence], ["HOUSE", learner.house]],
     ] : level === "A_LEVEL" ? [
       [["NAME", learner.full_name], ["GENDER", learner.gender || learner.sex]],
        [["AGE", learner.age], ["ROLL NO", learner.roll_no || learner.reg_no], ["SCHOOLPAY CODE", learner.schoolpay_code]],
       [["CLASS", report.class?.name], ["STREAM", learner.stream || report.class?.stream], ["HOUSE", learner.house]],
-      [["COMBINATION", learner.combination || report.class?.combination], ["TERM", displayTerm(report.term).replace("TERM I", "TERM 1").replace("TERM II", "TERM 2").replace("TERM III", "TERM 3")]],
+      [["COMBINATION", learner.combination || report.class?.combination], ["TERM", displayTerm(report.term).replace("TERM III", "TERM 3").replace("TERM II", "TERM 2").replace("TERM I", "TERM 1")]],
     ] : [
       [["NAME", learner.full_name], ["AD No", learner.reg_no]],
        [["CLASS", report.class?.name], ["SEX", learner.sex], ["SCHOOLPAY CODE", learner.schoolpay_code]],
@@ -404,8 +404,32 @@
       const valueSize = reportFonts.body;
       const textX = cellX + 5;
       const labelWidth = fonts.bold.widthOfTextAtSize(labelText, labelSize);
-      drawText(page, labelText, textX, cellY + 6, fonts.bold, labelSize, rgb(0.2, 0.2, 0.22), labelWidth);
-      drawText(page, infoValue(label, value), textX + labelWidth + 3, cellY + 6, fonts.regular, valueSize, rgb(0.2, 0.2, 0.22), cellWidth - labelWidth - 13);
+      if (level === "NURSERY") {
+        const nurseryLabelSize = 9;
+        const nurseryLabelWidth = fonts.bold.widthOfTextAtSize(labelText, nurseryLabelSize);
+        page.drawText(labelText, {
+          x: textX,
+          y: cellY + 6,
+          size: nurseryLabelSize,
+          font: fonts.bold,
+          color: rgb(0.2, 0.2, 0.22),
+        });
+        const valueX = textX + nurseryLabelWidth + 3;
+        const valueWidth = cellWidth - nurseryLabelWidth - 13;
+        const layout = fitCompleteText(infoValue(label, value), fonts.regular, valueWidth, 2, 9, 5);
+        layout.lines.forEach((line, lineIndex) => {
+          page.drawText(line, {
+            x: valueX,
+            y: cellY + 6 + (layout.lines.length - lineIndex - 1) * (layout.size + 1),
+            size: layout.size,
+            font: fonts.regular,
+            color: rgb(0.2, 0.2, 0.22),
+          });
+        });
+      } else {
+        drawText(page, labelText, textX, cellY + 6, fonts.bold, labelSize, rgb(0.2, 0.2, 0.22), labelWidth);
+        drawText(page, infoValue(label, value), textX + labelWidth + 3, cellY + 6, fonts.regular, valueSize, rgb(0.2, 0.2, 0.22), cellWidth - labelWidth - 13);
+      }
     }));
     return infoTop - infoRows.length * cellHeight - 12;
   }
@@ -726,6 +750,7 @@
           .forEach((line, index) => drawText(page, line, 28, 91 - index * 12, fonts.regular, reportFonts.body, ink, width - 56));
       }
 
+      if (!options.skipRemarks) {
       const remarkTop = 223;
       const remarkHeight = 80;
       const remarks = (options.remarks || [
@@ -764,6 +789,7 @@
         drawText(page, str(person), x + 5, 165, fonts.bold, reportFonts.body, ink, remarkWidth - 10);
         drawText(page, signerLabel, x + 5, 150, fonts.regular, reportFonts.body, ink, remarkWidth - 10);
       });
+      }
     }
     const address = [school.street, school.po_box, school.city, school.district].filter(Boolean).join(" · ");
     const pageNumber = doc.getPages().indexOf(page) + 1;
@@ -1053,6 +1079,59 @@
     return result;
   }
   const nurseryActivityDefaults = ["Writing", "Listening", "Reading", "Speaking", "Drawing", "Games", "Rhymes / Stories", "Music", "Health Habits", "Toilet Habits"];
+  const nurseryLearningAreaDefaults = [
+    "Taking care of myself for proper growth and development",
+    "Interacting, exploring, knowing and using my environment",
+    "Relating with others in an acceptable way",
+    "Developing and using my Language appropriately",
+    "Developing and using Mathematical Concepts in my day-to-day",
+  ];
+  const nurseryActivityIconKeys = [
+    "writing", "listening", "reading", "speaking", "drawing",
+    "games", "rhymes_stories", "music", "health_habits", "toilet_habits",
+  ];
+  const nurseryIconBytesCache = new Map();
+  async function embedNurseryIcon(doc, key) {
+    if (!nurseryIconBytesCache.has(key)) {
+      const pending = (async () => {
+        try {
+          const response = await fetch(`/pdf-templates/nursery-icons/${key}.png`, { cache: "force-cache" });
+          if (!response.ok) return null;
+          return new Uint8Array(await response.arrayBuffer());
+        } catch {
+          return null;
+        }
+      })();
+      nurseryIconBytesCache.set(key, pending);
+    }
+    const bytes = await nurseryIconBytesCache.get(key);
+    return bytes ? doc.embedPng(bytes) : null;
+  }
+  function nurseryWrappedLayout(text, font, width, height, preferredSize, minimumSize = 5.5, leading = 1.15) {
+    for (let size = preferredSize; size >= minimumSize; size -= 0.5) {
+      const lines = completeWrappedLines(str(text), font, size, width);
+      const lineHeight = size * leading;
+      if (lines.length * lineHeight <= height) return { lines, size, lineHeight };
+    }
+    const size = minimumSize;
+    return { lines: completeWrappedLines(str(text), font, size, width), size, lineHeight: size * leading };
+  }
+  function drawNurseryWrappedText(page, text, x, top, width, height, font, preferredSize, ink, align = "left", minimumSize = 5.5) {
+    const layout = nurseryWrappedLayout(text, font, width, height, preferredSize, minimumSize);
+    layout.lines.forEach((line, index) => {
+      const textWidth = font.widthOfTextAtSize(line, layout.size);
+      const drawX = align === "center" ? x + Math.max(0, (width - textWidth) / 2)
+        : align === "right" ? x + Math.max(0, width - textWidth) : x;
+      page.drawText(line, {
+        x: drawX,
+        y: top - layout.size - index * layout.lineHeight,
+        size: layout.size,
+        font,
+        color: ink,
+      });
+    });
+    return layout;
+  }
   function nurseryActivityItems(report) {
     const source = Array.isArray(report.activities) ? report.activities
       : Array.isArray(report.learning_activities) ? report.learning_activities
@@ -1189,65 +1268,78 @@
 
   async function renderNursery(learnerOrReport, school, marksData, meta = null) {
     const report = asReport(learnerOrReport, school, marksData);
-    const { doc, page, fonts, accent, lineAccent, backgroundColor, theme, y } = await prepare(report, "NURSERY", "Nursery Learning Report");
+    const { doc, page, fonts, theme, y } = await prepare(report, "NURSERY", "Nursery Learning Report", meta);
     const width = page.getWidth();
     const x = 28;
-    const gap = 9;
-    const panelWidth = (width - 56 - gap) / 2;
-    const rightX = x + panelWidth + gap;
-    const entries = marks(report);
+    const contentWidth = width - 56;
+    const gap = 8;
+    const leftWidth = (contentWidth - gap) * 0.6;
+    const rightWidth = contentWidth - gap - leftWidth;
+    const rightX = x + leftWidth + gap;
+    const sourceEntries = marks(report);
+    const entryByName = new Map(sourceEntries.map((entry) => [
+      String(entry.subject.name || "").toLowerCase().replace(/[^a-z0-9]+/g, ""),
+      entry,
+    ]));
+    const entries = nurseryLearningAreaDefaults.map((name, index) => {
+      const normalizedName = name.toLowerCase().replace(/[^a-z0-9]+/g, "");
+      return entryByName.get(normalizedName) || sourceEntries[index] || {
+        subject: { name },
+        mark: {},
+      };
+    });
     const period = assessmentPeriod(report);
-    const activities = nurseryActivityItems(report);
+    const sourceActivities = nurseryActivityItems(report);
+    const activityByName = new Map(sourceActivities.map((item) => [
+      String(item.name || "").toLowerCase().replace(/[^a-z0-9]+/g, ""),
+      item,
+    ]));
+    const activities = nurseryActivityDefaults.map((name, index) =>
+      activityByName.get(name.toLowerCase().replace(/[^a-z0-9]+/g, ""))
+      || sourceActivities[index]
+      || { name, remark: "", image: "" },
+    );
     const top = y;
-    const sectionHeight = 21;
-    const headerHeight = 21;
-    const rowHeight = Math.min(49, (top - 285 - sectionHeight - headerHeight) / Math.max(5, entries.length));
-    const headerFill = color(theme.table_header_color);
-    const headerInk = color(theme.table_header_text_color);
-    const border = lineAccent;
-    const pale = color(backgroundColor);
-    const ink = theme.font_color ? color(theme.font_color) : rgb(0.17, 0.18, 0.2);
+    const sectionHeight = 24;
+    const headerHeight = 18;
+    const totalHeight = 19;
+    const rowHeight = Math.max(35, Math.min(47, (top - sectionHeight - headerHeight - 305) / 5));
+    const leftHeaderY = top - sectionHeight;
+    const rowTopStart = leftHeaderY - headerHeight;
+    const tableBottom = rowTopStart - rowHeight * 5;
+    const maroon = color("#800000");
+    const gold = color("#D4AF37");
+    const border = maroon;
+    const pale = color("#FFF8F7");
+    const ink = rgb(0.17, 0.18, 0.2);
     const white = rgb(1, 1, 1);
     if (meta) variantRule(page, page.getHeight() - 150, width, meta);
 
-    const panelTitle = (panelX, label) => {
-      page.drawRectangle({ x: panelX, y: top - sectionHeight, width: panelWidth, height: sectionHeight, color: color(theme.accent_color) });
-      centered(page, label, panelX + panelWidth / 2, top - 15, fonts.bold, reportFonts.subheading, contrastColor(theme.accent_color), panelWidth - 12);
+    const panelTitle = (panelX, panelWidth, label, size) => {
+      page.drawRectangle({ x: panelX, y: top - sectionHeight, width: panelWidth, height: sectionHeight, color: white, borderColor: maroon, borderWidth: 0.7 });
+      drawNurseryWrappedText(page, label, panelX + 5, top - 3, panelWidth - 10, sectionHeight - 5, fonts.bold, size, maroon, "center", 7);
     };
-    panelTitle(x, `ACHIEVEMENT SCORES — ${period.title}`);
-    panelTitle(rightX, "PERFORMANCE IN THE LEARNING ACTIVITIES");
+    panelTitle(x, leftWidth, "ACHIEVEMENT SCORES IN THE 5 LEARNING AREAS", 10);
+    panelTitle(rightX, rightWidth, "PERFORMANCE IN THE LEARNING ACTIVITIES", 9.5);
 
-    const leftHeaderY = top - sectionHeight;
-    page.drawRectangle({ x, y: leftHeaderY - headerHeight, width: panelWidth, height: headerHeight, color: headerFill, borderColor: border, borderWidth: 0.5 });
-    const scoreCount = period.fields.length + (period.combined ? 1 : 0);
-    const areaWidths = [
-      panelWidth * 0.29,
-      ...Array(scoreCount).fill(panelWidth * 0.47 / scoreCount),
-      panelWidth * 0.17,
-      panelWidth * 0.07,
-    ];
-    const areaHeads = [
-      "Area",
-      ...period.fields.map(({ label }) => label),
-      ...(period.combined ? ["FINAL"] : []),
-      "Remark",
-      "Signature",
-    ];
+    page.drawRectangle({ x, y: rowTopStart, width: leftWidth, height: headerHeight, color: white, borderColor: border, borderWidth: 0.55 });
+    const areaWidths = [leftWidth * 0.48, leftWidth * 0.38, leftWidth * 0.14];
+    const areaHeads = ["Area", "Score and Comment", "Signature"];
     let headerX = x;
     areaHeads.forEach((label, index) => {
-      centeredTable(page, label, headerX + areaWidths[index] / 2, leftHeaderY - 15, fonts.bold, reportFonts.subheading, headerInk, areaWidths[index] - 3, reportFonts.subheading);
-      if (index) page.drawLine({ start: { x: headerX, y: leftHeaderY }, end: { x: headerX, y: leftHeaderY - headerHeight }, thickness: 0.45, color: border });
+      drawNurseryWrappedText(page, label, headerX + 3, rowTopStart + headerHeight - 3, areaWidths[index] - 6, headerHeight - 5, fonts.bold, 8.5, maroon, "center", 6.5);
+      if (index) page.drawLine({ start: { x: headerX, y: rowTopStart + headerHeight }, end: { x: headerX, y: rowTopStart }, thickness: 0.5, color: border });
       headerX += areaWidths[index];
     });
-    let rowTop = leftHeaderY - headerHeight;
-    const maxScore = report.summary?.maximum_score ?? report.summary?.total_possible ?? entries.length * 100;
+    let rowTop = rowTopStart;
+    const maxScore = 500;
     const scored = report.summary?.total_score ?? entries.reduce((sum, { mark }) => {
-      const parsed = periodScore(mark, period);
+      const parsed = scoreForMark(mark, report) ?? periodScore(mark, period);
       return parsed === null ? sum : sum + parsed;
     }, 0);
     entries.forEach(({ subject, mark }, index) => {
       const rowBottom = rowTop - rowHeight;
-      page.drawRectangle({ x, y: rowBottom, width: panelWidth, height: rowHeight, color: index % 2 ? white : pale, borderColor: border, borderWidth: 0.45 });
+      page.drawRectangle({ x, y: rowBottom, width: leftWidth, height: rowHeight, color: index % 2 ? white : pale, borderColor: border, borderWidth: 0.45 });
       let cellX = x;
       areaWidths.slice(0, -1).forEach((cellWidth) => {
         cellX += cellWidth;
@@ -1255,79 +1347,99 @@
       });
       const name = str(subject.name || `Learning Area ${index + 1}`);
       const description = subject.learning_area_description || subject.description || subject.learning_outcome || subject.details || "";
-      drawTableText(page, name, x + 4, rowTop - 13, fonts.bold, reportFonts.table, ink, areaWidths[0] - 8);
-      (description ? wrappedLines(str(description), fonts.regular, reportFonts.table, areaWidths[0] - 8).slice(0, 2) : []).forEach((line, lineIndex) => {
-        drawTableText(page, line, x + 4, rowTop - 27 - lineIndex * 12, fonts.regular, reportFonts.table, ink, areaWidths[0] - 8);
-      });
-      const values = [
-        ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
-        ...(period.combined ? [num(periodScore(mark, period))] : []),
-      ];
-      let scoreX = x + areaWidths[0];
-      values.forEach((score, scoreIndex) => {
-        centeredTable(page, score, scoreX + areaWidths[scoreIndex + 1] / 2, rowTop - 18, fonts.bold, reportFonts.table, ink, areaWidths[scoreIndex + 1] - 3);
-        scoreX += areaWidths[scoreIndex + 1];
-      });
-      const remarkIndex = areaWidths.length - 2;
-      const remarkX = x + areaWidths.slice(0, remarkIndex).reduce((sum, item) => sum + item, 0);
-      wrappedLines(subjectRemark(mark, report), fonts.italic, reportFonts.table, areaWidths[remarkIndex] - 6).slice(0, 2).forEach((line, lineIndex) => {
-        centeredTable(page, line, remarkX + areaWidths[remarkIndex] / 2, rowTop - 17 - lineIndex * 12, fonts.italic, reportFonts.table, color(theme.primary_color), areaWidths[remarkIndex] - 6);
-      });
-      const signIndex = areaWidths.length - 1;
-      const signX = x + areaWidths.slice(0, signIndex).reduce((sum, item) => sum + item, 0);
-      page.drawLine({ start: { x: signX + 3, y: rowBottom + 9 }, end: { x: signX + areaWidths[signIndex] - 3, y: rowBottom + 9 }, thickness: 0.4, color: border });
+      drawNurseryWrappedText(page, name, x + 5, rowTop - 3, areaWidths[0] - 10, 19, fonts.bold, 8.5, ink, "center", 6);
+      if (description) {
+        drawNurseryWrappedText(page, description, x + 5, rowTop - 21, areaWidths[0] - 10, rowHeight - 23, fonts.regular, 7.8, ink, "center", 5.5);
+      }
+      const score = scoreForMark(mark, report) ?? periodScore(mark, period);
+      const scoreText = score === null ? "SCORE: —" : `SCORE: ${Number.isInteger(score) ? score : num(score, 1)}`;
+      const scoreX = x + areaWidths[0];
+      const scoreWidth = areaWidths[1];
+      drawNurseryWrappedText(page, scoreText, scoreX + 4, rowTop - 8, scoreWidth - 8, 12, fonts.bold, 9.5, maroon, "center", 7);
+      const remark = subjectRemark(mark, report);
+      drawNurseryWrappedText(page, remark === "—" ? "" : `Remark: ${remark}`, scoreX + 5, rowTop - 23, scoreWidth - 10, rowHeight - 26, fonts.italic, 7.7, ink, "center", 5.2);
+      const signX = x + areaWidths[0] + areaWidths[1];
+      page.drawLine({ start: { x: signX + 5, y: rowBottom + 8 }, end: { x: signX + areaWidths[2] - 5, y: rowBottom + 8 }, thickness: 0.45, color: border });
       rowTop = rowBottom;
     });
     const totalTop = rowTop;
-    const totalHeight = 19;
-    const totalFill = color(theme.accent_color);
-    page.drawRectangle({ x, y: totalTop - totalHeight, width: panelWidth, height: totalHeight, color: totalFill, borderColor: totalFill, borderWidth: 0.5 });
+    const totalFill = maroon;
+    page.drawRectangle({ x, y: totalTop - totalHeight, width: leftWidth, height: totalHeight, color: totalFill, borderColor: totalFill, borderWidth: 0.5 });
     const showPosition = reportPositionEnabled(report, meta);
-    const totals = [`TOTAL: ${num(maxScore, 0)}`, `SCORED: ${num(scored, 0)}`, ...(showPosition ? [`POSITION ${overallPositionValue(report) || "—"} OUT OF ${overallClassSizeValue(report) || "—"}`] : [])];
+    const totals = [`TOTAL: ${num(maxScore, 0)}`, `SCORED: ${num(scored, 0)}`, ...(showPosition ? [`POSITION: ${overallPositionValue(report) || "—"} OUT OF ${overallClassSizeValue(report) || "—"}`] : [])];
     let totalX = x;
     const totalWidths = showPosition
-      ? [panelWidth * 0.31, panelWidth * 0.31, panelWidth * 0.38]
-      : [panelWidth * 0.5, panelWidth * 0.5];
+      ? [leftWidth * 0.25, leftWidth * 0.27, leftWidth * 0.48]
+      : [leftWidth * 0.5, leftWidth * 0.5];
     totals.forEach((label, index) => {
-      centeredTable(page, label, totalX + totalWidths[index] / 2, totalTop - 13, fonts.bold, reportFonts.table, contrastColor(theme.accent_color), totalWidths[index] - 4);
+      drawNurseryWrappedText(page, label, totalX + 2, totalTop - 3, totalWidths[index] - 4, totalHeight - 5, fonts.bold, 8.2, white, "center", 6.3);
       if (index) page.drawLine({ start: { x: totalX, y: totalTop }, end: { x: totalX, y: totalTop - totalHeight }, thickness: 0.4, color: white });
       totalX += totalWidths[index];
     });
 
-    const activityHeaderY = top - sectionHeight;
     const activityColumns = 2;
-    const activityRows = Math.ceil(activities.length / activityColumns);
-    const cardHeight = (headerHeight + Math.max(entries.length, 5) * rowHeight + 19 - 4) / Math.max(activityRows, 1);
-    const cardWidth = (panelWidth - 4) / activityColumns;
+    const cardHeight = (top - sectionHeight - tableBottom) / 5;
+    const cardWidth = rightWidth / activityColumns;
     for (let index = 0; index < activities.length; index += 1) {
       const item = activities[index];
       const column = index % activityColumns;
       const row = Math.floor(index / activityColumns);
-      const cardX = rightX + column * (cardWidth + 4);
-      const cardTop = activityHeaderY - 4 - row * cardHeight;
+      const cardX = rightX + column * cardWidth;
+      const cardTop = top - sectionHeight - row * cardHeight;
       const cardBottom = cardTop - cardHeight;
       page.drawRectangle({ x: cardX, y: cardBottom, width: cardWidth, height: cardHeight, color: index % 2 ? white : pale, borderColor: border, borderWidth: 0.45 });
-      const image = await embedImage(doc, item.image);
-      const iconWidth = Math.min(27, cardWidth * 0.22);
-      const iconX = cardX + cardWidth - iconWidth - 4;
-      if (image) placeImage(page, image, iconX, cardBottom + 5, iconWidth, cardHeight - 10);
-      else {
-        page.drawEllipse({ x: iconX + iconWidth / 2, y: cardBottom + cardHeight / 2, xScale: iconWidth / 2 - 2, yScale: Math.min(12, cardHeight / 2 - 3), color: color(theme.table_header_color), borderColor: border, borderWidth: 0.5 });
-        centered(page, String(item.name || "?").trim().slice(0, 1).toUpperCase(), iconX + iconWidth / 2, cardBottom + cardHeight / 2 - 2, fonts.bold, 8, color(theme.table_header_text_color), iconWidth - 4);
+      const iconSize = Math.min(27, cardHeight - 10, cardWidth * 0.25);
+      const iconX = cardX + 5;
+      const iconY = cardBottom + (cardHeight - iconSize) / 2;
+      const customImage = item.image ? await embedImage(doc, item.image) : null;
+      const icon = customImage || await embedNurseryIcon(doc, nurseryActivityIconKeys[index]);
+      if (icon) {
+        placeImage(page, icon, iconX, iconY, iconSize, iconSize);
+      } else {
+        page.drawEllipse({ x: iconX + iconSize / 2, y: iconY + iconSize / 2, xScale: iconSize / 2, yScale: iconSize / 2, color: pale, borderColor: maroon, borderWidth: 1 });
+        centered(page, String(index + 1), iconX + iconSize / 2, iconY + iconSize / 2 - 2, fonts.bold, 8, maroon, iconSize - 4);
       }
-      const textX = cardX + 4;
-      const textWidth = cardWidth - iconWidth - 10;
-      drawTableText(page, item.name, textX, cardTop - 12, fonts.bold, reportFonts.table, ink, textWidth);
-      wrappedLines(str(item.remark || ""), fonts.italic, reportFonts.table, textWidth).slice(0, 2).forEach((line, lineIndex) => {
-        drawTableText(page, line, textX, cardTop - 26 - lineIndex * 12, fonts.italic, reportFonts.table, color(theme.primary_color), textWidth);
-      });
+      const textX = iconX + iconSize + 5;
+      const textWidth = cardWidth - iconSize - 15;
+      const configuredName = String(item.name || nurseryActivityDefaults[index]).trim();
+      const defaultName = nurseryActivityDefaults[index];
+      const displayName = configuredName.toLowerCase().replace(/[^a-z0-9]+/g, "")
+        === defaultName.toLowerCase().replace(/[^a-z0-9]+/g, "")
+        ? defaultName
+        : `${defaultName} / ${configuredName}`;
+      drawNurseryWrappedText(page, displayName.toUpperCase(), textX, cardTop - 4, textWidth, 18, fonts.bold, 8, maroon, "left", 5.8);
+      if (item.remark) {
+        drawNurseryWrappedText(page, item.remark, textX, cardTop - 23, textWidth, cardHeight - 27, fonts.italic, 7.4, ink, "left", 5.2);
+      }
     }
     const remarks = [
-      ["Class Teacher's Report", report.class_teacher_comment || report.suggested_comment],
-      ["Behaviors / Cleanliness", report.behaviors_comment || report.behaviour_comment || report.cleanliness_comment],
-      ["Head of Infants Remarks", report.head_of_infants_comment || report.head_teacher_comment],
+      ["Class Teacher's Report", resolvedRemarkContent("Class Teacher's Report", report.class_teacher_comment || report.suggested_comment, report), report.class?.class_teacher_name],
+      ["Behaviors / Cleanliness", report.behaviors_comment || report.behaviour_comment || report.cleanliness_comment || "", report.behaviors_teacher_name || report.class?.class_teacher_name],
+      ["Head Teacher's Comment", resolvedRemarkContent("Head Teacher's Comment", report.head_of_infants_comment || report.head_teacher_comment, report), report.school?.head_of_infants_name || report.school?.head_teacher_name],
     ];
-    await drawAllFooters(doc, report, fonts, accent, { lineAccent, remarks, signatures: ["Class Teacher", "Behaviors", "Head Teacher"], remarkCount: 3 });
+    const remarkTop = totalTop - totalHeight - 12;
+    const remarkHeight = Math.min(31, (remarkTop - 158) / remarks.length);
+    const labelWidth = 112;
+    const signatureWidth = 86;
+    remarks.forEach(([label, content, signer], index) => {
+      const rowTop = remarkTop - index * remarkHeight;
+      const rowBottom = rowTop - remarkHeight;
+      page.drawRectangle({ x, y: rowBottom, width: contentWidth, height: remarkHeight, color: white, borderColor: maroon, borderWidth: 0.55 });
+      page.drawLine({ start: { x: x + labelWidth, y: rowTop }, end: { x: x + labelWidth, y: rowBottom }, thickness: 0.45, color: maroon });
+      page.drawLine({ start: { x: x + contentWidth - signatureWidth, y: rowTop }, end: { x: x + contentWidth - signatureWidth, y: rowBottom }, thickness: 0.45, color: maroon });
+      drawNurseryWrappedText(page, label, x + 4, rowTop - 4, labelWidth - 8, remarkHeight - 6, fonts.bold, 7.8, ink, "left", 5.5);
+      if (content) {
+        drawNurseryWrappedText(page, content, x + labelWidth + 5, rowTop - 4, contentWidth - labelWidth - signatureWidth - 10, remarkHeight - 6, fonts.italic, 8.2, ink, "left", 5.5);
+      }
+      if (signer) {
+        drawNurseryWrappedText(page, signer, x + contentWidth - signatureWidth + 4, rowTop - 4, signatureWidth - 8, remarkHeight - 6, fonts.bold, 7.5, ink, "right", 5.5);
+      }
+    });
+    await drawFooter(doc, page, report, fonts, "#800000", {
+      finalPage: true,
+      skipRemarks: true,
+      lineAccent: "#800000",
+    });
     return doc.save();
   }
 

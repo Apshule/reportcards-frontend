@@ -3,6 +3,14 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const window = {};
+globalThis.fetch = async (input) => {
+  const filename = String(input).split("/").pop();
+  const bytes = readFileSync(new URL(`../pdf-templates/nursery-icons/${filename}`, import.meta.url));
+  return {
+    ok: true,
+    arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+  };
+};
 let pages = [];
 let drawnText = [];
 let drawnTextOptions = [];
@@ -102,6 +110,11 @@ const baseReport = {
   summary: { overall_average: 78, overall_grade: "B", position: 1, class_size: 30 },
   term_dates: { next_term_begins: "2026-11-01", next_term_ends: "2027-02-01" },
 };
+const officialPleScale = [
+  ["D1", 85, 100, 1], ["D2", 70, 84, 2], ["C3", 60, 69, 3],
+  ["C4", 50, 59, 4], ["C5", 45, 49, 5], ["C6", 40, 44, 6],
+  ["P7", 35, 39, 7], ["P8", 30, 34, 8], ["F9", 0, 29, 9],
+].map(([grade_code, min_score, max_score, points]) => ({ grade_code, min_score, max_score, points }));
 const subjects = (count) => Array.from({ length: count }, (_, index) => ({
   name: `Subject ${index + 1}`,
   code: `S${index + 1}`,
@@ -159,12 +172,147 @@ test("common Nursery, Primary, O-Level, and A-Level cards remain single-page", a
   }
 });
 
+test("Nursery PDF renders all ten activity icons and wraps full text in its one-page layout", async () => {
+  const areaNames = [
+    "Taking care of myself for proper growth and development",
+    "Interacting, exploring, knowing and using my environment",
+    "Relating with others in an acceptable way",
+    "Developing and using my Language appropriately",
+    "Developing and using Mathematical Concepts in my day-to-day",
+  ];
+  const activityNames = [
+    "Writing", "Listening", "Reading", "Speaking", "Drawing", "Games",
+    "Rhymes / Stories", "Music", "Health Habits", "Toilet Habits",
+  ];
+  const report = {
+    ...baseReport,
+    learner: { full_name: "Mumbejja Sharuwah", reg_no: "N-104", schoolpay_code: "SP-104" },
+    class: { level: "NURSERY", name: "Baby Class", class_teacher_name: "Peter Mukisa" },
+    term: "TERM_3",
+    year: 2024,
+    days_attended: 55,
+    days_absent: 5,
+    total_days: 60,
+    summary: { total_score: 457, overall_average: 91.4, position: 1, class_size: 31 },
+    subjects: areaNames.map((name, index) => ({
+      name,
+      learning_area_description: `Learners practice ${name.toLowerCase()} through everyday classroom activities and guided play.`,
+      mark: { eot: [94, 88, 89, 96, 90][index], tr: "Excellent progress with confident participation." },
+    })),
+    activities: activityNames.map((name) => ({
+      name,
+      remark: "Excellent progress and confidence.",
+    })),
+    class_teacher_comment: "Mumbejja has shown excellent progress and participates confidently in every learning activity.",
+    behaviors_comment: "Mumbejja demonstrates good personal hygiene and care for classroom materials.",
+    head_of_infants_comment: "Keep encouraging her curiosity, kindness, and joyful learning.",
+    school: {
+      ...baseReport.school,
+      name: "KIKAJU SDA PRIMARY SCHOOL",
+      motto: "Jesus Never Fails",
+      head_of_infants_name: "Mary Nabbosa",
+    },
+  };
+
+  const pdf = await window.ReportCardPdf.renderNursery(report);
+  assert.equal(pdf[0], 1, "Nursery layout should fit on one page");
+  assert.equal(drawnImages.length, 10, "all ten activities should contain an embedded icon");
+  const pageText = drawnText.join(" ");
+  assert.ok(pageText.includes("TERM 3 PROGRESS REPORT"), "Nursery term title should format the term number correctly");
+  assert.equal(pageText.includes("TERM 1II"), false, "Nursery term title must not misformat Roman numerals");
+  for (const name of activityNames) assert.ok(pageText.includes(name.toUpperCase()), `missing activity label: ${name}`);
+  for (const name of areaNames) assert.ok(pageText.includes(name), `missing learning area: ${name}`);
+  for (const phrase of [
+    "TOTAL: 500",
+    "SCORED: 457",
+    "POSITION: 1st OUT OF 31",
+    "Class Teacher's Report",
+    "Behaviors / Cleanliness",
+    "Head Teacher's Comment",
+    "Mumbejja has shown excellent progress",
+    "Mary Nabbosa",
+  ]) assert.ok(pageText.includes(phrase), `missing Nursery report content: ${phrase}`);
+  assert.equal(drawnText.some((text) => text.includes("...")), false, `text must wrap rather than truncate: ${JSON.stringify(drawnText.filter((text) => text.includes("...")))}`);
+});
+
+test("Old and New UCE PDF templates show their distinct result metrics on one page", async () => {
+  const oldScale = [
+    ["D1", 85, 100, 1], ["D2", 70, 84, 2], ["C3", 60, 69, 3],
+    ["C4", 50, 59, 4], ["C5", 45, 49, 5], ["C6", 40, 44, 6],
+    ["P7", 35, 39, 7], ["P8", 30, 34, 8], ["F9", 0, 29, 9],
+  ].map(([grade_code, min_score, max_score, points]) => ({ grade_code, min_score, max_score, points }));
+  const newScale = [
+    ["A", 80, 100, "Exceptional"], ["B", 70, 79, "Outstanding"],
+    ["C", 60, 69, "Satisfactory"], ["D", 50, 59, "Basic"], ["E", 0, 49, "Emerging"],
+  ].map(([grade_code, min_score, max_score, descriptor]) => ({
+    grade_code, min_score, max_score, descriptor,
+  }));
+  const oldReport = {
+    ...baseReport,
+    class: { level: "O_LEVEL", name: "S.4" },
+    grading_scale_preset_key: "o_level_old_uce",
+    grading_scale: oldScale,
+    subjects: Array.from({ length: 13 }, (_, index) => ({
+      id: `old-${index}`,
+      name: `Old Subject ${index + 1}`,
+      mark: {
+        ca_score: 90, exam_score: 90, final_score: 90, pct100: 90,
+        grade: "D1", points: 1, tr: "Strong work", teacher_initials: "AB",
+      },
+    })),
+    uce_result: { aggregate: 8, division_code: "DIVISION 1" },
+  };
+  const oldPdf = await window.ReportCardPdf.renderOLevel(oldReport);
+  assert.equal(oldPdf[0], 1);
+  assert.ok(drawnText.some((text) => text.includes("ANNUAL UCE REPORT")));
+  assert.ok(drawnText.some((text) => text.includes("ANNUAL UCE RESULTS")));
+  assert.ok(drawnText.some((text) => text.includes("D1")));
+  assert.ok(drawnText.some((text) => text.includes("Best-8 Aggregate")));
+  assert.ok(drawnText.some((text) => text.includes("DIVISION 1")));
+  assert.ok(drawnText.some((text) => text.includes("Strong work")));
+
+  const newReport = {
+    ...baseReport,
+    class: { level: "O_LEVEL", name: "S.4" },
+    grading_scale_preset_key: "o_level_new_uce",
+    grading_scale: newScale,
+    subjects: Array.from({ length: 13 }, (_, index) => ({
+      id: `new-${index}`,
+      name: `New Subject ${index + 1}`,
+      mark: {
+        ca_score: 90, exam_score: 90, final_score: 90, pct100: 90,
+        grade: "A", achievement_level: "Exceptional", descriptor: "Exceptional",
+        tr: "Excellent progress", teacher_initials: "CD",
+      },
+    })),
+    uce_result: {
+      result_indicator: "Result 1",
+      qualified_for_certificate: true,
+      project_work_completed: true,
+      completed_subject_count: 13,
+    },
+  };
+  const newPdf = await window.ReportCardPdf.renderOLevel(newReport);
+  assert.equal(newPdf[0], 1);
+  assert.ok(drawnText.some((text) => text.includes("ANNUAL UCE REPORT")));
+  assert.ok(drawnText.some((text) => text.includes("Result Indicator")));
+  assert.ok(drawnText.some((text) => text.includes("Result 1")));
+  assert.ok(drawnText.join(" ").includes("ACHIEVEMEN"));
+  assert.ok(drawnText.some((text) => text.includes("Excellent progress")));
+  assert.ok(!drawnText.some((text) => text.includes("Best-8 Aggregate")));
+  assert.ok(!drawnText.some((text) => text.includes("AVERAGE SCORES")));
+});
+
 test("Upper Primary PLE PDF shows the four-subject aggregate and stays on one page", async () => {
   const pdf = await window.ReportCardPdf.renderPrimary({
     ...baseReport,
     class: { level: "PRIMARY", name: "P.7" },
     grading_scale_preset_key: "primary_ple_upper",
-    summary: { overall_average: 86.25, overall_grade: "D1", aggregate: 5, aggregate_division: "Division I", aggregate_interpretation: "Top Secondary", position: 1, class_size: 30 },
+    ple_official_enabled: true,
+    incomplete_marks: [],
+    grading_scale: officialPleScale,
+    primary_result_metric: "ple_aggregate",
+    summary: { overall_average: 86.25, overall_grade: "D1", aggregate: 5, aggregate_division: "Division 1", result_metric: "ple_aggregate", position: 1, class_size: 30 },
     subjects: [
       { name: "English", mark: { eot: 85, grade: "D1", points: 1 } },
       { name: "Mathematics", mark: { eot: 85, grade: "D1", points: 1 } },
@@ -173,9 +321,12 @@ test("Upper Primary PLE PDF shows the four-subject aggregate and stays on one pa
     ],
   });
   assert.equal(pdf[0], 1);
-  assert.equal(drawnText.some((text) => text.includes("Aggregate")), true);
-  assert.equal(drawnText.some((text) => text.includes("5 · Div I")), true);
-  assert.equal(drawnText.some((text) => text.includes("PLE KEY: 4–12 Top Secondary")), false);
+  assert.equal(drawnText.some((text) => text.includes("PLE Aggregate")), true);
+  assert.ok(drawnText.some((text) => text.includes("5.0 · Div 1")), JSON.stringify(drawnText));
+  assert.ok(drawnText.some((text) => text.includes("POINT")), `the subject table must include the Points column: ${JSON.stringify(drawnText)}`);
+  assert.ok(drawnText.some((text) => text.includes("D1 85–100=1")), JSON.stringify(drawnText));
+  assert.ok(drawnText.some((text) => text.includes("F9 0–29=9")), "the complete dynamic PLE key should include F9");
+  assert.equal(drawnText.some((text) => text.includes("Subject-specific")), false);
 });
 
 test("A4 header uses the requested exact hierarchy and complete remarks fit without ellipses", async () => {
@@ -213,25 +364,31 @@ test("PDF maps top-level class rank, singleton class size, subject remarks, and 
     ...baseReport,
     class: { level: "PRIMARY", name: "P.7" },
     active_grading_scale: { preset_key: "primary_ple_upper" },
+    ple_official_enabled: true,
+    incomplete_marks: [],
+    grading_scale: officialPleScale,
     summary_position: null,
     summary_out_of: 1,
     summary: {
       overall_average: 85,
       overall_grade: "D1",
+      aggregate: 4,
+      aggregate_division: "Division 1",
+      result_metric: "ple_aggregate",
       position: null,
       class_size: null,
     },
     subjects: [
-      { name: "English", mark: { eot: 85, grade: "D1", tr: "Teacher's English remark" } },
-      { name: "Mathematics", mark: { eot: 85, grade: "D1", tr: "—" } },
+      { name: "English", mark: { eot: 85, grade: "D1", points: 1, tr: "Teacher's English remark" } },
+      { name: "Mathematics", mark: { eot: 85, grade: "D1", points: 1, tr: "—" } },
     ],
   });
 
   assert.equal(pdf[0], 1);
   assert.equal(drawnText.some((text) => text.includes("1st of 1")), true, "rank and roster denominator should render in the table and summary");
-  assert.equal(drawnText.some((text) => text.includes("Teacher's English remark")), true, "marks.tr should print in the subject remarks column");
+  assert.equal(drawnText.some((text) => text.includes("Teacher's English remark")), true, `marks.tr should print in the subject remarks column: ${JSON.stringify(drawnText)}`);
   assert.equal(drawnText.some((text) => text.includes("Excellent achievement")), true, "blank remarks should use the generated subject remark");
-  assert.equal(drawnText.some((text) => text.includes("PLE D1–F9:")), true, "the active PLE preset should print its D1-F9 grading key");
+  assert.equal(drawnText.some((text) => text.includes("UNEB PLE: D1 85–100=1")), true, "the active PLE preset should print its DB-backed uniform grading key");
   assert.equal(drawnText.some((text) => text.includes("A 80–100")), false, "the PLE preset should not fall back to the generic A-E scale");
 });
 
@@ -259,7 +416,7 @@ test("configured other subjects render in every PDF level without adding static 
     };
     const pdf = await render(report);
     assert.equal(pdf[0], 1, `${level} should remain one page`);
-    assert.equal(drawnText.some((text) => text.includes("Robotics")), true, `${level} should include the configured activity`);
+    assert.equal(drawnText.some((text) => text.toLowerCase().includes("robotics")), true, `${level} should include the configured activity`);
     assert.equal(drawnText.some((text) => text.includes("Very good")), true, `${level} should include the activity remark`);
     assert.equal(drawnText.some((text) => text.includes("Handwriting")), false, `${level} should not append an unconfigured default row`);
   }
@@ -325,7 +482,7 @@ test("A-Level PDF shows paper grades and separate overall-grade points with the 
   assert.equal(drawnText.some((text) => text.includes("Subsidiary A1/B0.5")), true);
 });
 
-test("Nursery PDF keeps the Head of Infants remarks section", async () => {
+test("Nursery PDF renders the Head Teacher's Comment section", async () => {
   await window.ReportCardPdf.renderNursery({
     ...baseReport,
     school: baseReport.school,
@@ -333,7 +490,7 @@ test("Nursery PDF keeps the Head of Infants remarks section", async () => {
     subjects: subjects(3),
     head_teacher_comment: "Keep progressing",
   });
-  assert.equal(drawnText.some((text) => text.includes("Head of Infants Remarks")), true);
+  assert.equal(drawnText.some((text) => text.includes("Head Teacher's Comment")), true);
 });
 
 test("generated teacher and principal remarks render without adding a PDF page", async () => {
