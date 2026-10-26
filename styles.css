@@ -623,3 +623,30 @@ html .rc-preview-a5-condensed .rc-a5-school strong{
   html .rc-preview .rc-brand-image,html .rc-preview .rc-learner-image{width:13mm;height:17mm}
 }
 .marks-mobile-wrap table#marks-table,.marks-mobile-wrap table#teacher-marks-table{min-width:760px}
+
+.sms-wallet-overview{display:flex;align-items:center;justify-content:space-between;gap:1.25rem;margin:1.25rem 0;padding:1.25rem;border:1px solid #e2e1ed;border-radius:16px;background:linear-gradient(120deg,#f7f5ff,#fff)}
+.sms-wallet-overview>div{display:grid;gap:.2rem;min-width:130px}
+.sms-wallet-overview>div strong{font-size:2rem;line-height:1.1;color:#4b2e9e}
+.sms-wallet-overview>div>span:last-child{font-size:.82rem;color:#6a6879}
+.sms-wallet-overview>p{max-width:540px;margin:0;color:#555268;font-size:.92rem;line-height:1.55}
+.sms-bundle-section{margin:1.4rem 0}
+.sms-bundle-section>.section-title{margin-bottom:1rem}
+.sms-bundle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1rem}
+.sms-bundle-card{display:flex;flex-direction:column;gap:.55rem;padding:1.1rem;border:1px solid #e4e2ee;border-radius:14px;background:#fff}
+.sms-bundle-card h3{margin:.2rem 0 0;font-size:1.05rem}
+.sms-bundle-credits{color:#4b2e9e;font-size:1.3rem}
+.sms-bundle-price{margin:0 0 .35rem;color:#4e4a60;font-weight:700}
+.sms-bundle-card .btn{margin-top:auto}
+.sms-bundle-actions{display:flex;flex-wrap:wrap;gap:.4rem}
+.cc-tabs{margin:0 0 1.25rem}
+.cc-sms-wallet{display:grid;grid-template-columns:minmax(160px,.7fr) minmax(0,1.3fr);gap:1rem;margin:1.25rem 0;padding:1.1rem;border:1px solid #e3e1ec;border-radius:14px;background:#faf9ff}
+.cc-sms-wallet>div{display:flex;flex-direction:column;align-items:flex-start;gap:.35rem}
+.cc-sms-wallet>div>strong{font-size:1.5rem;color:#4b2e9e}
+.cc-sms-wallet>div>p{margin:0;color:#69677a;font-size:.84rem}
+.cc-sms-credit-form{display:grid;gap:.8rem}
+.sms-purchase-modal>.alert{margin:1rem 0}
+@media(max-width:760px){
+  .sms-wallet-overview{align-items:flex-start;flex-direction:column}
+  .cc-sms-wallet{grid-template-columns:1fr}
+  .sms-bundle-actions{min-width:150px}
+}
