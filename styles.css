@@ -645,6 +645,40 @@ html .rc-preview-a5-condensed .rc-a5-school strong{
 .cc-sms-wallet>div>p{margin:0;color:#69677a;font-size:.84rem}
 .cc-sms-credit-form{display:grid;gap:.8rem}
 .sms-purchase-modal>.alert{margin:1rem 0}
+.subscription-trial-banner{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin:0 0 1.2rem;padding:1rem 1.15rem;border:1px solid #efd7a1;border-radius:16px;background:linear-gradient(110deg,#fff7e6,#fffdf7);color:#503e1e}
+.subscription-trial-banner>div{display:grid;gap:.25rem}
+.subscription-trial-banner strong{font-size:1rem}
+.subscription-trial-banner span{color:#685b44;font-size:.9rem}
+.billing-status-card{display:flex;align-items:center;justify-content:space-between;gap:1.2rem}
+.billing-status-card>div:first-child{display:grid;justify-items:start;gap:.45rem}
+.billing-status-card p{margin:0;color:#69677a}
+.billing-days{display:grid;justify-items:center;min-width:92px;padding:.75rem 1rem;border-radius:14px;background:#f4f0ff;color:#4b2e9e}
+.billing-days strong{font-size:1.8rem;line-height:1}
+.billing-days span{font-size:.75rem;font-weight:700}
+.billing-plan-section{margin:1.4rem 0}
+.billing-plan-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:1rem}
+.billing-plan-card{display:flex;flex-direction:column;align-items:stretch;gap:.6rem;padding:1.15rem;border:1px solid #e4e2ee;border-radius:16px;background:#fff}
+.billing-plan-card h3{margin:.25rem 0;font-size:1.15rem}
+.billing-plan-price{margin:.25rem 0;color:#4b2e9e;font-size:1.45rem}
+.billing-manual-payment{margin:1.25rem 0;padding:1.2rem;border:1px solid #e4e2ee;border-radius:16px;background:#fbfaff}
+.billing-manual-payment h3{margin:0 0 .5rem}
+.billing-manual-payment p{color:#5f5b70;line-height:1.55}
+.billing-payment-numbers{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.7rem}
+.billing-payment-numbers>div{display:grid;gap:.25rem;padding:.8rem;border:1px solid #e4e2ee;border-radius:12px;background:#fff}
+.billing-payment-numbers span{color:#716d80;font-size:.82rem}
+.billing-payment-numbers strong{color:#27223a;font-size:1.05rem}
+.billing-manual-note{color:#6a6879;font-size:.82rem}
+.sms-payment-options{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1rem 0}
+.sms-payment-options>section{padding:1rem;border:1px solid #e4e2ee;border-radius:14px;background:#fbfaff}
+.sms-payment-options h3{margin:0 0 .45rem}
+.sms-payment-options p{color:#5f5b70;font-size:.88rem;line-height:1.5}
+.sms-payment-options .billing-payment-numbers{grid-template-columns:1fr}
+@media(max-width:680px){
+  .subscription-trial-banner,.billing-status-card{align-items:stretch;flex-direction:column}
+  .subscription-trial-banner .btn{align-self:flex-start}
+  .billing-days{align-self:flex-start}
+  .sms-payment-options{grid-template-columns:1fr}
+}
 @media(max-width:760px){
   .sms-wallet-overview{align-items:flex-start;flex-direction:column}
   .cc-sms-wallet{grid-template-columns:1fr}
