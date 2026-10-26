@@ -1,0 +1,20 @@
+.command-center-grid{
+  display:grid;
+  grid-template-columns:minmax(300px,.8fr) minmax(0,1.7fr);
+  gap:18px;
+  align-items:start
+}
+.command-center-create .form-grid{gap:14px}
+.command-center-create .form-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.command-center-create .field.wide{grid-column:1/-1}
+.command-center-table td:first-child strong,.command-center-table td:first-child small{display:block}
+.command-center-table td:first-child small{margin-top:3px;color:var(--muted,#6b7280);font-size:.78rem}
+.command-center-schools{min-width:0}
+.command-center-schools .table-wrap{max-height:70vh;overflow:auto}
+@media(max-width:1050px){
+  .command-center-grid{grid-template-columns:1fr}
+}
+@media(max-width:640px){
+  .command-center-create .form-two{grid-template-columns:1fr}
+  .command-center-create .field.wide{grid-column:auto}
+}

@@ -370,7 +370,7 @@
       color: gold,
     });
     const titleY = dividerY - 32;
-    page.drawRectangle({ x: margin, y: titleY - 27, width: width - margin * 2, height: 24, color: rgb(1, 1, 1) });
+    page.drawRectangle({ x: margin, y: titleY - 27, width: width - margin * 2, height: 24, color: rgb(1, 1, 1), opacity: 0.08 });
     page.drawLine({
       start: { x: margin, y: titleY - 27 },
       end: { x: width - margin, y: titleY - 27 },
@@ -418,7 +418,7 @@
       const cellWidth = gridWidth * weights[columnIndex] / totalWeight;
       const cellX = gridX + gridWidth * weights.slice(0, columnIndex).reduce((sum, weight) => sum + weight, 0) / totalWeight;
       const cellY = infoRowTop - rowHeight;
-      page.drawRectangle({ x: cellX, y: cellY, width: cellWidth, height: rowHeight, borderColor: accent, borderWidth: 0.45, color: rowIndex % 2 ? color(theme.background_color) : rgb(1, 1, 1) });
+      page.drawRectangle({ x: cellX, y: cellY, width: cellWidth, height: rowHeight, borderColor: accent, borderWidth: 0.45, color: rowIndex % 2 ? color(theme.background_color) : rgb(1, 1, 1), opacity: 0.08 });
       const labelText = `${label}:`;
       const labelSize = reportFonts.body;
       const valueSize = reportFonts.body;
@@ -507,7 +507,7 @@
     const border = options.accentColor ? colorToPdf(options.accentColor) : accent;
     const ink = options.textColor || rgb(0.17, 0.18, 0.2);
     let y = top;
-    page.drawRectangle({ x, y: y - headerHeight, width: tableWidth, height: headerHeight, color: headerColor });
+    page.drawRectangle({ x, y: y - headerHeight, width: tableWidth, height: headerHeight, color: headerColor, opacity: 0.45 });
     const groupY = y;
     if (groupHeaderHeight) {
       const colStart = (index) => x + widths.slice(0, index).reduce((sum, width) => sum + width, 0);
@@ -542,7 +542,7 @@
     page.drawLine({ start: { x, y: y - subHeaderHeight }, end: { x: x + tableWidth, y: y - subHeaderHeight }, thickness: 0.45, color: border });
     y -= subHeaderHeight;
     for (const [rowIndex, row] of rows.entries()) {
-      page.drawRectangle({ x, y: y - rowHeight, width: tableWidth, height: rowHeight, color: rowIndex % 2 === 0 ? pale : rgb(1, 1, 1) });
+      page.drawRectangle({ x, y: y - rowHeight, width: tableWidth, height: rowHeight, color: rowIndex % 2 === 0 ? pale : rgb(1, 1, 1), opacity: 0.08 });
       page.drawLine({
         start: { x, y: y - rowHeight },
         end: { x: x + tableWidth, y: y - rowHeight },
@@ -598,7 +598,7 @@
   function drawSectionBar(page, label, x, top, width, fonts, theme) {
     const height = 20;
     const fill = color(theme.accent_color);
-    page.drawRectangle({ x, y: top - height, width, height, color: fill });
+    page.drawRectangle({ x, y: top - height, width, height, color: fill, opacity: 0.62 });
     drawText(page, label, x + 7, top - 15, fonts.bold, reportFonts.subheading, contrastColor(fill), width - 14);
     return top - height - 4;
   }
@@ -651,7 +651,7 @@
   function drawSummary(page, items, x, y, width, fonts, accent) {
     const itemWidth = width / items.length;
     const pale = rgb(0.96, 0.95, 0.91);
-    page.drawRectangle({ x, y: y - 19, width, height: 31, color: pale, borderColor: accent, borderWidth: 0.7 });
+    page.drawRectangle({ x, y: y - 19, width, height: 31, color: pale, borderColor: accent, borderWidth: 0.7, opacity: 0.1 });
     items.forEach(([label, value], index) => {
       const left = x + index * itemWidth;
       if (index) page.drawLine({ start: { x: left, y: y + 12 }, end: { x: left, y: y - 19 }, thickness: 0.5, color: accent });
@@ -663,7 +663,7 @@
     const height = 18;
     const itemWidth = width / items.length;
     const pale = rgb(0.96, 0.95, 0.91);
-    page.drawRectangle({ x, y: top - height, width, height, color: pale, borderColor: accent, borderWidth: 0.7 });
+    page.drawRectangle({ x, y: top - height, width, height, color: pale, borderColor: accent, borderWidth: 0.7, opacity: 0.1 });
     items.forEach(([label, value], index) => {
       const left = x + index * itemWidth;
       if (index) page.drawLine({ start: { x: left, y: top }, end: { x: left, y: top - height }, thickness: 0.5, color: accent });
@@ -826,7 +826,7 @@
           : /head teacher|head of infants|infant/i.test(signerLabel) ? school.head_of_infants_name || school.head_teacher_name
               : /department/i.test(signerLabel) ? school.head_of_department_name : "";
         const boxBottom = remarkTop - remarkHeight;
-        page.drawRectangle({ x, y: boxBottom, width: remarkWidth, height: remarkHeight, borderColor: lineAccent, borderWidth: 0.6, color: color(options.backgroundColor || "#FFFFFF") });
+        page.drawRectangle({ x, y: boxBottom, width: remarkWidth, height: remarkHeight, borderColor: lineAccent, borderWidth: 0.6, color: color(options.backgroundColor || "#FFFFFF"), opacity: 0.08 });
         drawText(page, label, x + 4, remarkTop - 11, fonts.bold, reportFonts.body, ink, remarkWidth - 8);
         const fittedRemark = fitCompleteText(str(content), fonts.italic, remarkWidth - 8, 2);
         fittedRemark.lines.forEach((line, lineIndex) => {
@@ -894,6 +894,7 @@
     }));
     centered(page, str(school.motto || ""), width / 2, 36, fonts.regular, reportFonts.body, footerTextColor, width - 230);
     drawText(page, pageLabel, width - 122, 36, fonts.bold, reportFonts.body, footerTextColor, 90);
+    centered(page, "This report is invalid without the official school stamp.", width / 2, 13, fonts.italic, 6.5, lineAccent, width - 56);
   }
   async function drawAllFooters(doc, report, fonts, accent, options = {}) {
     const pages = doc.getPages();
@@ -1418,13 +1419,13 @@
     if (meta) variantRule(page, page.getHeight() - 150, width, meta);
 
     const panelTitle = (panelX, panelWidth, label, size) => {
-      page.drawRectangle({ x: panelX, y: top - sectionHeight, width: panelWidth, height: sectionHeight, color: white, borderColor: maroon, borderWidth: 0.7 });
+      page.drawRectangle({ x: panelX, y: top - sectionHeight, width: panelWidth, height: sectionHeight, color: white, borderColor: maroon, borderWidth: 0.7, opacity: 0.1 });
       drawNurseryWrappedText(page, label, panelX + 5, top - 3, panelWidth - 10, sectionHeight - 5, fonts.bold, size, maroon, "center", 7);
     };
     panelTitle(x, leftWidth, `ACHIEVEMENT SCORES — ${period.title}`, 10);
     panelTitle(rightX, rightWidth, "PERFORMANCE IN THE LEARNING ACTIVITIES", 9.5);
 
-    page.drawRectangle({ x, y: rowTopStart, width: leftWidth, height: headerHeight, color: white, borderColor: border, borderWidth: 0.55 });
+    page.drawRectangle({ x, y: rowTopStart, width: leftWidth, height: headerHeight, color: white, borderColor: border, borderWidth: 0.55, opacity: 0.45 });
     const areaWidths = combinedPeriod
       ? [leftWidth * 0.31, leftWidth * 0.10, leftWidth * 0.10, leftWidth * 0.10, leftWidth * 0.08, leftWidth * 0.22, leftWidth * 0.09]
       : [leftWidth * 0.48, leftWidth * 0.38, leftWidth * 0.14];
@@ -1448,7 +1449,7 @@
       : (report.summary?.total_score ?? calculatedScored);
     entries.forEach(({ subject, mark }, index) => {
       const rowBottom = rowTop - rowHeight;
-      page.drawRectangle({ x, y: rowBottom, width: leftWidth, height: rowHeight, color: index % 2 ? white : pale, borderColor: border, borderWidth: 0.45 });
+      page.drawRectangle({ x, y: rowBottom, width: leftWidth, height: rowHeight, color: index % 2 ? white : pale, borderColor: border, borderWidth: 0.45, opacity: 0.08 });
       let cellX = x;
       areaWidths.slice(0, -1).forEach((cellWidth) => {
         cellX += cellWidth;
@@ -1514,7 +1515,7 @@
       const cardX = rightX + column * cardWidth;
       const cardTop = top - sectionHeight - row * cardHeight;
       const cardBottom = cardTop - cardHeight;
-      page.drawRectangle({ x: cardX, y: cardBottom, width: cardWidth, height: cardHeight, color: index % 2 ? white : pale, borderColor: border, borderWidth: 0.45 });
+      page.drawRectangle({ x: cardX, y: cardBottom, width: cardWidth, height: cardHeight, color: index % 2 ? white : pale, borderColor: border, borderWidth: 0.45, opacity: 0.08 });
       const iconSize = Math.min(27, cardHeight - 10, cardWidth * 0.25);
       const iconX = cardX + 5;
       const iconY = cardBottom + (cardHeight - iconSize) / 2;
@@ -1554,7 +1555,7 @@
     remarks.forEach(([label, content, signer], index) => {
       const rowTop = remarkTop - index * remarkHeight;
       const rowBottom = rowTop - remarkHeight;
-      page.drawRectangle({ x, y: rowBottom, width: contentWidth, height: remarkHeight, color: white, borderColor: maroon, borderWidth: 0.55 });
+      page.drawRectangle({ x, y: rowBottom, width: contentWidth, height: remarkHeight, color: white, borderColor: maroon, borderWidth: 0.55, opacity: 0.08 });
       page.drawLine({ start: { x: x + labelWidth, y: rowTop }, end: { x: x + labelWidth, y: rowBottom }, thickness: 0.45, color: maroon });
       page.drawLine({ start: { x: x + contentWidth - signatureWidth, y: rowTop }, end: { x: x + contentWidth - signatureWidth, y: rowBottom }, thickness: 0.45, color: maroon });
       drawNurseryWrappedText(page, label, x + 4, rowTop - 4, labelWidth - 8, remarkHeight - 6, fonts.bold, 7.8, ink, "left", 5.5);
@@ -2355,6 +2356,7 @@
     const width = 419.53;
     const height = 595.28;
     const page = doc.addPage([width, height]);
+    await drawPageWatermark(doc, page, report);
     const school = report.school || {};
     const learner = report.learner || {};
     const summary = report.summary || {};
@@ -2377,7 +2379,6 @@
     const white = rgb(1, 1, 1);
     const x = 14;
     const contentWidth = width - x * 2;
-    page.drawRectangle({ x: 0, y: 0, width, height, color: color(theme.background_color || "#FFFFFF") });
     page.drawLine({ start: { x, y: height - 13 }, end: { x: width - x, y: height - 13 }, thickness: 2.3, color: maroon });
     page.drawLine({ start: { x, y: height - 16 }, end: { x: width - x, y: height - 16 }, thickness: 0.75, color: gold });
     const logo = await embedImage(doc, school.logo_base64);
@@ -2426,7 +2427,7 @@
       const cellX = x + contentWidth * weights.slice(0, columnIndex).reduce((sum, weight) => sum + weight, 0) / weightTotal;
       const cellTop = infoTop - rowIndex * infoRowHeight;
       const cellY = cellTop - infoRowHeight;
-      page.drawRectangle({ x: cellX, y: cellY, width: cellWidth, height: infoRowHeight, color: rowIndex ? pale : white, borderColor: border, borderWidth: 0.4 });
+      page.drawRectangle({ x: cellX, y: cellY, width: cellWidth, height: infoRowHeight, color: rowIndex ? pale : white, borderColor: border, borderWidth: 0.4, opacity: 0.08 });
       drawNurseryWrappedText(page, `${label}: ${value === null || value === undefined || value === "" ? "—" : value}`, cellX + 2, cellTop - 2, cellWidth - 4, infoRowHeight - 3, fonts.regular, 5.3, ink, "left", 4.3);
     }));
 
@@ -2447,7 +2448,7 @@
       leftWidth * 0.09,
     ];
     const drawPanelTitle = (panelX, panelWidth, label) => {
-      page.drawRectangle({ x: panelX, y: panelTop - panelTitleHeight, width: panelWidth, height: panelTitleHeight, color: white, borderColor: maroon, borderWidth: 0.55 });
+      page.drawRectangle({ x: panelX, y: panelTop - panelTitleHeight, width: panelWidth, height: panelTitleHeight, color: white, borderColor: maroon, borderWidth: 0.55, opacity: 0.1 });
       drawNurseryWrappedText(page, label, panelX + 2, panelTop - 2, panelWidth - 4, panelTitleHeight - 3, fonts.bold, 6, maroon, "center", 4.6);
     };
     drawPanelTitle(x, leftWidth, "ACHIEVEMENT SCORES IN THE 5 LEARNING AREAS");
@@ -2455,7 +2456,7 @@
     const heads = ["Area", "B.O.T", "Midterm", "Average", "Grade", "Remark", "Sign"];
     let currentX = x;
     heads.forEach((label, index) => {
-      page.drawRectangle({ x: currentX, y: bodyTop, width: areaWidths[index], height: tableHeaderHeight, color: pale, borderColor: border, borderWidth: 0.45 });
+      page.drawRectangle({ x: currentX, y: bodyTop, width: areaWidths[index], height: tableHeaderHeight, color: pale, borderColor: border, borderWidth: 0.45, opacity: 0.45 });
       drawNurseryWrappedText(page, label, currentX + 1, bodyTop + tableHeaderHeight - 2, areaWidths[index] - 2, tableHeaderHeight - 3, fonts.bold, 5.2, maroon, "center", 4.1);
       currentX += areaWidths[index];
     });
@@ -2469,7 +2470,7 @@
       const rowBottom = rowTop - rowHeight;
       let cellX = x;
       areaWidths.forEach((cellWidth, colIndex) => {
-        page.drawRectangle({ x: cellX, y: rowBottom, width: cellWidth, height: rowHeight, color: rowIndex % 2 ? white : pale, borderColor: border, borderWidth: 0.4 });
+        page.drawRectangle({ x: cellX, y: rowBottom, width: cellWidth, height: rowHeight, color: rowIndex % 2 ? white : pale, borderColor: border, borderWidth: 0.4, opacity: 0.08 });
         cellX += cellWidth;
       });
       const name = subject.name || `Learning Area ${rowIndex + 1}`;
@@ -2521,7 +2522,7 @@
       const cardX = rightX + column * cardWidth;
       const cardTop = activityTop - row * cardHeight;
       const cardBottom = cardTop - cardHeight;
-      page.drawRectangle({ x: cardX, y: cardBottom, width: cardWidth, height: cardHeight, color: index % 2 ? white : pale, borderColor: border, borderWidth: 0.4 });
+      page.drawRectangle({ x: cardX, y: cardBottom, width: cardWidth, height: cardHeight, color: index % 2 ? white : pale, borderColor: border, borderWidth: 0.4, opacity: 0.08 });
       const iconSize = Math.min(15, cardHeight - 5, cardWidth * 0.25);
       const iconX = cardX + 2;
       const iconY = cardBottom + (cardHeight - iconSize) / 2;
@@ -2549,7 +2550,7 @@
     comments.forEach(([label, content, signer], index) => {
       const rowTop = commentTop - index * commentHeight;
       const rowBottom = rowTop - commentHeight;
-      page.drawRectangle({ x, y: rowBottom, width: contentWidth, height: commentHeight, color: white, borderColor: maroon, borderWidth: 0.45 });
+      page.drawRectangle({ x, y: rowBottom, width: contentWidth, height: commentHeight, color: white, borderColor: maroon, borderWidth: 0.45, opacity: 0.08 });
       page.drawLine({ start: { x: x + labelWidth, y: rowTop }, end: { x: x + labelWidth, y: rowBottom }, thickness: 0.4, color: maroon });
       page.drawLine({ start: { x: x + contentWidth - signatureWidth, y: rowTop }, end: { x: x + contentWidth - signatureWidth, y: rowBottom }, thickness: 0.4, color: maroon });
       drawNurseryWrappedText(page, label, x + 2, rowTop - 2, labelWidth - 4, commentHeight - 3, fonts.bold, 5, ink, "left", 4);
@@ -2567,6 +2568,7 @@
     drawNurseryWrappedText(page, footerText, x, footerTop, contentWidth, 12, fonts.regular, 5.2, ink, "left", 4.2);
     page.drawLine({ start: { x, y: 24 }, end: { x: width - x, y: 24 }, thickness: 0.6, color: maroon });
     drawNurseryWrappedText(page, school.report_footer_text || school.motto || "Let's learn with ease.", x, 20, contentWidth, 9, fonts.italic, 5.2, maroon, "center", 4.2);
+    drawNurseryWrappedText(page, "This report is invalid without the official school stamp.", x, 10, contentWidth, 7, fonts.italic, 4.8, maroon, "center", 4.1);
     doc.setTitle(`${period.title} Nursery Report — ${str(learner.full_name)}`);
     doc.setAuthor(str(school.name));
     return doc.save();
@@ -2585,15 +2587,7 @@
     const width = 419.53;
     const height = 595.28;
     const page = doc.addPage([width, height]);
-    if (typeof report.school?.report_background_color === "string" && /^#[0-9a-f]{6}$/iu.test(report.school.report_background_color)) {
-      page.drawRectangle({
-        x: 0,
-        y: 0,
-        width,
-        height,
-        color: color(report.school.report_background_color),
-      });
-    }
+    await drawPageWatermark(doc, page, report);
     doc.setTitle(`B.O.T + Midterm Report — ${str(report.learner?.full_name)}`);
     doc.setAuthor(str(report.school?.name));
     const fonts = {
@@ -2683,7 +2677,7 @@
 
     const tableTop = infoTop - infoHeight - 20;
     const headerHeight = 19;
-    const footerBottom = 99;
+    const footerBottom = 130;
     const rowHeight = entries => entries.length
       ? Math.min(16, Math.max(9, (tableTop - footerBottom - headerHeight) / entries.length))
       : 16;
@@ -2697,8 +2691,9 @@
       { label: "Midterm", weight: 0.72, align: "center" },
       { label: "Average", weight: 0.8, align: "center" },
       { label: "Grade", weight: 1, align: "center" },
+      { label: "Pos.", weight: 0.7, align: "center" },
       ...(isPle ? [{ label: "Points", weight: 0.65, align: "center" }] : []),
-      { label: "Remarks", weight: 2.25, align: "left" },
+      { label: "Remarks", weight: 1.8, align: "left" },
     ];
     const totalWeight = columns.reduce((sum, column) => sum + column.weight, 0);
     const widths = columns.map((column) => contentWidth * column.weight / totalWeight);
@@ -2717,6 +2712,7 @@
         num(periodValue(mark, "mid_term", period), 1),
         num(periodScore(mark, period), 1),
         a5GradeLabel(mark, report, !isPle),
+        `${positionValue(mark, {}) || "—"}${classSizeValue(mark, {}) ? `/${classSizeValue(mark, {})}` : ""}`,
         ...(isPle ? [num(mark.points, 0)] : []),
         subjectRemark(mark, report),
       ];
@@ -2732,6 +2728,7 @@
           color: rowIndex % 2 ? color("#FAF9FC") : white,
           borderColor: accent,
           borderWidth: 0.45,
+          opacity: 0.08,
         });
         if (index === 0 || index === columns.length - 1) {
           drawA5WrappedText(page, values[index], currentX + 2, rowTop - 1, cellWidth - 4, rowH - 2,
@@ -2756,7 +2753,8 @@
 
     const comments = [
       ["Class Teacher", report.class_teacher_comment || report.suggested_comment || autoOverallRemark(report, "teacher")],
-      ["Principal", report.principal_comment || report.head_teacher_comment || autoOverallRemark(report, "principal")],
+      ["Head Teacher", report.head_teacher_comment || report.head_of_infants_comment || autoOverallRemark(report, "head_teacher")],
+      ["Principal", report.principal_comment || autoOverallRemark(report, "principal")],
     ].filter(([, content]) => printableValue(content));
     const footerY = Math.max(80, rowTop - 16);
     page.drawLine({ start: { x, y: footerY + 8 }, end: { x: width - x, y: footerY + 8 }, thickness: 0.6, color: accent });
@@ -2778,13 +2776,15 @@
     const pleSummary = isPle && resultMetric[0] !== "PLE Aggregate"
       ? ` · Aggregate: ${num(summary.aggregate, 0)} · ${str(summary.aggregate_division)}`
       : "";
-    const key = `${resultMetric[0]}: ${resultMetric[1]}${pleSummary} · Grading key: ${gradeScale(classLevel, report)}`;
+    const key = `${resultMetric[0]}: ${resultMetric[1]}${pleSummary} · Overall grade: ${overallGrade(report)} · Position: ${overallPositionValue(report) || "—"} / ${overallClassSizeValue(report) || "—"} · Grading key: ${gradeScale(classLevel, report)}`;
     const keyY = footerY - fittedComments.lines.length * commentLeading - 2;
-    const keyLines = wrappedLines(key, fonts.regular, 6, contentWidth - 4).slice(0, 2);
-    keyLines.forEach((line, index) => page.drawText(line, {
+    const keyLinesAvailable = Math.max(1, Math.floor((keyY - 42) / 6));
+    const fittedKey = fitCompleteText(key, fonts.regular, contentWidth - 4, keyLinesAvailable, 6, 3.8);
+    if (fittedKey.lines.length > keyLinesAvailable) throw new Error("The report-card summary and grading key cannot fit completely in the A5 footer.");
+    fittedKey.lines.forEach((line, index) => page.drawText(line, {
       x: x + 2,
-      y: keyY - index * 7,
-      size: 6,
+      y: keyY - index * (fittedKey.size + 1),
+      size: fittedKey.size,
       font: fonts.regular,
       color: ink,
     }));
@@ -2792,6 +2792,7 @@
     page.drawLine({ start: { x, y: signatureY + 12 }, end: { x: width - x, y: signatureY + 12 }, thickness: 0.5, color: accent });
     page.drawLine({ start: { x, y: signatureY }, end: { x: x + 93, y: signatureY }, thickness: 0.6, color: ink });
     drawA5Text(page, "Class Teacher's signature", x + 97, signatureY + 2, fonts.regular, 7.5, ink, contentWidth - 97);
+    drawA5Text(page, "This report is invalid without the official school stamp.", x, 8, fonts.regular, 5.2, maroon, contentWidth, "center");
     return doc.save();
   }
 

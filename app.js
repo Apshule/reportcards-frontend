@@ -22,8 +22,9 @@
   const requestedPath = location.pathname.replace(/\/+$/u,"")||"/";
   const authRequested = () => requestedPath==="/login"||requestedPath==="/signup";
   const landingRequested = () => requestedPath==="/";
-  const authPathMode = () => requestedPath==="/signup"?"signup":"login";
+  const authPathMode = () => "login";
   const navItems = [
+    ["command-center","Command Center","fa-screwdriver-wrench"],
     ["dashboard","Dashboard","fa-house"],["classes","Classes","fa-chalkboard"],["learners","Learners","fa-user-graduate"],
     ["subjects","Subjects","fa-book-open"],["grading","Grading","fa-scale-balanced"],["teachers","Teachers","fa-chalkboard-user"],
     ["marks","Marks","fa-pen-to-square"],["projects","A-Level projects","fa-flask"],["reports","Report cards","fa-file-lines"],
@@ -89,17 +90,19 @@
   function hasFinanceAccess(){return ["school_admin","bursar","head_teacher","director"].includes(state.role)}
   function initialAuthenticatedRoute(defaultRoute){
     if(landingRequested()||authRequested())return defaultRoute;
+    if(state.role==="super_admin")return "command-center";
     const pathRoute=requestedPath.slice(1);
     const hashRoute=location.hash.slice(1);
     const requested=navItems.some(item=>item[0]===hashRoute)?hashRoute:navItems.some(item=>item[0]===pathRoute)?pathRoute:defaultRoute;
     if(requested==="finance"&&!hasFinanceAccess())return defaultRoute;
+    if(requested==="command-center"&&state.role!=="super_admin")return defaultRoute;
     if(["settings","reports","review"].includes(requested)&&state.role!=="school_admin")return defaultRoute;
     if(state.role==="teacher"&&!["dashboard","marks","attendance"].includes(requested))return defaultRoute;
     if(["announcements","parent-feedback"].includes(requested)&&state.role!=="school_admin")return defaultRoute;
     if(["bursar","head_teacher","director"].includes(state.role)&&requested!=="finance")return defaultRoute;
     return requested;
   }
-  function visibleNavItems(){if(state.role==="teacher")return navItems.filter(item=>["dashboard","marks","attendance"].includes(item[0]));return ["bursar","head_teacher","director"].includes(state.role)?navItems.filter(item=>item[0]==="finance"):navItems.filter(item=>(item[0]!=="finance"||state.role==="school_admin")&&(item[0]!=="settings"||state.role==="school_admin")&&(item[0]!=="reports"||state.role==="school_admin")&&(item[0]!=="review"||state.role==="school_admin")&&(!["announcements","parent-feedback"].includes(item[0])||state.role==="school_admin"))}
+  function visibleNavItems(){if(state.role==="super_admin")return navItems.filter(item=>item[0]==="command-center");if(state.role==="teacher")return navItems.filter(item=>["dashboard","marks","attendance"].includes(item[0]));return ["bursar","head_teacher","director"].includes(state.role)?navItems.filter(item=>item[0]==="finance"):navItems.filter(item=>item[0]!=="command-center"&&(item[0]!=="finance"||state.role==="school_admin")&&(item[0]!=="settings"||state.role==="school_admin")&&(item[0]!=="reports"||state.role==="school_admin")&&(item[0]!=="review"||state.role==="school_admin")&&(!["announcements","parent-feedback"].includes(item[0])||state.role==="school_admin"))}
   async function api(path,{method="GET",body,auth=true,cache="no-store"}={}){
     const headers={"Content-Type":"application/json"};
     if(auth&&state.token)headers.Authorization=`Bearer ${state.token}`;
@@ -115,13 +118,13 @@
     if(!state.token){render();return}
     try{
       const me=await api("/api/auth/me");
-       if(me.type==="school"&&me.school){state.school=me.school;state.user=null;state.role="school_admin";state.mustChangePassword=false;state.route=initialAuthenticatedRoute("dashboard");if(landingRequested()||authRequested())history.replaceState(null,"",`/${state.route}`);render();await loadRoute(state.route);return}
-       if(me.type==="user"&&me.user){state.user=me.user;state.school=me.school||null;state.role=me.role||me.user.finance_role||me.user.role||"teacher";if(state.role==="parent"){location.replace("/parent-dashboard.html");return}state.mustChangePassword=me.must_change_password===true;state.route=initialAuthenticatedRoute(["bursar","head_teacher","director"].includes(state.role)?"finance":"dashboard");if(state.route==="finance")state.finance.tab="overview";if(landingRequested()||authRequested())history.replaceState(null,"",`/${state.route}`);state.modal=null;render();if(!state.mustChangePassword)await loadRoute(state.route);return}
+       if(me.type==="school"&&me.school){state.school=me.school;state.user=null;state.role="school_admin";state.mustChangePassword=me.must_change_password===true;state.route=initialAuthenticatedRoute("dashboard");if(landingRequested()||authRequested())history.replaceState(null,"",`/${state.route}`);render();if(!state.mustChangePassword)await loadRoute(state.route);return}
+       if(me.type==="user"&&me.user){state.user=me.user;state.school=me.school||null;state.role=me.role||me.user.finance_role||me.user.role||"teacher";if(state.role==="parent"){location.replace("/parent-dashboard.html");return}state.mustChangePassword=me.must_change_password===true;state.route=initialAuthenticatedRoute(state.role==="super_admin"?"command-center":["bursar","head_teacher","director"].includes(state.role)?"finance":"dashboard");if(state.route==="finance")state.finance.tab="overview";if(landingRequested()||authRequested())history.replaceState(null,"",`/${state.route}`);state.modal=null;render();if(!state.mustChangePassword)await loadRoute(state.route);return}
       throw new Error("Account details were unavailable.");
     }catch{state.token="";state.school=null;state.user=null;state.role="school_admin";state.mustChangePassword=false;state.modal=null;localStorage.removeItem(TOKEN_KEY);render()}
   }
   function logout(show=true){state.token="";state.school=null;state.user=null;state.role="school_admin";state.mustChangePassword=false;state.data={};state.finance.data={};state.loading=false;localStorage.removeItem(TOKEN_KEY);localStorage.removeItem("appshule_reportcards_parent_jwt");state.route="dashboard";state.modal=null;configureFinancePolling();render();if(show)toast("You have signed out.");}
-  function go(route){if(state.mustChangePassword)return;if(route==="finance"&&!hasFinanceAccess())return;if((route==="settings"||route==="reports"||route==="review"||route==="announcements"||route==="parent-feedback")&&state.role!=="school_admin")return;if(state.role==="teacher"&&!["dashboard","marks","attendance"].includes(route))return;if(["bursar","head_teacher","director"].includes(state.role)&&route!=="finance")return;state.route=route;state.modal=null;configureFinancePolling();if(location.hash!==`#${route}`)location.hash=route;document.querySelector(".sidebar")?.classList.remove("open");document.querySelector(".sidebar-scrim")?.remove();render();loadRoute(route)}
+  function go(route){if(state.mustChangePassword)return;if(state.role==="super_admin"&&route!=="command-center")return;if(route==="command-center"&&state.role!=="super_admin")return;if(route==="finance"&&!hasFinanceAccess())return;if((route==="settings"||route==="reports"||route==="review"||route==="announcements"||route==="parent-feedback")&&state.role!=="school_admin")return;if(state.role==="teacher"&&!["dashboard","marks","attendance"].includes(route))return;if(["bursar","head_teacher","director"].includes(state.role)&&route!=="finance")return;state.route=route;state.modal=null;configureFinancePolling();if(location.hash!==`#${route}`)location.hash=route;document.querySelector(".sidebar")?.classList.remove("open");document.querySelector(".sidebar-scrim")?.remove();render();loadRoute(route)}
   function shell(content){
     const routeName=navItems.find(n=>n[0]===state.route)?.[1]||"Dashboard";
     const actorRole=state.role==="school_admin"?"Administrator":state.role.replaceAll("_"," ");
@@ -138,6 +141,11 @@
     try{
       if(route==="dashboard"&&state.role==="teacher")await loadTeacherClasses();
       else if(route==="dashboard")await loadDashboard();
+      else if(route==="command-center"){
+        if(state.role!=="super_admin")throw new Error("Command Center access is restricted.");
+        state.data.commandCenter=null;state.data.commandCenterError="";render();
+        state.data.commandCenter=(await api("/api/command-center/schools")).schools||[];
+      }
       else if(route==="marks"&&state.role==="teacher"){await loadTeacherClasses();if(state.filter.class_id&&state.filter.subject_id)await loadTeacherMarks()}
        else if(route==="classes"){state.data.classes=null;render();const [classes,teachers]=await Promise.all([api("/api/classes"),api("/api/teachers")]);state.data.classes=classes.classes||[];state.data.teachers=teachers.teachers||[];}
       else if(route==="learners"){state.data.classes=state.data.classes||((await api("/api/classes")).classes||[]);state.data.learners=null;render();const q=new URLSearchParams();if(state.filter.class_id)q.set("class_id",state.filter.class_id);if(state.filter.search)q.set("search",state.filter.search);state.data.learners=(await api("/api/learners?"+q)).learners||[];}
@@ -566,7 +574,13 @@
      }
      return `${heading("School settings","Manage report-card details, grading, subjects, and school branding.")}${tabBar}${panel}`;
    }
-  function currentView(){if(state.route==="dashboard")return dashboard();if(state.route==="classes")return classesPage();if(state.route==="learners")return learnersPage();if(state.route==="subjects")return subjectsPage();if(state.route==="grading")return gradingPage();if(state.route==="teachers")return teachersPage();if(state.route==="marks")return state.role==="teacher"?teacherMarksPage():marksPage();if(state.route==="attendance")return window.ReportCardsAttendance?window.ReportCardsAttendance.render():errorBox("Attendance interface did not load.");if(state.route==="announcements")return window.ReportCardsParentAdmin?window.ReportCardsParentAdmin.renderAnnouncements(state):errorBox("Announcements interface did not load.");if(state.route==="parent-feedback")return window.ReportCardsParentAdmin?window.ReportCardsParentAdmin.renderFeedback(state):errorBox("Parent feedback interface did not load.");if(state.route==="review"&&state.role==="school_admin")return reviewPage();if(state.route==="projects")return projectsPage();if(state.route==="finance")return window.ReportCardsFinance?window.ReportCardsFinance.render(state):errorBox("Finance interface did not load.");if(state.route==="settings")return settingsPage();if(state.route==="reports")return reportsPage();return dashboard()}
+  function commandCenterPage(){
+    const schools=state.data.commandCenter;
+    const rows=Array.isArray(schools)?schools:[];
+    const table=rows.length?`<div class="table-wrap"><table class="command-center-table"><thead><tr><th>School</th><th>Admin email</th><th>Phone</th><th>Primary parent contact</th><th>Learners</th><th>Male</th><th>Female</th></tr></thead><tbody>${rows.map(school=>`<tr><td><strong>${esc(school.name)}</strong><small>${esc(school.short_code||"")}${school.city?` · ${esc(school.city)}`:""}</small></td><td>${esc(school.email||"—")}</td><td>${esc(school.phone||"—")}</td><td>${esc(school.primary_parent_contact||"—")}</td><td>${esc(school.learner_count??0)}</td><td>${esc(school.male_count??0)}</td><td>${esc(school.female_count??0)}</td></tr>`).join("")}</tbody></table></div>`:empty("No schools yet","Provision the first school using the form.");
+    return `${heading("Command Center","Manage ReportCards schools and provision school-admin access.")}${state.data.commandCenterError?errorBox(state.data.commandCenterError):""}<div class="command-center-grid"><section class="card section-card command-center-create"><div class="section-title"><div><h2>Provision a school</h2><p>Creates the school and its administrator sign-in.</p></div></div><form id="command-center-provision-form" class="form-grid" novalidate><div class="field"><label for="cc-school-name">School name *</label><input id="cc-school-name" name="name" required maxlength="200" autocomplete="organization"></div><div class="form-two"><div class="field"><label for="cc-email">School admin email *</label><input id="cc-email" name="email" type="email" required maxlength="254" autocomplete="email"></div><div class="field"><label for="cc-phone">School phone *</label><input id="cc-phone" name="phone" type="tel" required maxlength="60" autocomplete="tel"></div><div class="field"><label for="cc-head-teacher">Head teacher</label><input id="cc-head-teacher" name="head_teacher_name" maxlength="200" autocomplete="name"></div><div class="field"><label for="cc-city">City</label><input id="cc-city" name="city" maxlength="200"></div><div class="field wide"><label for="cc-district">District</label><input id="cc-district" name="district" maxlength="200"></div><div class="field wide"><label for="cc-password">Temporary school-admin password *</label><input id="cc-password" name="initial_password" type="password" required minlength="14" maxlength="200" autocomplete="new-password"><span class="field-hint">At least 14 characters with uppercase and lowercase letters, a number, and a symbol. The admin must change it at first login.</span></div></div><div id="command-center-form-error"></div><button class="btn btn-primary" type="submit" ${state.data.provisioningSchool?"disabled":""}>${icon("fa-school")} ${state.data.provisioningSchool?"Creating…":"Create school"}</button></form></section><section class="card section-card command-center-schools"><div class="section-title"><div><h2>Schools</h2><p>${rows.length} school${rows.length===1?"":"s"} currently provisioned</p></div><button class="btn btn-outline" data-action="refresh-command-center">${icon("fa-rotate")} Refresh</button></div>${schools===null?loading():table}</section></div>`;
+  }
+  function currentView(){if(state.route==="command-center"&&state.role==="super_admin")return commandCenterPage();if(state.route==="dashboard")return dashboard();if(state.route==="classes")return classesPage();if(state.route==="learners")return learnersPage();if(state.route==="subjects")return subjectsPage();if(state.route==="grading")return gradingPage();if(state.route==="teachers")return teachersPage();if(state.route==="marks")return state.role==="teacher"?teacherMarksPage():marksPage();if(state.route==="attendance")return window.ReportCardsAttendance?window.ReportCardsAttendance.render():errorBox("Attendance interface did not load.");if(state.route==="announcements")return window.ReportCardsParentAdmin?window.ReportCardsParentAdmin.renderAnnouncements(state):errorBox("Announcements interface did not load.");if(state.route==="parent-feedback")return window.ReportCardsParentAdmin?window.ReportCardsParentAdmin.renderFeedback(state):errorBox("Parent feedback interface did not load.");if(state.route==="review"&&state.role==="school_admin")return reviewPage();if(state.route==="projects")return projectsPage();if(state.route==="finance")return window.ReportCardsFinance?window.ReportCardsFinance.render(state):errorBox("Finance interface did not load.");if(state.route==="settings")return settingsPage();if(state.route==="reports")return reportsPage();return dashboard()}
   function renderPasswordChange(){root.innerHTML=`<main class="auth-shell"><section class="auth-card" aria-labelledby="password-title"><div class="brand"><span class="brand-mark"></span>appshule</div><h1 id="password-title">Set a new password</h1><p class="lede">Your administrator gave you a temporary password. Choose a new password of at least 8 characters before continuing.</p><div id="modal-error"></div><form id="modal-form" class="form-grid" data-type="change-password" data-method="POST" data-endpoint="/api/auth/change-password" novalidate><div class="field"><label for="old_password">Temporary password</label><input id="old_password" name="old_password" type="password" autocomplete="current-password" required maxlength="200"></div><div class="field"><label for="new_password">New password</label><input id="new_password" name="new_password" type="password" autocomplete="new-password" minlength="8" required maxlength="200"></div><div class="field"><label for="confirm_password">Confirm new password</label><input id="confirm_password" name="confirm_password" type="password" autocomplete="new-password" minlength="8" required maxlength="200"></div><button class="btn btn-primary btn-block" type="submit">Change password ${icon("fa-arrow-right")}</button><button class="text-button" type="button" data-action="logout">Sign out</button></form></section></main>`}
   let previewCountSequence=0,previewCountPending="",previewCountCache=new Map();
   function applyPreviewScale(){
@@ -633,7 +647,30 @@
   function toggleMarkFullscreen(){const panel=root.querySelector(".marks-register-panel");if(!panel)return;const active=panel.classList.toggle("is-fullscreen");document.body.classList.toggle("marks-entry-fullscreen",active);const button=panel.querySelector('[data-action="toggle-mark-fullscreen"]');if(button){button.innerHTML=`${icon(active?"fa-compress":"fa-expand")} ${active?"Exit full screen":"Full screen"}`;button.setAttribute("aria-label",active?"Exit full-screen assessment register":"Expand assessment register")}}
   function exitMarkFullscreen(){root.querySelector(".marks-register-panel.is-fullscreen")?.classList.remove("is-fullscreen");document.body.classList.remove("marks-entry-fullscreen")}
   function render(){exitMarkFullscreen();if(!state.token){if(landingRequested()&&window.AppShuleLanding?.render){window.AppShuleLanding.render(root);return}renderAuth();return}if(state.mustChangePassword){renderPasswordChange();return}root.innerHTML=shell(currentView());const admissionInput=root.querySelector("#f-reg_no");if(admissionInput){const autoNumbering=state.data.schoolSettings?.admission_number_mode==="auto";admissionInput.required=!autoNumbering;const label=root.querySelector('label[for="f-reg_no"]');if(label)label.textContent=autoNumbering?"Admission number (auto-generated)":"Admission number *";const field=label?.closest(".field");if(field){let hint=field.querySelector("[data-admission-hint]");if(!hint){hint=document.createElement("span");hint.className="field-hint";hint.dataset.admissionHint="true";field.append(hint)}hint.textContent=autoNumbering?"A sequential number will be assigned when you save.":"Enter a number manually; required while manual numbering is enabled."}}if(state.modal?.type==="learner-profile"&&state.role==="school_admin"){const actions=root.querySelector(".modal-actions");if(actions&&!actions.querySelector('[data-action="invite-parent"]'))actions.insertAdjacentHTML("afterbegin",`<button class="btn btn-outline" data-action="invite-parent" data-id="${esc(state.modal.learner?.id)}">${icon("fa-envelope")} Invite parent</button>`)}enhanceSchoolLogoHeader();if(state.route==="marks")enhanceMarkRegister();if(state.route==="settings")window.ReportCardStampBuilder?.bind(root,state.data.stampConfig||{});if(state.route==="reports"){updateReportPreviewPageCount();requestAnimationFrame(applyPreviewScale)}else if(previewCountPending){previewCountSequence++;previewCountPending="";}}
-  function renderAuth(){const signup=state.authMode==="signup";root.innerHTML=`<main class="auth-shell"><section class="auth-card" aria-labelledby="auth-title"><div class="brand"><span class="brand-mark"></span>appshule</div><h1 id="auth-title">${signup?"Set up your school":"Welcome back"}</h1><p class="lede">${signup?"Create your school office workspace.":"Sign in with the same email and password you use for your school, staff, or parent account."}</p><div id="auth-error"></div><form id="auth-form" class="form-grid" novalidate>${signup?`<div class="field"><label for="school_name">School name</label><input id="school_name" name="school_name" required autocomplete="organization" maxlength="200"></div>`:""}<div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required autocomplete="email" maxlength="254"></div>${signup?`<div class="field"><label for="phone">School phone</label><input id="phone" name="phone" type="tel" required autocomplete="tel" maxlength="60"></div>`:""}<div class="field"><label for="password">Password</label><div class="auth-password-wrap"><input id="password" name="password" type="password" required autocomplete="${signup?"new-password":"current-password"}" minlength="${signup?8:1}" maxlength="200"><button class="auth-password-toggle" type="button" data-action="toggle-password" data-target="password" aria-label="View password" aria-pressed="false">${icon("fa-eye")}</button></div>${signup?'<span class="field-hint">Use at least 8 characters.</span>':""}</div>${signup?`<div class="field"><label for="head_teacher_name">Head teacher name <span class="field-hint">(optional)</span></label><input id="head_teacher_name" name="head_teacher_name" autocomplete="name" maxlength="200"></div><div class="form-two"><div class="field"><label for="city">City <span class="field-hint">(optional)</span></label><input id="city" name="city" maxlength="120"></div><div class="field"><label for="district">District <span class="field-hint">(optional)</span></label><input id="district" name="district" maxlength="120"></div></div>`:""}<button class="btn btn-primary btn-block" type="submit" ${state.loading?"disabled":""}>${state.loading?"Please wait…":signup?"Create school account":"Sign in"} ${icon(signup?"fa-arrow-right":"fa-arrow-right-to-bracket")}</button></form><p class="auth-footer">${signup?"Already have an account?":"New to AppShule?"} <button class="text-button" data-action="toggle-auth">${signup?"Sign in":"Create school account"}</button></p>${!signup?'<p class="auth-footer">Parents can also sign in here. <a href="/parent-dashboard.html">Parent portal</a></p>':""}</section></main>`}
+  function renderAuth(){const signupDisabled=requestedPath==="/signup";root.innerHTML=`<main class="auth-shell"><section class="auth-card" aria-labelledby="auth-title"><div class="brand"><span class="brand-mark"></span>appshule</div><h1 id="auth-title">Welcome back</h1><p class="lede">Sign in with the same email and password you use for your school, staff, or parent account.</p>${signupDisabled?'<div class="alert info" role="status">Public school account creation is closed. Contact AppShule to have a school provisioned.</div>':""}<div id="auth-error"></div><form id="auth-form" class="form-grid" novalidate><div class="field"><label for="email">Email</label><input id="email" name="email" type="email" required autocomplete="email" maxlength="254"></div><div class="field"><label for="password">Password</label><div class="auth-password-wrap"><input id="password" name="password" type="password" required autocomplete="current-password" maxlength="200"><button class="auth-password-toggle" type="button" data-action="toggle-password" data-target="password" aria-label="View password" aria-pressed="false">${icon("fa-eye")}</button></div></div><button class="btn btn-primary btn-block" type="submit" ${state.loading?"disabled":""}>${state.loading?"Please wait…":"Sign in"} ${icon("fa-arrow-right-to-bracket")}</button></form><p class="auth-footer">Need a school account? <a href="/#contact">Contact AppShule</a></p><p class="auth-footer">Parents can also sign in here. <a href="/parent-dashboard.html">Parent portal</a></p></section></main>`}
+  const renderWithAdmissionNumber=render;
+  render=function(){
+    renderWithAdmissionNumber();
+    if(!state.token)return;
+    const input=root.querySelector("#f-reg_no");
+    if(!input)return;
+    const isNew=state.modal?.type==="learner"&&!state.modal.item?.id;
+    const automatic=(state.data.schoolSettings?.admission_number_mode||state.school?.admission_number_mode)==="auto";
+    input.required=!(automatic&&isNew);
+    input.readOnly=automatic&&isNew;
+    if(automatic&&isNew)input.value=state.modal.admissionPreview||"";
+    const label=root.querySelector('label[for="f-reg_no"]');
+    if(label)label.textContent=automatic?"Admission number (auto-generated)":"Admission number *";
+    const field=label?.closest(".field");
+    if(field){
+      let hint=field.querySelector("[data-admission-hint]");
+      if(!hint){hint=document.createElement("span");hint.className="field-hint";hint.dataset.admissionHint="true";field.append(hint)}
+      hint.textContent=automatic&&isNew
+        ?state.modal.admissionPreview?`Next available number: ${state.modal.admissionPreview}. The server confirms it when saved.`:"Loading the next admission number…"
+        :automatic?"Automatic numbering is enabled for new learners; existing numbers are managed by the school."
+        :"Enter a number manually; required while manual numbering is enabled.";
+    }
+  };
     function modalMarkup(){
       const m=state.modal;
       if(!m)return"";
@@ -849,8 +886,9 @@
       if(type==="assignment"){toast("Teacher assignment added.");await loadRoute("teachers");return}
       if(type==="project"){state.modal=null;toast(method==="PATCH"?"Project changes saved.":"Project added.");if(state.route==="projects")await loadProjectRegister();else await loadReportClass();return}
       if(type==="primary-subject-bands"){state.modal=null;toast("Subject grade bands saved.");await loadRoute(state.route);return}
-       if(type==="learner")state.modal=null;
-       toast(method==="PATCH"?"Changes saved.":"Record added.");await loadRoute(state.route);
+        if(type==="learner")state.modal=null;
+        const learnerCreated=type==="learner"&&method==="POST"&&result.learner?.reg_no;
+        toast(learnerCreated?`Learner added with admission number ${result.learner.reg_no}.`:method==="PATCH"?"Changes saved.":"Record added.");await loadRoute(state.route);
     }catch(error){const err=document.getElementById("modal-error");if(err)err.innerHTML=`<div class="alert error" role="alert">${esc(error.message)}</div>`;submit.disabled=false;submit.textContent=method==="PATCH"?"Save changes":type==="assignment"?"Assign":"Save"}
   }
   function parseCsv(text){
@@ -1072,11 +1110,28 @@
       else toast(modal.pending==="teacher-save"?"Marks and comments saved.":"Marks and comments saved.");
     }catch(error){toast(error.message||"Could not save the selected comments.","error")}
   }
+  async function openAddLearner(){
+    state.modal={type:"learner",admissionPreview:""};
+    render();
+    const automatic=(state.data.schoolSettings?.admission_number_mode||state.school?.admission_number_mode)==="auto";
+    if(automatic){
+      try{
+        const result=await api("/api/learners/next-admission-number");
+        if(state.modal?.type==="learner"){state.modal.admissionPreview=String(result.admission_number||"");render()}
+      }catch(error){
+        if(state.modal?.type==="learner"){
+          const hint=root.querySelector("[data-admission-hint]");
+          if(hint)hint.textContent=`Could not preview the next number: ${error.message}. Saving still assigns a unique number.`;
+        }
+      }
+    }
+    setTimeout(()=>document.querySelector(".modal input, .modal select")?.focus(),30);
+  }
   async function action(button,clickEvent){
     const a=button.dataset.action,id=button.dataset.id;
     if(a==="settings-tab"){const tab=button.dataset.tab;if(["general","theme","grading","subjects","other","activity-icons"].includes(tab)){state.data.settingsTab=tab;state.modal=null;render()}return}
     if(a==="remove-activity-icon"){const activityName=button.dataset.name;if(!activityName)return;try{await api(`/api/school/activity-icons/${encodeURIComponent(activityName)}`,{method:"DELETE"});state.data.activityIcons=(state.data.activityIcons||[]).filter(item=>item.activity_name!==activityName);if(reportState.data?.school)reportState.data.school={...reportState.data.school,activity_icons:state.data.activityIcons};render();toast(`${activityName} now uses the default icon.`)}catch(error){state.data.activityIconError=error.message||"Could not restore the default icon.";render()}return}
-    if(a==="toggle-auth"){state.authMode=state.authMode==="signup"?"login":"signup";if(requestedPath==="/"||requestedPath==="/login"||requestedPath==="/signup")history.replaceState(null,"",`/${state.authMode}`);renderAuth();return}
+     if(a==="refresh-command-center"){await loadRoute("command-center");return}
     if(a==="toggle-password"){const input=document.getElementById(button.dataset.target);if(!input)return;const visible=input.type==="password";input.type=visible?"text":"password";button.setAttribute("aria-pressed",String(visible));button.setAttribute("aria-label",visible?"Hide password":"View password");button.innerHTML=icon(visible?"fa-eye-slash":"fa-eye");input.focus();return}
     if(a==="logout"){logout();return}
     if(a==="retry-report-verification"){await loadSelectedReportVerification();return}
@@ -1091,7 +1146,8 @@
     if(a==="close-modal"){state.modal=null;render();return}
     if(a==="backdrop"&&button===clickEvent.target){state.modal=null;render();return}
     if(a==="copy-password"){try{await navigator.clipboard.writeText(state.modal?.password||"");toast("Temporary password copied.")}catch{toast("Clipboard access is unavailable. Select and copy the password manually.","error")}return}
-     if(["add-class","add-learner","add-subject","add-grade","add-teacher"].includes(a)){const map={"add-class":"class","add-learner":"learner","add-subject":"subject","add-grade":"grade","add-teacher":"teacher"};state.modal={type:map[a],...(a==="add-subject"?{category:button.dataset.category||"CORE"}:{})};render();setTimeout(()=>document.querySelector(".modal input, .modal select")?.focus(),30);return}
+      if(a==="add-learner"){await openAddLearner();return}
+      if(["add-class","add-learner","add-subject","add-grade","add-teacher"].includes(a)){const map={"add-class":"class","add-learner":"learner","add-subject":"subject","add-grade":"grade","add-teacher":"teacher"};state.modal={type:map[a],...(a==="add-subject"?{category:button.dataset.category||"CORE"}:{})};render();setTimeout(()=>document.querySelector(".modal input, .modal select")?.focus(),30);return}
      if(a==="create-grading-scale"){state.modal={type:"grading-scale",level:state.filter.level||"PRIMARY"};render();return}
       if(a==="edit-primary-subject-bands"){const level="PRIMARY",active=(state.data.activeGradingScales||[]).find(scale=>scale.level===level)||state.data.activeGradingScale,first=(state.data.subjects||[]).find(subject=>subject.level===level&&subject.category!=="OTHER");if(!active?.id||!first){toast("Activate a Primary grading scale and add Primary subjects first.","error");return}state.modal={type:"primary-subject-bands",scaleId:active.id,subjectId:first.id};render();return}
      if(a==="add-custom-grade-row"){const tbody=document.getElementById("custom-scale-rows");if(tbody){const index=tbody.querySelectorAll("[data-custom-scale-row]").length;tbody.insertAdjacentHTML("beforeend",`<tr data-custom-scale-row><td><input name="scale_grade_code" required maxlength="30" aria-label="Grade code ${index+1}"></td><td><input name="scale_min_score" required type="number" min="0" max="100" step=".01" aria-label="Minimum score ${index+1}"></td><td><input name="scale_max_score" required type="number" min="0" max="100" step=".01" aria-label="Maximum score ${index+1}"></td><td><input name="scale_points" type="number" min="0" max="1000" step=".01" aria-label="Points ${index+1}"></td><td><input name="scale_descriptor" maxlength="200" aria-label="Descriptor ${index+1}"></td><td><input name="scale_comment" maxlength="1000" aria-label="Dropdown remark ${index+1}"></td><td><button class="icon-btn delete" type="button" aria-label="Remove grade row" data-action="remove-custom-grade-row">${icon("fa-trash")}</button></td></tr>`)}return}
@@ -1413,7 +1469,7 @@
      }
    }
   function saveDownload(blob,name){const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
-  function filePart(value){return String(value||"learner").normalize("NFKD").replace(/[^\w.-]+/g,"-").replace(/^-+|-+$/g,"").slice(0,90)||"learner"}
+   function filePart(value){return String(value||"learner").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Za-z0-9_-]+/g,"_").replace(/_+/g,"_").replace(/^[-_]+|[-_]+$/g,"").slice(0,90)||"learner"}
     function reportForDownload(report,stampConfig,verification=reportState.verifications[String(report.learner?.id)]){
       const ages=(reportState.data?.learners||[]).map(item=>Number(item.learner?.age)).filter(age=>Number.isFinite(age)&&age>0);
       const classAverageAge=ages.length?ages.reduce((sum,age)=>sum+age,0)/ages.length:null;
@@ -1476,7 +1532,7 @@
     if(!report){toast("Load a class and choose a learner first.","error");return}
     if(incompletePleMessage(report)){toast(incompletePleMessage(report),"error");return}
     if(!window.ReportCardPdf||!window.PDFLib){toast("The PDF library did not load. Refresh and try again.","error");return}
-    try{let verification=reportState.verifications[String(report.learner.id)];if(!verification){const codes=await issueReportAuthenticityCodes([report]);verification=codes[String(report.learner.id)];reportState.verifications={...reportState.verifications,...codes}}const currentStamp=reportState.includeStamp?await api("/api/schools/stamp"):undefined;const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp,verification),reportState.data.class.level,reportState.template,reportState.includeStamp);saveDownload(new Blob([bytes],{type:"application/pdf"}),`${filePart(report.learner.reg_no||report.learner.full_name)}-${reportState.data.term}-${reportState.data.year}-${filePart(reportState.period)}-template-${reportState.template}.pdf`)}
+     try{let verification=reportState.verifications[String(report.learner.id)];if(!verification){const codes=await issueReportAuthenticityCodes([report]);verification=codes[String(report.learner.id)];reportState.verifications={...reportState.verifications,...codes}}const currentStamp=reportState.includeStamp?await api("/api/schools/stamp"):undefined;const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp,verification),reportState.data.class.level,reportState.template,reportState.includeStamp);saveDownload(new Blob([bytes],{type:"application/pdf"}),`${filePart(report.learner.full_name)}_${filePart(reportState.term)}_${filePart(reportState.year)}_ReportCard.pdf`)}
     catch(error){toast(error.message||"Could not generate the PDF.","error")}
   }
   async function downloadClassZip(){
@@ -1486,7 +1542,7 @@
     if(incomplete){toast(`${incomplete.learner?.full_name||"Learner"} — ${incompletePleMessage(incomplete)}`,"error");return}
     if(!window.ReportCardPdf||!window.PDFLib){toast("The PDF library did not load. Refresh and try again.","error");return}
     reportState.busy=true;render();
-    try{const [currentStamp,verificationCodes]=await Promise.all([reportState.includeStamp?api("/api/schools/stamp"):Promise.resolve(undefined),issueReportAuthenticityCodes(reports)]);const files=[];for(const report of reports){const verification=verificationCodes[String(report.learner?.id)];const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp,verification),reportState.data.class.level,reportState.template,reportState.includeStamp);files.push({name:`${filePart(report.learner.reg_no||report.learner.full_name)}-${filePart(report.learner.full_name)}.pdf`,bytes})}const zip=window.ReportCardPdf.createZip(files);saveDownload(zip,`report-cards-${filePart(reportState.data.class.name)}-${reportState.data.term}-${reportState.data.year}-${filePart(reportState.period)}-template-${reportState.template}.zip`);toast(`Downloaded ${reports.length} report cards.`)}
+     try{const [currentStamp,verificationCodes]=await Promise.all([reportState.includeStamp?api("/api/schools/stamp"):Promise.resolve(undefined),issueReportAuthenticityCodes(reports)]);const files=[];for(const report of reports){const verification=verificationCodes[String(report.learner?.id)];const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp,verification),reportState.data.class.level,reportState.template,reportState.includeStamp);files.push({name:`${filePart(report.learner?.full_name)}_${filePart(reportState.term)}_${filePart(reportState.year)}_ReportCard.pdf`,bytes})}const zip=window.ReportCardPdf.createZip(files);saveDownload(zip,`${filePart(reportState.data.class.name)}_${filePart(reportState.term)}_${filePart(reportState.year)}_ReportCards.zip`);toast(`Downloaded ${reports.length} report cards.`)}
     catch(error){toast(error.message||"Could not create the class ZIP.","error")}
     finally{reportState.busy=false;render()}
   }
@@ -1722,7 +1778,7 @@
     root.addEventListener("change",e=>{const t=e.target;if(t.matches("[data-score],[data-mark-period-score]"))calculateMarks(t.closest("tr"));if(t.matches("[data-mark-period]")){state.filter.assessment_period=t.value;render()}if(t.matches("[data-filter]")){state.filter[t.dataset.filter]=t.value;if(t.dataset.filter==="class_id"&&state.route==="marks"){state.filter.subject_id="";loadRoute("marks")}else if(t.dataset.filter==="level"&&["subjects","grading"].includes(state.route)){state.filter.level=t.value;loadRoute(state.route)}}if(t.matches("[data-rm-filter]")){state.filter[t.dataset.rmFilter]=t.value;if(t.dataset.rmFilter==="class_id"){const first=(state.rm.classes||[]).find(c=>String(c.class_id)===String(t.value));state.filter.subject_id=first?.subject_id||""}if(state.route==="review")loadReviewQueue();else render()}if(t.matches("[data-report-filter]")){const key=t.dataset.reportFilter;if(key==="includeStamp"){reportState.includeStamp=t.checked;render()}else{reportState[key]=t.value;if(key==="template"||key==="period"){reportState.error="";if(reportState.data)loadReportClass();else render()}else if(key==="learnerId"){reportState.verificationError="";render();loadSelectedReportVerification()}else{reportState.verificationRequestId++;reportState.verifications={};reportState.verificationBusy=false;reportState.verificationError="";reportState.data=null;reportState.learners=[];reportState.learnerId="";reportState.error="";render()}}}if(t.matches("[data-fin-filter]")){state.finance[t.dataset.finFilter]=t.value;if(t.dataset.finFilter==="reportClass")state.finance.reportClass=t.value;loadRoute("finance")}if(t.matches("[data-signature-file]")&&t.files?.[0]){const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const c=document.getElementById("signature-canvas"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);const scale=Math.min(c.width/img.width,c.height/img.height);ctx.drawImage(img,(c.width-img.width*scale)/2,(c.height-img.height*scale)/2,img.width*scale,img.height*scale)};img.src=reader.result};reader.readAsDataURL(t.files[0])}if(t.id==="csv-file"&&t.files?.[0])importCsv(t.files[0]);if(t.id==="finance-csv"&&t.files?.[0])importFinanceCsv(t.files[0])});
   root.addEventListener("change",e=>{const filter=e.target.closest("[data-project-filter]");if(!filter)return;projectState[filter.dataset.projectFilter]=filter.value;projectState.error="";state.data.projectRegister=null;render()});
    root.addEventListener("change",e=>{const select=e.target.closest("[data-promotion-class]");if(select){state.rm.promotionClassId=select.value;loadReviewQueue()}});
-   root.addEventListener("submit",async e=>{if(e.target.id==="auth-form"){e.preventDefault();await submitAuth(e.target)}else if(e.target.id==="modal-form"){e.preventDefault();await handleModalSubmit(e.target)}else if(e.target.matches("[data-fin-form]")){e.preventDefault();await handleFinanceSubmit(e.target)}else if(e.target.id==="settings-form"){e.preventDefault();await saveSchoolSettings(e.target)}else if(e.target.id==="school-profile-form"){e.preventDefault();await saveSchoolProfile(e.target)}else if(e.target.id==="school-theme-form"){e.preventDefault();await saveSchoolTheme(e.target)}else if(e.target.id==="promotion-rules-form"){e.preventDefault();await savePromotionRules(e.target)}else if(e.target.id==="report-card-stamp-builder"){e.preventDefault();await saveStampSettings(e.target)}});
+   root.addEventListener("submit",async e=>{if(e.target.id==="auth-form"){e.preventDefault();await submitAuth(e.target)}else if(e.target.id==="command-center-provision-form"){e.preventDefault();await provisionSchool(e.target)}else if(e.target.id==="modal-form"){e.preventDefault();await handleModalSubmit(e.target)}else if(e.target.matches("[data-fin-form]")){e.preventDefault();await handleFinanceSubmit(e.target)}else if(e.target.id==="settings-form"){e.preventDefault();await saveSchoolSettings(e.target)}else if(e.target.id==="school-profile-form"){e.preventDefault();await saveSchoolProfile(e.target)}else if(e.target.id==="school-theme-form"){e.preventDefault();await saveSchoolTheme(e.target)}else if(e.target.id==="promotion-rules-form"){e.preventDefault();await savePromotionRules(e.target)}else if(e.target.id==="report-card-stamp-builder"){e.preventDefault();await saveStampSettings(e.target)}});
   root.addEventListener("submit",async e=>{if(e.target.id==="branding-settings-form"){e.preventDefault();await saveBrandingSettings(e.target)}});
    root.addEventListener("keydown",e=>{if(e.key==="Escape"&&root.querySelector(".marks-register-panel.is-fullscreen")){exitMarkFullscreen();return}if(e.key==="Escape"&&reportState.fullscreen){reportState.fullscreen=false;render();return}if(e.key==="Escape"&&state.modal){state.modal=null;render()}});
   root.addEventListener("pointerdown",e=>{const c=e.target.closest("#signature-canvas");if(!c)return;drawing=true;lastPoint=canvasPoint(c,e);c.setPointerCapture?.(e.pointerId)});
@@ -1730,21 +1786,44 @@
   root.addEventListener("pointerup",()=>{drawing=false;lastPoint=null});root.addEventListener("pointercancel",()=>{drawing=false;lastPoint=null});
   root.addEventListener("keydown",e=>{const c=e.target.closest("#signature-canvas");if(!c||!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key))return;e.preventDefault();const ctx=c.getContext("2d"),x=c.width/2,y=c.height/2;ctx.lineWidth=3;ctx.lineCap="round";ctx.strokeStyle=e.shiftKey?"#ffffff":"#35206f";ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+(e.key==="ArrowRight"?14:e.key==="ArrowLeft"?-14:0),y+(e.key==="ArrowDown"?14:e.key==="ArrowUp"?-14:0));ctx.stroke()});
   window.addEventListener("resize",()=>requestAnimationFrame(applyPreviewScale));
+  async function provisionSchool(form){
+    if(state.role!=="super_admin"||!form.reportValidity())return;
+    const initialPassword=form.querySelector('[name="initial_password"]')?.value||"";
+    if(initialPassword.length<14||!/[a-z]/u.test(initialPassword)||!/[A-Z]/u.test(initialPassword)||!/\d/u.test(initialPassword)||!/[^A-Za-z0-9]/u.test(initialPassword)){
+      document.getElementById("command-center-form-error").innerHTML='<div class="alert error">Use at least 14 characters with uppercase and lowercase letters, a number, and a symbol.</div>';
+      return;
+    }
+    const body=Object.fromEntries(new FormData(form).entries());
+    const button=form.querySelector('[type="submit"]');
+    state.data.provisioningSchool=true;
+    if(button){button.disabled=true;button.textContent="Creating…"}
+    document.getElementById("command-center-form-error").innerHTML="";
+    try{
+      const result=await api("/api/command-center/schools",{method:"POST",body});
+      state.data.provisioningSchool=false;
+      form.reset();
+      await loadRoute("command-center");
+      toast(`${result.school?.name||"School"} provisioned${result.school?.short_code?` · ${result.school.short_code}`:""}. The admin must change the temporary password at first login.`);
+    }catch(error){
+      state.data.provisioningSchool=false;
+      const target=document.getElementById("command-center-form-error");
+      if(target)target.innerHTML=`<div class="alert error" role="alert">${esc(error.message)}</div>`;
+      if(button){button.disabled=false;button.innerHTML=`${icon("fa-school")} Create school`}
+    }
+  }
   async function submitAuth(form){
-    if(!form.reportValidity())return;state.loading=true;const mode=state.authMode;renderAuth();
+    if(!form.reportValidity())return;state.loading=true;renderAuth();
     const values=Object.fromEntries(new FormData(form).entries());
     try{
-      const path=mode==="signup"?"/api/auth/signup-school":"/api/auth/login";
-      const result=await api(path,{method:"POST",auth:false,body:values});
+      const result=await api("/api/auth/login",{method:"POST",auth:false,body:values});
       state.token=result.token;localStorage.setItem(TOKEN_KEY,state.token);localStorage.removeItem("appshule_reportcards_parent_jwt");state.authMode="login";
-      if(mode==="signup"){state.school=result.school;state.user=null;state.role="school_admin";state.mustChangePassword=false}
-      else if(result.role==="parent"){location.assign("/parent-dashboard.html");return}
+      if(result.role==="parent"){location.assign("/parent-dashboard.html");return}
       else{
         state.user=result.user||null;state.school=result.school||null;state.role=result.role||result.user?.finance_role||result.user?.role||"school_admin";state.mustChangePassword=result.must_change_password===true;
         if(result.user){const me=await api("/api/auth/me");state.user=me.user||state.user;state.school=me.school||null;state.role=me.role||state.role;state.mustChangePassword=me.must_change_password===true}
       }
       state.modal=null;
-      state.route=["bursar","head_teacher","director"].includes(state.role)?"finance":"dashboard";
+      state.route=state.role==="super_admin"?"command-center":["bursar","head_teacher","director"].includes(state.role)?"finance":"dashboard";
       if(state.route==="finance")state.finance.tab="overview";
       state.loading=false;
       if(requestedPath==="/"||requestedPath==="/login"||requestedPath==="/signup")history.replaceState(null,"",`/${state.route}`);
