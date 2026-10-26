@@ -83,9 +83,9 @@
 
   function loginView() {
     return `<main class="parent-card parent-login"><div class="parent-brand"><span class="parent-brand-mark">${icon("fa-graduation-cap")}</span><span>AppShule <small class="parent-school">Parent Portal</small></span></div>
-      <h1>Welcome back</h1><p class="parent-muted">Sign in with your email and password. We’ll send you to the right school workspace.</p>
+      <h1>Welcome back</h1><p class="parent-muted">Sign in with your email or phone number and password to reach your school workspace.</p>
       ${state.error ? `<div class="parent-alert" role="alert">${esc(state.error)}</div>` : ""}
-      <form id="parent-login-form"><label>Email<input type="email" name="email" autocomplete="username" required></label><label>Password<div class="parent-password-wrap"><input id="parent-login-password" type="password" name="password" autocomplete="current-password" required><button type="button" data-parent-action="toggle-password" data-target="parent-login-password" aria-label="View password" aria-pressed="false">${icon("fa-eye")}</button></div></label><button class="btn btn-primary" type="submit" ${state.busy ? "disabled" : ""}>${state.busy ? "Signing in…" : "Sign in"}</button></form>
+      <form id="parent-login-form"><label>Email or Phone Number<input type="text" name="email" autocomplete="username" required maxlength="254"></label><label>Password<div class="parent-password-wrap"><input id="parent-login-password" type="password" name="password" autocomplete="current-password" required><button type="button" data-parent-action="toggle-password" data-target="parent-login-password" aria-label="View password" aria-pressed="false">${icon("fa-eye")}</button></div></label><button class="btn btn-primary" type="submit" ${state.busy ? "disabled" : ""}>${state.busy ? "Signing in…" : "Sign in"}</button></form>
       <p class="parent-muted">Parent accounts are provided by your school. Staff and school accounts will continue to their own workspace.</p></main>`;
   }
 

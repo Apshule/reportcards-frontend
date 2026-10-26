@@ -1,20 +1,101 @@
-.command-center-grid{
-  display:grid;
-  grid-template-columns:minmax(300px,.8fr) minmax(0,1.7fr);
-  gap:18px;
-  align-items:start
+.cc-summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:15px;margin:0 0 22px}
+.cc-summary-card{position:relative;display:grid;grid-template-columns:44px minmax(0,1fr);grid-template-rows:auto auto auto;column-gap:13px;align-items:center;padding:19px 21px;overflow:hidden;border-top:3px solid #4b2e9e}
+.cc-summary-card:after{position:absolute;content:"";width:120px;height:120px;right:-50px;bottom:-75px;border-radius:50%;background:#f2edfc;pointer-events:none}
+.cc-summary-1{border-top-color:#cb712e}.cc-summary-1:after{background:#fff2e5}.cc-summary-2{border-top-color:#317667}.cc-summary-2:after{background:#eaf5ef}
+.cc-summary-icon{grid-row:1/4;display:grid;place-items:center;width:42px;height:42px;border-radius:13px;background:#f1edfb;color:#4b2e9e;font-size:16px}
+.cc-summary-1 .cc-summary-icon{background:#fff2e5;color:#a95a20}.cc-summary-2 .cc-summary-icon{background:#eaf5ef;color:#317667}
+.cc-summary-label{color:#716b7d;font-size:12px;font-weight:700;letter-spacing:.025em}
+.cc-summary-card strong{font:800 27px/1.1 var(--font-display);font-variant-numeric:tabular-nums;letter-spacing:-.7px;color:#30234e}
+.cc-summary-card small{font-size:11px;color:#898394}
+.command-center-schools{padding:20px 22px}
+.command-center-schools .table-wrap{max-height:min(68dvh,760px);overflow:auto}
+.cc-schools-title{margin-bottom:14px}
+.cc-schools-title h2{font-size:19px}
+.cc-schools-title p{margin-top:4px}
+.cc-search{display:grid;grid-template-columns:minmax(125px,auto) minmax(220px,1fr);gap:14px;align-items:center;margin-bottom:16px}
+.cc-search-label{font-size:13px;font-weight:700;color:#514966}
+.cc-search-input{position:relative;width:min(100%,460px)}
+.cc-search-input>i{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:#817991;font-size:13px;pointer-events:none}
+.cc-search-input input{width:100%;height:43px;border:1px solid #dcd6e8;border-radius:9px;padding:9px 13px 9px 38px;background:#fcfbfd;color:#302942;outline:none}
+.cc-search-input input:focus{border-color:#755bb2;box-shadow:0 0 0 3px #4b2e9e1c}
+.command-center-table{min-width:810px}
+.command-center-table th{position:sticky;top:0;z-index:1;background:#f6f3fa;color:#625b70}
+.command-center-table td{padding:14px 15px}
+.command-center-table td.cc-school-name{max-width:230px;min-width:180px}
+.command-center-table .cc-school-name strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px;color:#302942}
+.command-center-table .cc-school-name small,.command-center-table td>small{display:block;margin-top:3px;color:#827b8d;font-size:11px}
+.command-center-table .cc-contact{display:block;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.command-center-table .cc-gender-counts{white-space:nowrap;font-variant-numeric:tabular-nums}
+.command-center-table .btn{white-space:nowrap}
+.command-center-table tbody tr:hover{background:#faf8fd}
+.cc-provision-modal{width:min(100%,650px);max-height:min(92dvh,850px)}
+.cc-provision-modal .modal-head{margin-bottom:16px}
+.cc-provision-modal .modal-head .eyebrow,.cc-details-modal .modal-head .eyebrow{margin:0 0 4px}
+.cc-provision-modal .modal-head h2,.cc-details-modal .modal-head h2{font-size:23px;letter-spacing:-.5px}
+.cc-provision-modal .form-grid{gap:13px}
+.cc-provision-modal .form-two{gap:12px}
+.cc-provision-modal .modal-actions{padding-top:4px}
+.cc-details-modal{width:min(100%,850px);max-height:min(92dvh,900px)}
+.cc-detail-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:3px 0 18px}
+.cc-detail-summary>div{display:grid;gap:5px;min-width:0;padding:12px;border:1px solid #ebe6f1;border-radius:10px;background:#faf9fc}
+.cc-detail-summary span{display:flex;align-items:center;gap:6px;overflow:hidden;color:#756d81;font-size:11px;font-weight:700;white-space:nowrap}
+.cc-detail-summary span i{color:#664ba4}
+.cc-detail-summary strong{font:800 20px/1.1 var(--font-display);font-variant-numeric:tabular-nums;color:#302942}
+.cc-school-contact{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:0 0 18px;padding:14px 0;border-top:1px solid #ede9f1;border-bottom:1px solid #ede9f1}
+.cc-school-contact>div{min-width:0}
+.cc-school-contact dt{color:#827b8d;font-size:10px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+.cc-school-contact dd{margin:4px 0 0;overflow-wrap:anywhere;color:#332d40;font-size:13px;font-weight:600}
+.cc-people-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.cc-detail-section{min-width:0}
+.cc-detail-section-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.cc-detail-section-head h3{margin:0;font:700 15px var(--font-display);color:#332849}
+.cc-detail-section-head>span{display:grid;place-items:center;min-width:25px;height:25px;padding:0 6px;border-radius:20px;background:#f1edfb;color:#4b2e9e;font-size:11px;font-weight:800}
+.cc-contact-list{display:grid;gap:7px;max-height:230px;overflow:auto;margin:0;padding:0;list-style:none}
+.cc-contact-list li{display:grid;gap:2px;padding:10px 11px;border:1px solid #eeeaf3;border-radius:8px;background:#fdfcfe}
+.cc-contact-list strong{overflow-wrap:anywhere;color:#342d40;font-size:12px}
+.cc-contact-list span{overflow-wrap:anywhere;color:#777083;font-size:11px}
+.cc-detail-empty{margin:0;padding:17px 12px;border:1px dashed #ded8e8;border-radius:8px;color:#817b8b;font-size:12px}
+.cc-detail-skeleton{display:grid;gap:12px;padding:12px 0}
+.cc-detail-skeleton div{height:54px;border-radius:9px;background:linear-gradient(100deg,#f0edf4,#faf9fb 45%,#f0edf4);background-size:200% 100%;animation:shimmer 1.3s infinite}
+.cc-backdrop{z-index:100}
+.auth-shell{background:#35206f}
+.auth-shell:before,.auth-shell:after{border-color:rgba(255,255,255,.13)}
+.auth-card{border:1px solid rgba(255,255,255,.6)}
+.auth-card .brand{font-size:23px}
+.auth-card h1{margin-top:28px}
+.auth-card .field input{min-height:48px}
+.parent-login{max-width:480px;border:1px solid #e8e2f1;border-top:4px solid #4b2e9e;padding:clamp(24px,5vw,36px)}
+.parent-login .parent-brand{color:#36256a}
+.parent-login>h1{color:#302942;letter-spacing:-.7px}
+.parent-login .parent-muted{line-height:1.55}
+.parent-login form>label{display:grid;gap:7px;color:#413a4f;font-size:13px;font-weight:700}
+.parent-login form>label input{width:100%;min-height:46px}
+.parent-login .btn-primary{min-height:46px;background:#4b2e9e}
+.parent-login .btn-primary:hover{background:#35206f}
+@media(max-width:760px){
+  .cc-summary-grid{gap:10px}
+  .cc-summary-card{grid-template-columns:36px minmax(0,1fr);column-gap:10px;padding:14px 12px}
+  .cc-summary-icon{width:36px;height:36px;border-radius:11px}
+  .cc-summary-card strong{font-size:23px}
+  .cc-summary-card small{font-size:10px}
+  .command-center-schools{padding:15px}
+  .cc-search{grid-template-columns:1fr;gap:6px}
+  .cc-search-input{width:100%}
+  .cc-detail-summary{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .cc-people-grid{grid-template-columns:1fr}
+  .cc-contact-list{max-height:190px}
 }
-.command-center-create .form-grid{gap:14px}
-.command-center-create .form-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.command-center-create .field.wide{grid-column:1/-1}
-.command-center-table td:first-child strong,.command-center-table td:first-child small{display:block}
-.command-center-table td:first-child small{margin-top:3px;color:var(--muted,#6b7280);font-size:.78rem}
-.command-center-schools{min-width:0}
-.command-center-schools .table-wrap{max-height:70vh;overflow:auto}
-@media(max-width:1050px){
-  .command-center-grid{grid-template-columns:1fr}
+@media(max-width:480px){
+  .cc-summary-grid{grid-template-columns:1fr}
+  .cc-summary-card{grid-template-columns:42px minmax(0,1fr);padding:12px 14px}
+  .cc-summary-icon{width:39px;height:39px}
+  .cc-summary-card strong{font-size:22px}
+  .cc-schools-title{align-items:center}
+  .cc-schools-title>.btn{padding:8px 10px}
+  .cc-detail-summary{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .cc-school-contact{grid-template-columns:1fr 1fr}
+  .cc-provision-modal .modal-actions{display:grid;grid-template-columns:1fr 1fr}
 }
-@media(max-width:640px){
-  .command-center-create .form-two{grid-template-columns:1fr}
-  .command-center-create .field.wide{grid-column:auto}
+@media(prefers-reduced-motion:reduce){
+  .cc-detail-skeleton div{animation:none}
 }
