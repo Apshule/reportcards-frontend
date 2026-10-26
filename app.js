@@ -168,12 +168,12 @@
       else if(route==="finance"){if(!hasFinanceAccess())throw new Error("Finance access is not assigned to this account.");await loadFinanceTab()}
         else if(route==="settings"){
          if(state.role!=="school_admin")throw new Error("School settings are only available to school administrators.");
-         state.data.settingsTab=state.data.settingsTab||"general";state.data.schoolSettings=null;state.data.promotionSettings=null;state.data.settingsError=null;state.data.subjectsError=null;state.data.gradingError=null;state.data.activityIconError="";state.data.stampError="";state.data.smsWalletError="";render();
+         state.data.settingsTab=state.data.settingsTab||"general";state.data.schoolSettings=null;state.data.promotionSettings=null;state.data.settingsError=null;state.data.subjectsError=null;state.data.gradingError=null;state.data.activityIconError="";state.data.stampError="";state.data.smsWalletError="";state.data.smsWalletLoading=state.data.settingsTab==="sms";render();
          const [schoolResult,stampResult,financeResult,subjectsResult,gradingResult,activityIconResult]=await Promise.all([api("/api/school/me"),api("/api/schools/stamp"),api("/api/fin/settings"),api("/api/subjects"),api("/api/grading"),api("/api/school/activity-icons")]);
          state.data.schoolSettings=schoolResult.school||null;state.data.subjects=subjectsResult.subjects||[];state.data.grading=gradingResult.grading||[];state.data.subjectGrading=gradingResult.subject_grading||[];state.data.activeGradingScale=gradingResult.active_scale||null;state.data.gradingScales=gradingResult.scales||[];state.data.activeGradingScales=gradingResult.active_scales||[];state.data.gradingPointsScheme=gradingResult.points_scheme||{};state.data.activityIcons=activityIconResult.icons||[];
          state.data.stampConfig={...(stampResult.stamp_config||{}),show_stamp:stampResult.show_stamp!==false,stamp_logo_position:stampResult.stamp_logo_position||"inside_center",stamp_logo_size:stampResult.stamp_logo_size??20,stamp_logo_offset_x:stampResult.stamp_logo_offset_x??0,stamp_logo_offset_y:stampResult.stamp_logo_offset_y??0,stamp_logo_rotation:stampResult.stamp_logo_rotation??0,stamp_logo_opacity:stampResult.stamp_logo_opacity??100};
          state.data.promotionSettings=financeResult.settings||{promotion_pass_mark:50,promotion_try_another_min:40};
-         try{state.data.smsWallet=await api("/api/sms/wallet")}catch(error){state.data.smsWalletError=error.message||"SMS wallet details could not be loaded."}
+         if(state.data.settingsTab==="sms")await loadSmsGatewayData();
         }
       else if(route==="review"&&state.role==="school_admin")await loadReviewQueue();
     }catch(error){if(["announcements","parent-feedback"].includes(route))state.parentAdmin.error=error.message;else if(route==="command-center")state.data.commandCenterError=error.message;else state.data[route+"Error"]=error.message}
@@ -569,13 +569,31 @@
       <p class="field-hint">Custom icons are school-specific and appear in the Nursery activity grid on both the HTML preview and PDF. If none is uploaded, the built-in icon is used.</p>
     </section>`;
   }
+  async function loadSmsGatewayData(){
+    state.data.smsWalletLoading=true;
+    state.data.smsWalletError="";
+    state.data.smsWallet=null;
+    render();
+    try{
+      const wallet=await api("/api/sms/wallet",{cache:"no-store"});
+      if(!Array.isArray(wallet?.bundles))throw new Error("The SMS bundle list was not included in the API response.");
+      state.data.smsWallet=wallet;
+    }catch(error){
+      state.data.smsWalletError=error.message||"SMS bundles could not be loaded. Click SMS Gateway to retry.";
+    }finally{
+      state.data.smsWalletLoading=false;
+      render();
+    }
+  }
   function smsGatewaySettingsMarkup(){
     const wallet=state.data.smsWallet||{current_balance:0,bundles:[],purchase_simulation_enabled:false};
     const bundles=Array.isArray(wallet.bundles)?wallet.bundles:[];
     const simulation=wallet.purchase_simulation_enabled===true;
-    const bundleCards=bundles.length?`<div class="sms-bundle-grid">${bundles.map(bundle=>`<article class="sms-bundle-card"><div><span class="eyebrow">SMS bundle</span><h3>${esc(bundle.name)}</h3></div><strong class="sms-bundle-credits">${fmt(bundle.credits)} credits</strong><p class="sms-bundle-price">UGX ${Number(bundle.price||0).toLocaleString("en-UG")}</p>${simulation?`<button class="btn btn-primary btn-block" data-action="buy-sms-bundle" data-id="${esc(bundle.id)}">${icon("fa-bag-shopping")} Simulate purchase</button>`:`<button class="btn btn-outline btn-block" type="button" disabled>Purchase unavailable</button>`}</article>`).join("")}</div>`:empty("No SMS bundles available","Ask the Super Admin to add an SMS bundle.");
+    const walletLoading=state.data.smsWalletLoading===true||(!state.data.smsWallet&&!state.data.smsWalletError);
+    const bundleCards=walletLoading?`<div class="loading-row" role="status">Loading available SMS bundles…</div>`:bundles.length?`<div class="sms-bundle-grid">${bundles.map(bundle=>`<article class="sms-bundle-card"><div><span class="eyebrow">SMS bundle</span><h3>${esc(bundle.name)}</h3></div><strong class="sms-bundle-credits">${fmt(bundle.credits)} credits</strong><p class="sms-bundle-price">UGX ${Number(bundle.price||0).toLocaleString("en-UG")}</p>${simulation?`<button class="btn btn-primary btn-block" data-action="buy-sms-bundle" data-id="${esc(bundle.id)}">${icon("fa-bag-shopping")} Simulate purchase</button>`:`<button class="btn btn-outline btn-block" type="button" disabled>Purchase unavailable</button>`}</article>`).join("")}</div>`:state.data.smsWalletError?`<p class="field-hint">Click the SMS Gateway tab again to retry loading the bundle list.</p>`:empty("No SMS bundles available","Ask the Super Admin to add an SMS bundle.");
+    const balance=walletLoading?"…":state.data.smsWalletError?"—":fmt(wallet.current_balance??0);
     return `<section class="card section-card"><div class="section-title"><div><h2>SMS Gateway</h2><p>Manage SMS credits and send a test message through Africa's Talking.</p></div></div>
-      <div class="sms-wallet-overview"><div><span class="eyebrow">Available credits</span><strong id="sms-credit-balance">${fmt(wallet.current_balance??0)}</strong><span>SMS messages</span></div><p>${simulation?"Development-only simulations add credits without collecting or verifying a payment.":"Bundle purchases are unavailable until payment verification is connected. Contact the Super Admin for a manual credit top-up."}</p></div>
+      <div class="sms-wallet-overview"><div><span class="eyebrow">Available credits</span><strong id="sms-credit-balance">${balance}</strong><span>SMS messages</span></div><p>${simulation?"Development-only simulations add credits without collecting or verifying a payment.":"Bundle purchases are unavailable until payment verification is connected. Contact the Super Admin for a manual credit top-up."}</p></div>
       ${state.data.smsWalletError?`<div class="alert error" role="alert">${esc(state.data.smsWalletError)}</div>`:""}
       <div class="sms-bundle-section"><div class="section-title"><div><h3>Available bundles</h3><p>${simulation?"Simulated purchases are enabled only in development.":"Production credits are added by a Super Admin after payment is confirmed."}</p></div></div>${bundleCards}</div>
       <p class="field-hint sms-test-notice">Sending SMS may incur charges. Each accepted message uses one credit. Only message a number you own or have permission to contact. Failed attempts are logged for this school.</p>
@@ -1186,7 +1204,7 @@
   }
   async function action(button,clickEvent){
     const a=button.dataset.action,id=button.dataset.id;
-    if(a==="settings-tab"){const tab=button.dataset.tab;if(["general","theme","grading","subjects","other","activity-icons","sms"].includes(tab)){state.data.settingsTab=tab;state.modal=null;render()}return}
+    if(a==="settings-tab"){const tab=button.dataset.tab;if(["general","theme","grading","subjects","other","activity-icons","sms"].includes(tab)){state.data.settingsTab=tab;state.modal=null;render();if(tab==="sms")await loadSmsGatewayData()}return}
     if(a==="command-center-tab"){const tab=button.dataset.tab;if(["schools","sms-bundles"].includes(tab)){state.data.commandCenterTab=tab;render()}return}
     if(a==="add-sms-bundle"){state.modal={type:"command-center-sms-bundle"};state.data.commandCenterTab="sms-bundles";render();setTimeout(()=>document.getElementById("cc-sms-bundle-name")?.focus(),20);return}
     if(a==="edit-sms-bundle"){const bundle=(state.data.commandCenterBundles||[]).find(item=>String(item.id)===String(id));if(bundle){state.modal={type:"command-center-sms-bundle",bundle};render();setTimeout(()=>document.getElementById("cc-sms-bundle-name")?.focus(),20)}return}
