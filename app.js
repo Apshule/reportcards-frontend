@@ -557,19 +557,29 @@
       <p class="field-hint">Custom icons are school-specific and appear in the Nursery activity grid on both the HTML preview and PDF. If none is uploaded, the built-in icon is used.</p>
     </section>`;
   }
+  function smsGatewaySettingsMarkup(){
+    return `<section class="card section-card"><div class="section-title"><div><h2>SMS Gateway</h2><p>Send a single test message through Africa's Talking and confirm the school's gateway configuration.</p></div></div>
+      <p class="field-hint sms-test-notice">Sending SMS may incur charges. Only message a number you own or have permission to contact. Each attempt is recorded for this school.</p>
+      <form id="sms-test-form" class="form-grid" novalidate><div class="form-two">
+        <div class="field"><label for="sms-test-recipient">Recipient phone number *</label><input id="sms-test-recipient" name="recipient" type="tel" autocomplete="tel" inputmode="tel" placeholder="+256 700 000 000" maxlength="24" required></div>
+        <div class="field"><label for="sms-test-message">Message *</label><textarea id="sms-test-message" name="message" rows="4" maxlength="1600" required placeholder="Type a short test message"></textarea><span class="field-hint">Maximum 1,600 characters.</span></div>
+      </div><div id="sms-test-result" aria-live="polite"></div><div class="page-actions"><button class="btn btn-primary" type="submit">${icon("fa-paper-plane")} Send test SMS</button></div></form>
+    </section>`;
+  }
    function settingsPage(){
      const school=state.data.schoolSettings;
      if(!school)return `${heading("School settings","Set the current school term and the information shown on report cards.")}${state.data.settingsError?errorBox(state.data.settingsError,"settings"):`${loading()}`}`;
      const promotion=state.data.promotionSettings||{promotion_pass_mark:50,promotion_try_another_min:40};
      const active=state.data.settingsTab||"general";
-      const tabs=[["general","School"],["theme","Theme"],["grading","Grading scale"],["subjects","Subjects"],["other","Other / co-curricular"],["activity-icons","Activity Icons"]];
+      const tabs=[["general","School"],["theme","Theme"],["grading","Grading scale"],["subjects","Subjects"],["other","Other / co-curricular"],["activity-icons","Activity Icons"],["sms","SMS Gateway"]];
      const tabBar=`<div class="settings-tabs" role="tablist" aria-label="School settings sections">${tabs.map(([key,label])=>`<button type="button" role="tab" aria-selected="${active===key}" class="settings-tab ${active===key?"active":""}" data-action="settings-tab" data-tab="${key}">${label}</button>`).join("")}</div>`;
      let panel="";
       if(active==="theme")panel=themeSettingsMarkup(school);
       else if(active==="grading")panel=gradingPanel();
      else if(active==="subjects")panel=subjectsPanel("CORE");
      else if(active==="other")panel=subjectsPanel("OTHER");
-     else if(active==="activity-icons")panel=activityIconsSettingsMarkup();
+      else if(active==="activity-icons")panel=activityIconsSettingsMarkup();
+      else if(active==="sms")panel=smsGatewaySettingsMarkup();
      else{
        const stampMarkup=window.ReportCardStampBuilder?window.ReportCardStampBuilder.render(state.data.stampConfig||{},{saving:state.data.savingStamp===true,error:state.data.stampError||""}):errorBox("Digital stamp controls did not load.");
        panel=generalSettingsMarkup(school,promotion,stampMarkup);
@@ -1142,7 +1152,7 @@
   }
   async function action(button,clickEvent){
     const a=button.dataset.action,id=button.dataset.id;
-    if(a==="settings-tab"){const tab=button.dataset.tab;if(["general","theme","grading","subjects","other","activity-icons"].includes(tab)){state.data.settingsTab=tab;state.modal=null;render()}return}
+    if(a==="settings-tab"){const tab=button.dataset.tab;if(["general","theme","grading","subjects","other","activity-icons","sms"].includes(tab)){state.data.settingsTab=tab;state.modal=null;render()}return}
     if(a==="remove-activity-icon"){const activityName=button.dataset.name;if(!activityName)return;try{await api(`/api/school/activity-icons/${encodeURIComponent(activityName)}`,{method:"DELETE"});state.data.activityIcons=(state.data.activityIcons||[]).filter(item=>item.activity_name!==activityName);if(reportState.data?.school)reportState.data.school={...reportState.data.school,activity_icons:state.data.activityIcons};render();toast(`${activityName} now uses the default icon.`)}catch(error){state.data.activityIconError=error.message||"Could not restore the default icon.";render()}return}
      if(a==="refresh-command-center"){await loadRoute("command-center");return}
     if(a==="open-provision-modal"){if(state.role!=="super_admin")return;state.modal={type:"command-center-provision"};render();setTimeout(()=>document.getElementById("cc-school-name")?.focus(),20);return}
@@ -1681,6 +1691,26 @@
     try{const result=await api("/api/fin/settings",{method:"PATCH",body:{promotion_pass_mark:pass,promotion_try_another_min:tryMin}});state.data.promotionSettings=result.settings||{promotion_pass_mark:pass,promotion_try_another_min:tryMin};state.data.savingPromotionRules=false;render();toast("Promotion rules saved.")}
     catch(error){state.data.savingPromotionRules=false;render();const message=document.getElementById("promotion-rules-error");if(message)message.innerHTML=`<div class="alert error" role="alert">${esc(error.message)}</div>`}
   }
+  async function submitSmsTest(form){
+    if(!form.reportValidity())return;
+    const button=form.querySelector('button[type="submit"]');
+    const resultTarget=form.querySelector("#sms-test-result");
+    const recipient=String(form.elements.recipient.value||"").trim();
+    const message=String(form.elements.message.value||"").trim();
+    if(button){button.disabled=true;button.textContent="Sending SMS…"}
+    if(resultTarget)resultTarget.innerHTML='<div class="alert info" role="status">Sending one test message…</div>';
+    try{
+      const result=await api("/api/sms/send",{method:"POST",body:{recipient,message}});
+      const accepted=result.status==="queued"?"Africa’s Talking accepted the message and queued it.":"Africa’s Talking accepted the message for sending.";
+      const providerId=result.provider_message_id?` Provider message ID: ${esc(result.provider_message_id)}.`:"";
+      if(resultTarget)resultTarget.innerHTML=`<div class="alert success" role="status">${accepted}${providerId}</div>`;
+      form.elements.message.value="";
+    }catch(error){
+      if(resultTarget)resultTarget.innerHTML=`<div class="alert error" role="alert">${esc(error.message||"Could not send the SMS.")}</div>`;
+    }finally{
+      if(button){button.disabled=false;button.innerHTML=`${icon("fa-paper-plane")} Send test SMS`}
+    }
+  }
   async function saveStampSettings(form){
     if(!form.reportValidity())return;
     const fd=new FormData(form);
@@ -1800,7 +1830,7 @@
     root.addEventListener("change",e=>{const t=e.target;if(t.matches("[data-score],[data-mark-period-score]"))calculateMarks(t.closest("tr"));if(t.matches("[data-mark-period]")){state.filter.assessment_period=t.value;render()}if(t.matches("[data-filter]")){state.filter[t.dataset.filter]=t.value;if(t.dataset.filter==="class_id"&&state.route==="marks"){state.filter.subject_id="";loadRoute("marks")}else if(t.dataset.filter==="level"&&["subjects","grading"].includes(state.route)){state.filter.level=t.value;loadRoute(state.route)}}if(t.matches("[data-rm-filter]")){state.filter[t.dataset.rmFilter]=t.value;if(t.dataset.rmFilter==="class_id"){const first=(state.rm.classes||[]).find(c=>String(c.class_id)===String(t.value));state.filter.subject_id=first?.subject_id||""}if(state.route==="review")loadReviewQueue();else render()}if(t.matches("[data-report-filter]")){const key=t.dataset.reportFilter;if(key==="includeStamp"){reportState.includeStamp=t.checked;render()}else{reportState[key]=t.value;if(key==="template"||key==="period"){reportState.error="";if(reportState.data)loadReportClass();else render()}else if(key==="learnerId"){reportState.verificationError="";render();loadSelectedReportVerification()}else{reportState.verificationRequestId++;reportState.verifications={};reportState.verificationBusy=false;reportState.verificationError="";reportState.data=null;reportState.learners=[];reportState.learnerId="";reportState.error="";render()}}}if(t.matches("[data-fin-filter]")){state.finance[t.dataset.finFilter]=t.value;if(t.dataset.finFilter==="reportClass")state.finance.reportClass=t.value;loadRoute("finance")}if(t.matches("[data-signature-file]")&&t.files?.[0]){const reader=new FileReader();reader.onload=()=>{const img=new Image();img.onload=()=>{const c=document.getElementById("signature-canvas"),ctx=c.getContext("2d");ctx.clearRect(0,0,c.width,c.height);const scale=Math.min(c.width/img.width,c.height/img.height);ctx.drawImage(img,(c.width-img.width*scale)/2,(c.height-img.height*scale)/2,img.width*scale,img.height*scale)};img.src=reader.result};reader.readAsDataURL(t.files[0])}if(t.id==="csv-file"&&t.files?.[0])importCsv(t.files[0]);if(t.id==="finance-csv"&&t.files?.[0])importFinanceCsv(t.files[0])});
   root.addEventListener("change",e=>{const filter=e.target.closest("[data-project-filter]");if(!filter)return;projectState[filter.dataset.projectFilter]=filter.value;projectState.error="";state.data.projectRegister=null;render()});
    root.addEventListener("change",e=>{const select=e.target.closest("[data-promotion-class]");if(select){state.rm.promotionClassId=select.value;loadReviewQueue()}});
-   root.addEventListener("submit",async e=>{if(e.target.id==="auth-form"){e.preventDefault();await submitAuth(e.target)}else if(e.target.id==="command-center-provision-form"){e.preventDefault();await provisionSchool(e.target)}else if(e.target.id==="modal-form"){e.preventDefault();await handleModalSubmit(e.target)}else if(e.target.matches("[data-fin-form]")){e.preventDefault();await handleFinanceSubmit(e.target)}else if(e.target.id==="settings-form"){e.preventDefault();await saveSchoolSettings(e.target)}else if(e.target.id==="school-profile-form"){e.preventDefault();await saveSchoolProfile(e.target)}else if(e.target.id==="school-theme-form"){e.preventDefault();await saveSchoolTheme(e.target)}else if(e.target.id==="promotion-rules-form"){e.preventDefault();await savePromotionRules(e.target)}else if(e.target.id==="report-card-stamp-builder"){e.preventDefault();await saveStampSettings(e.target)}});
+    root.addEventListener("submit",async e=>{if(e.target.id==="auth-form"){e.preventDefault();await submitAuth(e.target)}else if(e.target.id==="command-center-provision-form"){e.preventDefault();await provisionSchool(e.target)}else if(e.target.id==="modal-form"){e.preventDefault();await handleModalSubmit(e.target)}else if(e.target.matches("[data-fin-form]")){e.preventDefault();await handleFinanceSubmit(e.target)}else if(e.target.id==="settings-form"){e.preventDefault();await saveSchoolSettings(e.target)}else if(e.target.id==="school-profile-form"){e.preventDefault();await saveSchoolProfile(e.target)}else if(e.target.id==="school-theme-form"){e.preventDefault();await saveSchoolTheme(e.target)}else if(e.target.id==="promotion-rules-form"){e.preventDefault();await savePromotionRules(e.target)}else if(e.target.id==="report-card-stamp-builder"){e.preventDefault();await saveStampSettings(e.target)}else if(e.target.id==="sms-test-form"){e.preventDefault();await submitSmsTest(e.target)}});
   root.addEventListener("submit",async e=>{if(e.target.id==="branding-settings-form"){e.preventDefault();await saveBrandingSettings(e.target)}});
    root.addEventListener("keydown",e=>{if(e.key==="Escape"&&root.querySelector(".marks-register-panel.is-fullscreen")){exitMarkFullscreen();return}if(e.key==="Escape"&&reportState.fullscreen){reportState.fullscreen=false;render();return}if(e.key==="Escape"&&state.modal){state.modal=null;render()}});
   root.addEventListener("keydown",e=>{if(e.key!=="Tab"||!state.modal)return;const modal=root.querySelector('[role="dialog"][aria-modal="true"]');if(!modal)return;const focusable=[...modal.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),a[href],[tabindex]:not([tabindex="-1"])')];if(!focusable.length)return;const first=focusable[0],last=focusable[focusable.length-1];if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}});

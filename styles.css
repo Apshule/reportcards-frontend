@@ -456,6 +456,7 @@ html .rc-preview .rc-stamp-logo{max-width:50%;max-height:50%}
 .settings-tab.active{background:var(--purple);color:#fff}
 .compulsory-note{display:block;color:#9b4c12;font-size:12px;font-weight:700}
 .settings-tabs+.section-card{margin-top:0}
+.sms-test-notice{margin:0 0 14px;padding:12px;border:1px solid #f3d5bc;border-radius:10px;background:#fff8f1;color:#78451f;line-height:1.5}
 @media(max-width:520px){.settings-tab{padding:9px 11px;font-size:12px}.settings-tabs{margin-right:-2px}}
 .grading-presets{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
 .grading-points-note{display:grid;gap:3px;margin:10px 0 14px;padding:10px 12px;border-left:3px solid var(--orange);border-radius:8px;background:#fff8f1;color:var(--ink);font-size:12px}
