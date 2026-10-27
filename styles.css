@@ -638,6 +638,15 @@ html .rc-preview-a5-condensed .rc-a5-school strong{
 .sms-bundle-price{margin:0 0 .35rem;color:#4e4a60;font-weight:700}
 .sms-bundle-card .btn{margin-top:auto}
 .sms-bundle-actions{display:flex;flex-wrap:wrap;gap:.4rem}
+.sms-bulk-section{margin-top:1.6rem;padding-top:1.4rem;border-top:1px solid #e8e6ef}
+.sms-bulk-section>.section-title{margin-bottom:.6rem}
+#sms-bulk-form{display:grid;gap:1rem}
+#sms-bulk-form .field textarea{width:100%;resize:vertical}
+.sms-logs-table table{min-width:760px}
+.sms-log-message{min-width:240px;max-width:560px;white-space:normal;overflow-wrap:anywhere;line-height:1.45}
+.sms-status-sent{background:#e9f8ef;color:#16723a}
+.sms-status-failed{background:#fff0ef;color:#a6322b}
+.sms-status-pending{background:#fff4df;color:#865500}
 .cc-tabs{margin:0 0 1.25rem}
 .cc-sms-wallet{display:grid;grid-template-columns:minmax(160px,.7fr) minmax(0,1.3fr);gap:1rem;margin:1.25rem 0;padding:1.1rem;border:1px solid #e3e1ec;border-radius:14px;background:#faf9ff}
 .cc-sms-wallet>div{display:flex;flex-direction:column;align-items:flex-start;gap:.35rem}
