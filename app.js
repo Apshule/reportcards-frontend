@@ -2,6 +2,8 @@
   "use strict";
   const API = "https://reportcards-api.apshule-migration.workers.dev";
   const TOKEN_KEY = "appshule_reportcards_school_jwt";
+  function readStoredSessionToken(){try{return localStorage.getItem(TOKEN_KEY)||""}catch{return""}}
+  function persistSsoSessionToken(token){state.token=token;try{localStorage.setItem(TOKEN_KEY,token);localStorage.removeItem("appshule_reportcards_parent_jwt");return true}catch{return false}}
   const LEVELS = [["NURSERY","Nursery"],["PRIMARY","Primary"],["O_LEVEL","O Level"],["A_LEVEL","A Level"]];
   const MARK_ENTRY_PERIODS = [
     {value:"BOT",label:"B.O.T",title:"Beginning of Term",fields:[{key:"bot",label:"B.O.T"}]},
@@ -32,7 +34,7 @@
     ["finance","Finance","fa-coins"],["settings","School settings","fa-calendar-days"],["review","Marks review","fa-clipboard-check"],["billing","Billing","fa-receipt"],
     ["sms-gateway","SMS Gateway","fa-comment-sms"],["account-settings","Account Settings","fa-user-gear"]
   ];
-    const state = {token:localStorage.getItem(TOKEN_KEY)||"",school:null,user:null,role:"school_admin",mustChangePassword:false,route:"dashboard",loading:false,modal:null,toast:null,filter:{level:"",mark_entry_level:"",class_id:"",subject_id:"",academic_year:String(new Date().getFullYear()),term:"TERM_1",assessment_period:"EOT",search:""},data:{},authMode:authPathMode(),finance:{tab:"overview",term:"TERM_1",year:String(new Date().getFullYear()),loading:false,error:"",data:{},incomeFilters:{},expenseFilters:{},schoolpayFilters:{},reportClass:"",feeBalanceClass:""},rm:{classes:null,marks:null,submission:null,comments:{},signature:null,review:null,reviewBusy:false,promotionClassId:"",promotion:null,promotionBusy:false,promotionError:"",markEntryMode:"CBC",rawMarkMax:100,commentOptions:[]},parentAdmin:{announcements:[],feedback:[],loading:false,error:""}};
+    const state = {token:readStoredSessionToken(),school:null,user:null,role:"school_admin",mustChangePassword:false,route:"dashboard",loading:false,modal:null,toast:null,filter:{level:"",mark_entry_level:"",class_id:"",subject_id:"",academic_year:String(new Date().getFullYear()),term:"TERM_1",assessment_period:"EOT",search:""},data:{},authMode:authPathMode(),finance:{tab:"overview",term:"TERM_1",year:String(new Date().getFullYear()),loading:false,error:"",data:{},incomeFilters:{},expenseFilters:{},schoolpayFilters:{},reportClass:"",feeBalanceClass:""},rm:{classes:null,marks:null,submission:null,comments:{},signature:null,review:null,reviewBusy:false,promotionClassId:"",promotion:null,promotionBusy:false,promotionError:"",markEntryMode:"CBC",rawMarkMax:100,commentOptions:[]},parentAdmin:{announcements:[],feedback:[],loading:false,error:""}};
   const reportState = {classId:"",learnerId:"",term:"TERM_1",year:String(new Date().getFullYear()),template:"1",period:"EOT",layoutFormat:"A4",includeStamp:true,zoom:100,fullscreen:false,data:null,learners:[],busy:false,zipProgress:null,rosterBusy:false,rosterRequestId:0,rosterError:"",error:"",promotionError:"",promotionBusy:false,verifications:{},verificationBusy:false,verificationError:"",verificationRequestId:0};
   const projectState = {classId:"",term:"TERM_1",year:String(new Date().getFullYear()),data:null,busy:false,error:""};
   const root = document.getElementById("app");
@@ -122,7 +124,7 @@
     const headers={"Content-Type":"application/json"};
     if(auth&&state.token)headers.Authorization=`Bearer ${state.token}`;
     let response;
-    try { response=await fetch(API+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),cache}); }
+    try { response=await fetch(API+path,{method,headers,body:body===undefined?undefined:JSON.stringify(body),cache,credentials:"omit"}); }
     catch { throw new Error("Could not reach the API. Check your connection and try again."); }
     let payload={};try{payload=await response.json()}catch{}
     if(response.status===401&&auth){logout(false);throw new Error(payload.error||"Your session has expired. Please sign in again.");}
@@ -2304,9 +2306,7 @@
         try{
           const result=await api("/api/auth/sso-redeem",{method:"POST",auth:false,body:{ticket:message.ticket}});
           if(typeof result.token!=="string"||!result.token)throw new Error("The sign-in response did not include a session.");
-          state.token=result.token;
-          localStorage.setItem(TOKEN_KEY,state.token);
-          localStorage.removeItem("appshule_reportcards_parent_jwt");
+          persistSsoSessionToken(result.token);
           state.authMode="login";
           state.modal=null;
           await verifySession();

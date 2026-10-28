@@ -18,6 +18,9 @@ test("SSO receiver validates message origin and source before redeeming tickets"
 });
 
 test("successful SSO redemption stores the existing app session and reuses normal session loading", () => {
-  assert.match(source, /localStorage\.setItem\(TOKEN_KEY,state\.token\)/u);
+  assert.match(source, /function persistSsoSessionToken\(token\)\{state\.token=token;try\{localStorage\.setItem\(TOKEN_KEY,token\)/u);
+  assert.match(source, /persistSsoSessionToken\(result\.token\)/u);
+  assert.match(source, /if\(auth&&state\.token\)headers\.Authorization=`Bearer \$\{state\.token\}`/u);
+  assert.match(source, /credentials:"omit"/u);
   assert.match(source, /await verifySession\(\)/u);
 });
