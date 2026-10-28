@@ -66,6 +66,7 @@ window.ReportCardTemplatePicker = {
       BOT: { key, title: "BEGINNING OF TERM", fields: [{ key: "bot", label: "B.O.T" }], combined: false },
       MID: { key, title: "MID-TERM", fields: [{ key: "mid_term", label: "MID-TERM" }], combined: false },
       EOT: { key: "EOT", title: "END OF TERM", fields: [{ key: "eot_period", label: "EOT" }], combined: false },
+      COMBINED_BM: { key, title: "COMBINED (B.O.T + MIDTERM)", fields: [{ key: "bot", label: "B.O.T" }, { key: "mid_term", label: "MIDTERM" }], combined: true },
     };
     return definitions[key] || definitions.EOT;
   },
@@ -233,6 +234,47 @@ test("Nursery PDF renders all ten activity icons and wraps full text in its one-
     "Mary Nabbosa",
   ]) assert.ok(pageText.includes(phrase), `missing Nursery report content: ${phrase}`);
   assert.equal(drawnText.some((text) => text.includes("...")), false, `text must wrap rather than truncate: ${JSON.stringify(drawnText.filter((text) => text.includes("...")))}`);
+});
+
+test("Nursery report columns follow the selected period and A5 Combined renders one page", async () => {
+  const learningAreas = [
+    "Taking care of myself for proper growth and development",
+    "Interacting, exploring, knowing and using my environment",
+    "Relating with others in an acceptable way",
+    "Developing and using my Language appropriately",
+    "Developing and using Mathematical Concepts in my day-to-day",
+  ];
+  const combined = {
+    ...baseReport,
+    learner: { full_name: "Mariam Test", reg_no: "N-200" },
+    class: { level: "NURSERY", name: "Top Class" },
+    term: "TERM_2",
+    period: "COMBINED_BM",
+    subjects: learningAreas.map((name, index) => ({
+      name,
+      mark: { bot: 70 + index, mid_term: 80 + index, tr: "Progressing well." },
+    })),
+    activities: ["Writing", "Listening", "Reading", "Speaking", "Drawing", "Games", "Rhymes / Stories", "Music", "Health Habits", "Toilet Habits"]
+      .map((name) => ({ name, remark: "Excellent." })),
+    summary: { position: 1, class_size: 1 },
+    school: { ...baseReport.school, activity_icons: [{ activity_name: "Writing", icon_base64: "data:image/png;base64,iVBORw0KGgo=" }] },
+  };
+
+  await window.ReportCardPdf.renderNursery(combined);
+  const combinedText = drawnText.join(" ");
+  for (const label of ["B.O.T", "Midterm", "Average", "Grade", "Teacher's Remark", "COMBINED (B.O.T + MIDTERM)"]) {
+    assert.ok(combinedText.includes(label), `combined Nursery report should show ${label}`);
+  }
+  assert.ok(combinedText.includes("Progressing well."));
+  assert.equal(combinedText.includes("Good behavior and maintains cleanliness."), true);
+
+  const a5 = await window.ReportCardPdf.render(combined, "NURSERY", "1", false, "A5_CONDENSED");
+  assert.equal(a5[0], 1, "Nursery A5 Combined output must remain a single page");
+  const a5Text = drawnText.join(" ");
+  for (const label of ["B.O.T", "MIDTERM", "Average", "Grade", "PERFORMANCE IN LEARNING ACTIVITIES"]) {
+    assert.ok(a5Text.includes(label), `Nursery A5 output should show ${label}`);
+  }
+  assert.equal(drawnImages.length, 10, "all ten A5 activities must include contained icons");
 });
 
 test("Old and New UCE PDF templates show their distinct result metrics on one page", async () => {
@@ -422,14 +464,17 @@ test("configured other subjects render in every PDF level without adding static 
   }
 });
 
-test("primary PDF respects the no-position setting and renders subject remarks and custom grading bands", async () => {
+test("primary PDF hides only overall position while preserving subject rank and complete remarks", async () => {
+  const longRemark = "Excellent progress with careful work in every lesson. The learner contributes thoughtfully and supports classmates. REMARKTAILVISIBLE";
+  const schoolPayCode = "SPTEST0987654321";
   const report = {
     ...baseReport,
     school: { ...baseReport.school, show_report_position: false },
+    learner: { ...baseReport.learner, schoolpay_code: schoolPayCode },
     class: { level: "PRIMARY", name: "P.7" },
     subjects: [{
       name: "English",
-      mark: { a1: 2, a2: 3, a3: 2, eot: 84, grade: "A", tr: "Excellent subject work" },
+      mark: { a1: 2, a2: 3, a3: 2, eot: 84, grade: "A", tr: longRemark, position: 2, class_size: 30 },
     }],
     grading_scale: [
       { grade_code: "A", min_score: 80, max_score: 100, descriptor: "Excellent" },
@@ -437,8 +482,12 @@ test("primary PDF respects the no-position setting and renders subject remarks a
     ],
   };
   await window.ReportCardPdf.renderPrimary(report);
-  assert.equal(drawnText.some((text) => /POSITION/i.test(text)), false);
-  assert.equal(drawnText.some((text) => text.includes("Excellent subject work")), true);
+  assert.equal(drawnText.includes("POS."), true, "subject rank column remains visible");
+  assert.equal(drawnText.some((text) => text.includes("2nd of 30")), true, "subject rank remains visible");
+  assert.equal(drawnText.some((text) => /Overall position|POSITION:/iu.test(text)), false, "overall position stays hidden");
+  assert.equal(drawnText.join("").includes(schoolPayCode), true, "full SchoolPay code is printed");
+  assert.equal(drawnText.join("").includes("REMARKTAILVISIBLE"), true, "the final words of the subject remark are printed");
+  assert.equal(drawnText.some((text) => text.includes("...")), false, "subject remarks and SchoolPay code are not ellipsized");
   assert.equal(drawnText.some((text) => text.includes("GRADING SCALE:")), true);
   assert.equal(drawnText.some((text) => text.includes("A 80–100")), true);
 
@@ -447,6 +496,26 @@ test("primary PDF respects the no-position setting and renders subject remarks a
     school: { ...report.school, show_report_position: true },
   });
   assert.equal(drawnText.some((text) => /POSITION/i.test(text)), true);
+});
+
+test("lower-primary P.1–P.3 cards display the active A–E letter grade instead of a CBC identifier", async () => {
+  await window.ReportCardPdf.renderPrimary({
+    ...baseReport,
+    class: { level: "PRIMARY", name: "P.2" },
+    subjects: [{
+      name: "English",
+      mark: { eot_period: 85, period_marks: { eot_period: 85 }, grade: "3", identifier: 3, position: 1, class_size: 12 },
+    }],
+    grading_scale: [
+      { grade_code: "A", min_score: 80, max_score: 100 },
+      { grade_code: "B", min_score: 70, max_score: 79 },
+      { grade_code: "C", min_score: 60, max_score: 69 },
+      { grade_code: "D", min_score: 50, max_score: 59 },
+      { grade_code: "E", min_score: 0, max_score: 49 },
+    ],
+  });
+  assert.equal(drawnText.includes("A"), true);
+  assert.equal(drawnText.includes("3"), false, "the CBC identifier should not be printed as the letter-grade display");
 });
 
 test("A-Level PDF shows paper grades and separate overall-grade points with the active grading key", async () => {
@@ -519,8 +588,8 @@ test("missing House and Days Absent values render blank, not as dashes", async (
   const absentIndex = drawnText.indexOf("DAYS ABSENT:");
   assert.ok(houseIndex >= 0);
   assert.ok(absentIndex >= 0);
-  assert.equal(drawnText[houseIndex + 1], "");
-  assert.equal(drawnText[absentIndex + 1], "");
+  assert.equal(drawnText[houseIndex + 1], "DAYS ABSENT:");
+  assert.equal(drawnText[absentIndex + 1], "TERM:");
 });
 
 test("an EOT-only primary card renders its computed average, grade, and class rank", async () => {

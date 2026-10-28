@@ -18,6 +18,11 @@ const sourceMark = {
   descriptor: "Good progress",
   teacher_initials: "AB",
 };
+const officialPleScale = [
+  ["D1", 85, 100, 1], ["D2", 70, 84, 2], ["C3", 60, 69, 3],
+  ["C4", 50, 59, 4], ["C5", 45, 49, 5], ["C6", 40, 44, 6],
+  ["P7", 35, 39, 7], ["P8", 30, 34, 8], ["F9", 0, 29, 9],
+].map(([grade_code, min_score, max_score, points]) => ({ grade_code, min_score, max_score, points }));
 
 function reportFor(period) {
   const final = window.ReportCardTemplatePicker.periodScore(sourceMark, period);
@@ -81,6 +86,44 @@ test("HTML preview uses only selected-period columns and labels the header", () 
     assert.ok(html.includes("<b>AVERAGE:</b>"), `${period} should show the overall average`);
     assert.ok(html.includes("<b>GRADE:</b>"), `${period} should show the overall grade`);
   }
+});
+
+test("Nursery preview uses period-specific assessment columns and school activity icons", () => {
+  const activities = ["Writing", "Listening", "Reading", "Speaking", "Drawing", "Games", "Rhymes / Stories", "Music", "Health Habits", "Toilet Habits"];
+  const nursery = {
+    ...reportFor("COMBINED_BM"),
+    class: { name: "Top Class", level: "NURSERY" },
+    subjects: [
+      { name: "Taking care of myself for proper growth and development", mark: { bot: 70, mid_term: 80, tr: "Excellent." } },
+      { name: "Interacting, exploring, knowing and using my environment", mark: { bot: 72, mid_term: 82, tr: "Excellent." } },
+      { name: "Relating with others in an acceptable way", mark: { bot: 74, mid_term: 84, tr: "Good." } },
+      { name: "Developing and using my Language appropriately", mark: { bot: 76, mid_term: 86, tr: "Good." } },
+      { name: "Developing and using Mathematical Concepts in my day-to-day", mark: { bot: 78, mid_term: 88, tr: "Good." } },
+    ],
+    activities: activities.map((name) => ({ name, remark: "Excellent." })),
+    layout_format: "A5_CONDENSED",
+    school: {
+      name: "Nursery Preview School",
+      activity_icons: [{ activity_name: "Writing", icon_base64: "data:image/png;base64,c2Nob29sLWljb24=" }],
+    },
+    behaviors_comment: "",
+  };
+
+  const combinedHtml = window.ReportCardPreview.render(nursery, { template: "1", period: "COMBINED_BM", layoutFormat: "A5_CONDENSED" });
+  const combinedHead = combinedHtml.match(/<thead>[\s\S]*?<\/thead>/)?.[0] ?? "";
+  for (const label of ["B.O.T", "MIDTERM", "AVERAGE", "GRADE"]) assert.ok(combinedHead.includes(label));
+  assert.equal(combinedHead.includes("E.O.T"), false);
+  assert.equal((combinedHtml.match(/class="rc-a5-nursery-activity"/g) || []).length, 10);
+  assert.ok(combinedHtml.includes("data:image/png;base64,c2Nob29sLWljb24="), "custom school icon should be used");
+  assert.ok(combinedHtml.includes("Good behavior and maintains cleanliness."));
+
+  const eotHtml = window.ReportCardPreview.render({ ...nursery, layout_format: "A4" }, { template: "1", period: "EOT" });
+  const eotHead = eotHtml.match(/<thead>[\s\S]*?<\/thead>/)?.[0] ?? "";
+  assert.ok(eotHead.includes("E.O.T"));
+  assert.equal(eotHead.includes("B.O.T"), false);
+  assert.equal(eotHead.includes("MIDTERM"), false);
+  assert.equal(eotHead.includes("AVERAGE"), false);
+  assert.equal(eotHead.includes("GRADE"), false);
 });
 
 test("HTML preview renders the clean school header with centered contact details and both images", () => {
@@ -168,7 +211,11 @@ test("A5 preview uses the B.O.T and Midterm columns only and hides stamp and QR"
     class_teacher_comment: "Encouraging progress.",
     principal_comment: "Continue the good work.",
     grading_scale_preset_key: "primary_ple_upper",
-    summary: { aggregate: 5, aggregate_division: "Division I", aggregate_interpretation: "Top Secondary" },
+    primary_result_metric: "ple_aggregate",
+    summary: { aggregate: 5, aggregate_division: "Division 1", result_metric: "ple_aggregate", overall_average: 85 },
+    ple_official_enabled: true,
+    incomplete_marks: [],
+    grading_scale: officialPleScale,
   };
   const html = window.ReportCardPreview.render(report, {
     template: "1",
@@ -178,12 +225,12 @@ test("A5 preview uses the B.O.T and Midterm columns only and hides stamp and QR"
   });
   const head = html.match(/<thead>[\s\S]*?<\/thead>/)?.[0] ?? "";
   assert.match(html, /rc-preview-a5-condensed/);
-  for (const label of ["Subject", "B.O.T", "Midterm", "Average", "Grade", "Remarks"]) {
+  for (const label of ["Subject", "B.O.T", "Midterm", "Average", "Grade", "Points", "Remarks"]) {
     assert.ok(head.includes(`>${label}<`), `A5 table should include ${label}`);
   }
   assert.doesNotMatch(head, /E\.O\.T|FINAL/);
   assert.match(html, /<td>66\.0<\/td>/);
-  assert.match(html, /PLE aggregate:<\/b> 5 · Division I · Top Secondary/u);
+  assert.match(html, /PLE Aggregate:<\/b> 5 · Division 1/u);
   assert.doesNotMatch(html, /OFFICIAL SCHOOL STAMP|rc-authenticity-qr|data:image\/png;base64,QUJD/);
   assert.match(html, /Class Teacher's signature/);
 });
@@ -218,13 +265,28 @@ test("primary preview omits the obsolete PLE aggregate legend and keeps the acti
   const html = window.ReportCardPreview.render({
     ...reportFor("EOT"),
     class: { name: "P.7", level: "PRIMARY" },
+    ple_official_enabled: true,
+    incomplete_marks: [],
+    grading_scale: officialPleScale,
     grading_scale_preset_key: "primary_ple_upper",
     term_dates: { term_ended_on: "2026-10-23", next_term_begins: "2027-02-01" },
   }, { template: "5", period: "EOT" });
   assert.ok(!html.includes("4–12 Top Secondary"));
-  assert.match(html, /D1=1 · D2=2/u);
+  assert.match(html, /UNEB PLE: D1 85–100 \(1 pt\) · D2 70–84 \(2 pts\)/u);
   assert.match(html, /Term Ends On:<\/b> 23 Oct 2026/u);
   assert.match(html, /Next Term Begins:<\/b> 1 Feb 2027/u);
+});
+
+test("PLE preview shows a blocking Incomplete marks notice when a required score is absent", () => {
+  const html = window.ReportCardPreview.render({
+    ...reportFor("EOT"),
+    class: { name: "P.7", level: "PRIMARY" },
+    ple_official_enabled: true,
+    incomplete_marks: ["Science", "SST"],
+    grading_scale: officialPleScale,
+  }, { template: "1", period: "EOT" });
+  assert.match(html, /Incomplete marks/u);
+  assert.match(html, /Science, SST/u);
 });
 
 test("A5 preview displays both term dates and wraps complete teacher and principal remarks", () => {

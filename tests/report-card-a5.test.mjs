@@ -6,6 +6,8 @@ const window = {};
 const pageSizes = [];
 const drawnText = [];
 const drawnTextOptions = [];
+const drawnImages = [];
+const drawnRectangles = [];
 let stampApplied = false;
 let qrApplied = false;
 
@@ -16,9 +18,9 @@ const document = {
   addPage(size) {
     pageSizes.push(size);
     return {
-      drawRectangle() {},
+      drawRectangle(options = {}) { drawnRectangles.push(options); },
       drawLine() {},
-      drawImage() {},
+      drawImage(image, options = {}) { drawnImages.push({ image, ...options }); },
       drawText(text, options = {}) {
         drawnText.push(String(text));
         drawnTextOptions.push({ text: String(text), ...options });
@@ -29,12 +31,14 @@ const document = {
     };
   },
   async embedFont() { return font; },
+  async embedPng() { return { width: 120, height: 80 }; },
+  async embedJpg() { return { width: 120, height: 80 }; },
   async save() { return new Uint8Array([pageSizes.length]); },
 };
 
 window.PDFLib = {
-  PDFDocument: { async create() { pageSizes.length = 0; drawnText.length = 0; drawnTextOptions.length = 0; return document; } },
-  StandardFonts: { Helvetica: "regular", HelveticaBold: "bold" },
+  PDFDocument: { async create() { pageSizes.length = 0; drawnText.length = 0; drawnTextOptions.length = 0; drawnImages.length = 0; drawnRectangles.length = 0; return document; } },
+  StandardFonts: { Helvetica: "regular", HelveticaBold: "bold", HelveticaOblique: "italic" },
   rgb: (red, green, blue) => ({ red, green, blue }),
 };
 window.ReportCardTemplatePicker = {
@@ -90,12 +94,24 @@ const report = {
     motto: "Learning with ease",
     stamp_config: { line_1: "STAMP MUST NOT PRINT" },
     watermark_enabled: true,
+    logo_base64: "data:image/png;base64,QUJD",
+    watermark_opacity: 5,
   },
   authenticity_qr_data_url: "data:image/png;base64,QUJD",
+  primary_result_metric: "ple_aggregate",
   class_teacher_comment: "Excellent progress.",
   principal_comment: "Keep working hard.",
   grading_scale_preset_key: "primary_ple_upper",
-  summary: { aggregate: 5, aggregate_division: "Division I", aggregate_interpretation: "Top Secondary" },
+  ple_official_enabled: true,
+  incomplete_marks: [],
+  grading_scale: [
+    ["D1", 85, 100, 1], ["D2", 70, 84, 2], ["C3", 60, 69, 3],
+    ["C4", 50, 59, 4], ["C5", 45, 49, 5], ["C6", 40, 44, 6],
+    ["P7", 35, 39, 7], ["P8", 30, 34, 8], ["F9", 0, 29, 9],
+  ].map(([grade_code, min_score, max_score, points]) => ({ grade_code, min_score, max_score, points })),
+  summary: { aggregate: 5, aggregate_division: "Division 1", result_metric: "ple_aggregate" },
+  summary_position: "2",
+  summary_out_of: 24,
   subjects: [{
     name: "Literacy",
     mark: {
@@ -104,6 +120,8 @@ const report = {
       eot_period: 91,
       grade: "B",
       tr: "Strong progress",
+      position: 2,
+      class_size: 24,
     },
   }],
 };
@@ -115,9 +133,10 @@ test("condensed output is one A5 page with only B.O.T and Midterm data", async (
 
   assert.deepEqual(pageSizes, [[419.53, 595.28]]);
   assert.equal(bytes[0], 1);
-  for (const label of ["Subject", "B.O.T", "Midterm", "Average", "Grade", "Remarks"]) {
+  for (const label of ["Subject", "B.O.T", "Midterm", "Average", "Grade", "Pos.", "Points", "Remarks"]) {
     assert.ok(drawnText.includes(label), `A5 PDF should include ${label}`);
   }
+  assert.ok(drawnText.some((text) => text.includes("PLE Aggregate")));
   assert.ok(drawnText.includes("66.0"), "Average must be the mean of B.O.T and Midterm");
   assert.ok(drawnText.includes("B"), "Ordinary grades should render without a blank overall grade");
   assert.equal(drawnText.includes("B/—"), false);
@@ -125,8 +144,15 @@ test("condensed output is one A5 page with only B.O.T and Midterm data", async (
   assert.ok(drawnText.some((text) => text.includes("Class Teacher: Excellent progress.")));
   assert.ok(drawnText.some((text) => text.includes("Principal: Keep working hard.")));
   assert.ok(drawnText.some((text) => text.includes("Grading key:")));
-  assert.ok(drawnText.some((text) => text.includes("PLE aggregate: 5")));
+  assert.ok(drawnText.some((text) => text.includes("Div 1")));
+  assert.ok(drawnText.includes("2nd/24"), "subject position and class size should render");
+  assert.ok(drawnText.some((text) => text.includes("Position: 2nd / 24")), "overall position should render");
+  assert.ok(drawnText.some((text) => text.includes("UNEB PLE: D1 85–100=1")));
+  assert.ok(drawnText.some((text) => text.includes("F9 0–29=9")), "the complete A5 PLE key should include F9");
   assert.ok(drawnText.includes("Class Teacher's signature"));
+  assert.ok(drawnText.some((text) => text.includes("This report is invalid without the official school stamp.")));
+  assert.equal(drawnImages[0]?.opacity, 0.05, "watermark should be the first image layer");
+  assert.ok(drawnRectangles.some((rect) => rect.opacity === 0.08), "translucent cells should not hide the watermark");
   for (const headerLine of [
     "A5 Test School",
     "Mixed Day & Boarding Primary School",
@@ -147,6 +173,71 @@ test("A5 format refuses assessment periods other than B.O.T + Midterm", async ()
     window.ReportCardPdf.render({ ...report, period: "EOT" }, "PRIMARY", "1", false, "A5_CONDENSED"),
     /requires Combined \(B\.O\.T \+ Midterm\)/,
   );
+});
+
+test("Nursery A5 remains one page with the school watermark and footer disclaimer", async () => {
+  const nurseryReport = {
+    ...report,
+    class: { name: "Top Class", level: "NURSERY" },
+    school: { ...report.school, watermark_opacity: 20 },
+    subjects: [
+      { name: "Taking care of myself for proper growth and development", mark: { bot: 80, mid_term: 90, tr: "Excellent" } },
+    ],
+  };
+  const bytes = await window.ReportCardPdf.render(nurseryReport, "NURSERY", "1", false, "A5_CONDENSED");
+  assert.deepEqual(pageSizes, [[419.53, 595.28]]);
+  assert.equal(bytes[0], 1);
+  assert.equal(drawnImages[0]?.opacity, 0.2, "Nursery watermark should use the saved opacity");
+  assert.ok(drawnRectangles.some((rectangle) => rectangle.opacity === 0.08), "Nursery cells should allow the watermark through");
+  assert.ok(drawnText.some((text) => text.includes("This report is invalid without the official school stamp.")));
+});
+
+test("official PLE A5 Condensed keeps Points, aggregate, division, and the dynamic grade key on one page", async () => {
+  const pleReport = {
+    ...report,
+    ple_official_enabled: true,
+    incomplete_marks: [],
+    grading_scale_preset_key: "primary_ple_upper",
+    primary_result_metric: "average",
+    summary: {
+      overall_average: 88.75,
+      aggregate: 4,
+      aggregate_division: "Division 1",
+      result_metric: "average",
+    },
+    subjects: [
+      ["English", 90, "D1", 1],
+      ["Math", 85, "D1", 1],
+      ["Science", 88, "D1", 1],
+      ["SST", 92, "D1", 1],
+    ].map(([name, eot_period, grade, points]) => ({
+      name,
+      mark: { bot: 80, mid_term: 82, eot_period, grade, points, tr: "Good progress" },
+    })),
+  };
+  const bytes = await window.ReportCardPdf.render(
+    pleReport,
+    "PRIMARY",
+    "1",
+    false,
+    "A5_CONDENSED",
+  );
+  assert.equal(bytes[0], 1);
+  assert.deepEqual(pageSizes, [[419.53, 595.28]]);
+  assert.ok(drawnText.includes("Points"));
+  assert.ok(drawnText.includes("1"), "each D1 subject should show one point");
+  assert.ok(drawnText.some((text) => text.includes("Aggregate: 4")));
+  assert.ok(drawnText.some((text) => text.includes("Division 1")));
+  assert.ok(drawnText.some((text) => text.includes("UNEB PLE: D1 85–100=1")));
+});
+
+test("PLE PDF generation stops with an Incomplete marks error", async () => {
+  await assert.rejects(() => window.ReportCardPdf.renderPrimary({
+    ...report,
+    class: { level: "PRIMARY", name: "P.7" },
+    ple_official_enabled: true,
+    incomplete_marks: ["Science"],
+  }), /Incomplete marks: Science/u);
 });
 
 test("A5 header keeps the requested font hierarchy and full comments with term dates", async () => {

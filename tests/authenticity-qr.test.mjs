@@ -62,7 +62,7 @@ test("verification QR points to the clean public verification URL and produces a
   assert.equal(qrWindow.encodedValue, url);
 });
 
-test("PDF QR renderer overlays a 15mm QR in the footer without covering the grading scale", async () => {
+test("PDF QR renderer overlays a 15mm QR after moving it up 5mm", async () => {
   const calls = { images: [], text: [] };
   const page = {
     getWidth: () => 595.28,
@@ -102,9 +102,10 @@ test("PDF QR renderer overlays a 15mm QR in the footer without covering the grad
   assert.equal(calls.images[0].options.width, 42.52);
   assert.equal(calls.images[0].options.height, 42.52);
   assert.equal(calls.images[0].options.x, (595.28 - 42.52) / 2);
-  assert.equal(calls.images[0].options.y, 60);
+  const expectedY = 60 + (5 * 72 / 25.4);
+  assert.ok(Math.abs(calls.images[0].options.y - expectedY) < 0.001);
   assert.equal(calls.text[0].text, "Scan to Verify Authenticity");
-  assert.equal(calls.text[0].options.y, 53);
+  assert.ok(Math.abs(calls.text[0].options.y - (expectedY - 7)) < 0.001);
   assert.ok(calls.text[0].options.x > 0);
 });
 

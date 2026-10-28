@@ -2291,9 +2291,37 @@
     }
     catch(error){state.loading=false;state.token="";state.user=null;state.school=null;localStorage.removeItem(TOKEN_KEY);renderAuth();document.getElementById("auth-error").innerHTML=`<div class="alert error" role="alert">${esc(error.message)}</div>`}
   }
+  let ssoRedeemInFlight=false;
+  function startSsoHandshake(){
+    const appShuleOrigin="https://appshule.com";
+    if(window.self===window.top)return;
+    window.addEventListener("message",event=>{
+      if(event.origin!==appShuleOrigin||event.source!==window.parent)return;
+      const message=event.data;
+      if(!message||typeof message!=="object"||message.type!=="AUTH_TICKET"||typeof message.ticket!=="string"||!message.ticket||message.ticket.length>8192||ssoRedeemInFlight)return;
+      ssoRedeemInFlight=true;
+      void (async()=>{
+        try{
+          const result=await api("/api/auth/sso-redeem",{method:"POST",auth:false,body:{ticket:message.ticket}});
+          if(typeof result.token!=="string"||!result.token)throw new Error("The sign-in response did not include a session.");
+          state.token=result.token;
+          localStorage.setItem(TOKEN_KEY,state.token);
+          localStorage.removeItem("appshule_reportcards_parent_jwt");
+          state.authMode="login";
+          state.modal=null;
+          await verifySession();
+        }catch(error){
+          toast(`AppShule sign-in failed: ${error.message||"Please use the normal login form."}`,"error");
+        }finally{
+          ssoRedeemInFlight=false;
+        }
+      })();
+    });
+    window.parent.postMessage({type:"READY"},appShuleOrigin);
+  }
   window.addEventListener("hashchange",()=>{if(!state.token&&requestedPath==="/"&&!root.querySelector(".asl-landing")){state.authMode="login";render();return}const route=location.hash.replace(/^#\/?/u,"");if(navItems.some(x=>x[0]===route)&&state.token&&state.route!==route)go(route)});
   const pathRoute=requestedPath.slice(1);
   if(navItems.some(x=>x[0]===pathRoute))state.route=pathRoute;
   if(location.hash&&navItems.some(x=>x[0]===location.hash.slice(1)))state.route=location.hash.slice(1);
-  render();verifySession();
+  render();startSsoHandshake();verifySession();
 })();
