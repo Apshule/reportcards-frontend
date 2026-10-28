@@ -548,7 +548,7 @@
     const templatePicker=window.ReportCardTemplatePicker?window.ReportCardTemplatePicker.render({level,template:reportState.template,period:reportState.period,layoutFormat:reportState.layoutFormat,includeStamp:reportState.includeStamp}):"";
       const zipProgress=reportState.zipProgress;
       const zipProgressMarkup=zipProgress?`<div class="alert info class-zip-progress" role="status" aria-live="polite">${zipProgress.phase==="preparing"?"Generating ZIP... This may take a minute. Preparing class reports.":zipProgress.phase==="packaging"?"Generating ZIP... This may take a minute. Packaging PDFs.":`Generating ZIP... This may take a minute. Created ${zipProgress.current} of ${zipProgress.total} PDFs.`}</div>`:"";
-      const actions=`<button class="btn btn-primary" data-action="download-class-zip" aria-busy="${zipProgress?"true":"false"}" ${!reports.length||reportState.busy||reportState.verificationBusy?"disabled":""}>${icon("fa-file-zipper")} ${zipProgress?"Generating ZIP…":"Download Class ZIP"}</button><button class="btn btn-outline" data-action="download-report-pdf" ${!selected||reportState.busy||reportState.verificationBusy?"disabled":""}>${icon("fa-file-pdf")} Download PDF</button>`;
+      const actions=`<button class="btn btn-primary" data-action="download-class-zip" aria-busy="${zipProgress?"true":"false"}" ${!reportState.classId||!reportState.term||!reportState.year||reportState.busy||reportState.verificationBusy?"disabled":""}>${icon("fa-file-zipper")} ${zipProgress?"Generating ZIP…":"Download Class ZIP"}</button><button class="btn btn-outline" data-action="download-report-pdf" ${!selected||reportState.busy||reportState.verificationBusy?"disabled":""}>${icon("fa-file-pdf")} Download PDF</button>`;
     const canManageProjects=state.role==="school_admin";
     const projects=selected?.projects||[];
     const projectPanel=selected&&isALevel(reportState.data?.class?.level)&&canManageProjects?`
@@ -1782,13 +1782,14 @@
     catch(error){toast(error.message||"Could not generate the PDF.","error")}
   }
    async function downloadClassZip(){
-     const zipContext={data:reportState.data,term:reportState.term,year:reportState.year,period:reportState.period,layoutFormat:reportState.layoutFormat,template:reportState.template,includeStamp:reportState.includeStamp};
-      const classId=zipContext.data?.class?.id;
-      let reports=zipContext.data?.learners||[];
-     if(!classId||!reports.length){toast("Load a class first.","error");return}
+      const classId=reportState.classId;
+      const zipContext={data:null,term:reportState.term,year:reportState.year,period:reportState.period,layoutFormat:reportState.layoutFormat,template:reportState.template,includeStamp:reportState.includeStamp};
+       let reports=[];
+      if(!classId||!zipContext.term||!zipContext.year){toast("Choose a class, term, and year first.","error");return}
+      if(!/^\d{4}$/.test(String(zipContext.year))){toast("Enter a valid four-digit year.","error");return}
     if(!window.ReportCardPdf||!window.PDFLib){toast("The PDF library did not load. Refresh and try again.","error");return}
      reportState.busy=true;
-     reportState.zipProgress={current:0,total:reports.length,phase:"preparing"};
+      reportState.zipProgress={current:0,total:0,phase:"preparing"};
      render();
       try{
         await new Promise(resolve=>setTimeout(resolve,0));

@@ -76,9 +76,17 @@ test("ZIP output contains correctly named PDF entries and valid contents", async
 
 test("Report Cards page exposes class ZIP beside single PDF with progress feedback", () => {
   const app = readFileSync(new URL("../app.js", import.meta.url), "utf8");
-  assert.match(app, /data-action="download-class-zip"[\s\S]{0,250}Download Class ZIP/);
+  const actionsStart = app.indexOf('const actions=`<button class="btn btn-primary" data-action="download-class-zip"');
+  const actionsEnd = app.indexOf("</button>", actionsStart);
+  const zipButton = app.slice(actionsStart, actionsEnd);
+  assert.ok(actionsStart >= 0, "class ZIP action should be rendered");
+  assert.match(zipButton, /Download Class ZIP/);
+  assert.match(zipButton, /!reportState\.classId\|\|!reportState\.term\|\|!reportState\.year/);
+  assert.doesNotMatch(zipButton, /!reports\.length/, "loading preview data must not be required to enable the ZIP button");
   assert.match(app, /data-action="download-report-pdf"[\s\S]{0,200}Download PDF/);
   assert.match(app, /Generating ZIP\.\.\. This may take a minute/);
+  assert.match(app, /const classId=reportState\.classId;/);
+  assert.match(app, /Choose a class, term, and year first/);
   assert.match(app, /\/api\/class\/\$\{encodeURIComponent\(classId\)\}\/card-data\?\$\{query\}/);
   assert.match(app, /period:apiReportPeriod\(zipContext\.period\)/);
   assert.match(app, /zipContext\.layoutFormat\);/);
