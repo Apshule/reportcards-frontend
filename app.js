@@ -33,7 +33,7 @@
     ["sms-gateway","SMS Gateway","fa-comment-sms"],["account-settings","Account Settings","fa-user-gear"]
   ];
     const state = {token:localStorage.getItem(TOKEN_KEY)||"",school:null,user:null,role:"school_admin",mustChangePassword:false,route:"dashboard",loading:false,modal:null,toast:null,filter:{level:"",mark_entry_level:"",class_id:"",subject_id:"",academic_year:String(new Date().getFullYear()),term:"TERM_1",assessment_period:"EOT",search:""},data:{},authMode:authPathMode(),finance:{tab:"overview",term:"TERM_1",year:String(new Date().getFullYear()),loading:false,error:"",data:{},incomeFilters:{},expenseFilters:{},schoolpayFilters:{},reportClass:"",feeBalanceClass:""},rm:{classes:null,marks:null,submission:null,comments:{},signature:null,review:null,reviewBusy:false,promotionClassId:"",promotion:null,promotionBusy:false,promotionError:"",markEntryMode:"CBC",rawMarkMax:100,commentOptions:[]},parentAdmin:{announcements:[],feedback:[],loading:false,error:""}};
-  const reportState = {classId:"",learnerId:"",term:"TERM_1",year:String(new Date().getFullYear()),template:"1",period:"EOT",layoutFormat:"A4",includeStamp:true,zoom:100,fullscreen:false,data:null,learners:[],busy:false,rosterBusy:false,rosterRequestId:0,rosterError:"",error:"",promotionError:"",promotionBusy:false,verifications:{},verificationBusy:false,verificationError:"",verificationRequestId:0};
+  const reportState = {classId:"",learnerId:"",term:"TERM_1",year:String(new Date().getFullYear()),template:"1",period:"EOT",layoutFormat:"A4",includeStamp:true,zoom:100,fullscreen:false,data:null,learners:[],busy:false,zipProgress:null,rosterBusy:false,rosterRequestId:0,rosterError:"",error:"",promotionError:"",promotionBusy:false,verifications:{},verificationBusy:false,verificationError:"",verificationRequestId:0};
   const projectState = {classId:"",term:"TERM_1",year:String(new Date().getFullYear()),data:null,busy:false,error:""};
   const root = document.getElementById("app");
   let schoolpayTimer=null;
@@ -546,7 +546,9 @@
       ${reportState.fullscreen?`<div class="rc-preview-fullscreen" role="dialog" aria-modal="true" aria-label="Full-screen report card preview"><div class="rc-preview-fullscreen-panel">${previewToolbar(true)}${previewStage(true)}</div></div>`:""}
     </div>`:"";
     const templatePicker=window.ReportCardTemplatePicker?window.ReportCardTemplatePicker.render({level,template:reportState.template,period:reportState.period,layoutFormat:reportState.layoutFormat,includeStamp:reportState.includeStamp}):"";
-     const actions=`<button class="btn btn-outline" data-action="download-class-zip" ${!reports.length||reportState.busy||reportState.verificationBusy?"disabled":""}>${icon("fa-file-zipper")} Download class ZIP</button><button class="btn btn-primary" data-action="download-report-pdf" ${!selected||reportState.busy||reportState.verificationBusy?"disabled":""}>${icon("fa-file-pdf")} Download PDF</button>`;
+      const zipProgress=reportState.zipProgress;
+      const zipProgressMarkup=zipProgress?`<div class="alert info class-zip-progress" role="status" aria-live="polite">${zipProgress.phase==="preparing"?"Generating ZIP... This may take a minute. Preparing class reports.":zipProgress.phase==="packaging"?"Generating ZIP... This may take a minute. Packaging PDFs.":`Generating ZIP... This may take a minute. Created ${zipProgress.current} of ${zipProgress.total} PDFs.`}</div>`:"";
+      const actions=`<button class="btn btn-primary" data-action="download-class-zip" aria-busy="${zipProgress?"true":"false"}" ${!reports.length||reportState.busy||reportState.verificationBusy?"disabled":""}>${icon("fa-file-zipper")} ${zipProgress?"Generating ZIP…":"Download Class ZIP"}</button><button class="btn btn-outline" data-action="download-report-pdf" ${!selected||reportState.busy||reportState.verificationBusy?"disabled":""}>${icon("fa-file-pdf")} Download PDF</button>`;
     const canManageProjects=state.role==="school_admin";
     const projects=selected?.projects||[];
     const projectPanel=selected&&isALevel(reportState.data?.class?.level)&&canManageProjects?`
@@ -560,7 +562,7 @@
       <div class="field"><label for="report-term">Term</label><select id="report-term" data-report-filter="term">${["TERM_1","TERM_2","TERM_3"].map(t=>`<option value="${t}" ${reportState.term===t?"selected":""}>${t.replace("_"," ")}</option>`).join("")}</select></div>
        <button class="btn btn-primary" data-action="load-report-class" ${reportState.busy||!classes.length?"disabled":""}>${icon("fa-eye")} Load preview</button></div>
        ${templatePicker}
-        ${reportState.error?`<div class="alert error" role="alert">${esc(reportState.error)}</div>`:""}${reportState.rosterError?`<div class="alert error" role="alert">${esc(reportState.rosterError)}</div>`:""}${reportState.verificationError?`<div class="alert error" role="alert">${esc(reportState.verificationError)} <button class="text-button" type="button" data-action="retry-report-verification">Retry</button></div>`:""}${reportState.verificationBusy?'<div class="alert info" role="status">Preparing the authenticity QR code…</div>':""}${reportState.busy?loading():""}
+        ${reportState.error?`<div class="alert error" role="alert">${esc(reportState.error)}</div>`:""}${reportState.rosterError?`<div class="alert error" role="alert">${esc(reportState.rosterError)}</div>`:""}${reportState.verificationError?`<div class="alert error" role="alert">${esc(reportState.verificationError)} <button class="text-button" type="button" data-action="retry-report-verification">Retry</button></div>`:""}${reportState.verificationBusy?'<div class="alert info" role="status">Preparing the authenticity QR code…</div>':""}${zipProgressMarkup}${reportState.busy&&!zipProgress?loading():""}
        ${!classes.length?empty("No classes yet","Create a class and add learners before generating report cards."):!reportState.data?`<div class="report-empty"><strong>Choose a class and assessment period.</strong><span>The preview uses saved marks, fees, school details, and term dates for that period.</span></div>`:!learners.length?empty("No active learners in this class","Add an active learner to this class before generating report cards."):!reportState.learnerId?empty("Choose a learner","Select a learner to preview their report card."):!selected?empty("Report data unavailable","This learner is in the class register, but report-card details were not returned. Reload the preview."):preview}</section>${promotionPanel}${projectPanel}`;
   }
 
@@ -1713,12 +1715,13 @@
    }
   function saveDownload(blob,name){const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download=name;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1500)}
    function filePart(value){return String(value||"learner").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Za-z0-9_-]+/g,"_").replace(/_+/g,"_").replace(/^[-_]+|[-_]+$/g,"").slice(0,90)||"learner"}
-    function reportForDownload(report,stampConfig,verification=reportState.verifications[String(report.learner?.id)]){
-      const ages=(reportState.data?.learners||[]).map(item=>Number(item.learner?.age)).filter(age=>Number.isFinite(age)&&age>0);
+    function reportForDownload(report,stampConfig,verification=reportState.verifications[String(report.learner?.id)],context={}){
+      const sourceData=context.data||reportState.data;
+      const ages=(sourceData?.learners||[]).map(item=>Number(item.learner?.age)).filter(age=>Number.isFinite(age)&&age>0);
       const classAverageAge=ages.length?ages.reduce((sum,age)=>sum+age,0)/ages.length:null;
-      const school=reportState.data?.school||{};
+      const school=sourceData?.school||{};
       const apiStamp=stampConfig?.stamp_config;
-      const classStamp={...(school.stamp_config&&typeof school.stamp_config==="object"?school.stamp_config:{}),...(reportState.data?.stamp_config&&typeof reportState.data.stamp_config==="object"?reportState.data.stamp_config:{})};
+      const classStamp={...(school.stamp_config&&typeof school.stamp_config==="object"?school.stamp_config:{}),...(sourceData?.stamp_config&&typeof sourceData.stamp_config==="object"?sourceData.stamp_config:{})};
       const stamp={
         ...(classStamp&&typeof classStamp==="object"?classStamp:{}),
         ...(apiStamp&&typeof apiStamp==="object"?apiStamp:stampConfig&&typeof stampConfig==="object"&&!Object.hasOwn(stampConfig,"stamp_config")?stampConfig:{}),
@@ -1727,7 +1730,7 @@
       const defaults={stamp_logo_size:20,stamp_logo_offset_x:0,stamp_logo_offset_y:0,stamp_logo_rotation:0,stamp_logo_opacity:100};
       const logoSettings=Object.fromEntries(Object.keys(defaults).map(key=>[key,stampConfig?.[key]??school[key]??defaults[key]]));
      const showStamp=stampConfig?.show_stamp??school.show_stamp??true;
-     return {...report,school:{...school,show_stamp:showStamp,stamp_config:stamp,stamp_logo_position:stampLogoPosition,...logoSettings},class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,term_dates:reportState.data.term_dates,period:reportState.period,layout_format:reportState.layoutFormat,template:reportState.template,level_theme:reportState.data.level_theme,stamp_config:stamp,class_average_age:classAverageAge,authenticity_qr_data_url:verification?.qrDataUrl};
+      return {...report,school:{...school,show_stamp:showStamp,stamp_config:stamp,stamp_logo_position:stampLogoPosition,...logoSettings},class:sourceData.class,term:context.term??sourceData.term,year:context.year??sourceData.year,term_dates:sourceData.term_dates,period:context.period??reportState.period,layout_format:context.layoutFormat??reportState.layoutFormat,template:context.template??reportState.template,level_theme:sourceData.level_theme,stamp_config:stamp,class_average_age:classAverageAge,authenticity_qr_data_url:verification?.qrDataUrl};
     }
   function incompletePleMessage(report){
     if(!report?.ple_official_enabled)return "";
@@ -1778,16 +1781,52 @@
      try{let verification=reportState.verifications[String(report.learner.id)];if(!verification){const codes=await issueReportAuthenticityCodes([report]);verification=codes[String(report.learner.id)];reportState.verifications={...reportState.verifications,...codes}}const currentStamp=reportState.includeStamp?await api("/api/schools/stamp"):undefined;const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp,verification),reportState.data.class.level,reportState.template,reportState.includeStamp);saveDownload(new Blob([bytes],{type:"application/pdf"}),`${filePart(report.learner.full_name)}_${filePart(reportState.term)}_${filePart(reportState.year)}_ReportCard.pdf`)}
     catch(error){toast(error.message||"Could not generate the PDF.","error")}
   }
-  async function downloadClassZip(){
-    const reports=reportState.data?.learners||[];
-    if(!reports.length){toast("Load a class first.","error");return}
-    const incomplete=reports.find(report=>incompletePleMessage(report));
-    if(incomplete){toast(`${incomplete.learner?.full_name||"Learner"} — ${incompletePleMessage(incomplete)}`,"error");return}
+   async function downloadClassZip(){
+     const zipContext={data:reportState.data,term:reportState.term,year:reportState.year,period:reportState.period,layoutFormat:reportState.layoutFormat,template:reportState.template,includeStamp:reportState.includeStamp};
+      const classId=zipContext.data?.class?.id;
+      let reports=zipContext.data?.learners||[];
+     if(!classId||!reports.length){toast("Load a class first.","error");return}
     if(!window.ReportCardPdf||!window.PDFLib){toast("The PDF library did not load. Refresh and try again.","error");return}
-    reportState.busy=true;render();
-     try{const [currentStamp,verificationCodes]=await Promise.all([reportState.includeStamp?api("/api/schools/stamp"):Promise.resolve(undefined),issueReportAuthenticityCodes(reports)]);const files=[];for(const report of reports){const verification=verificationCodes[String(report.learner?.id)];const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp,verification),reportState.data.class.level,reportState.template,reportState.includeStamp);files.push({name:`${filePart(report.learner?.full_name)}_${filePart(reportState.term)}_${filePart(reportState.year)}_ReportCard.pdf`,bytes})}const zip=window.ReportCardPdf.createZip(files);saveDownload(zip,`${filePart(reportState.data.class.name)}_${filePart(reportState.term)}_${filePart(reportState.year)}_ReportCards.zip`);toast(`Downloaded ${reports.length} report cards.`)}
+     reportState.busy=true;
+     reportState.zipProgress={current:0,total:reports.length,phase:"preparing"};
+     render();
+      try{
+        await new Promise(resolve=>setTimeout(resolve,0));
+         const query=new URLSearchParams({
+           term:zipContext.term,
+           year:String(zipContext.year),
+           period:apiReportPeriod(zipContext.period),
+           template:window.ReportCardTemplatePicker.normalizeTemplate(zipContext.template),
+         });
+         zipContext.data=await api(`/api/class/${encodeURIComponent(classId)}/card-data?${query}`);
+         reports=zipContext.data.learners||[];
+         if(!reports.length)throw new Error("There are no active learners in this class for the selected report.");
+         const incomplete=reports.find(report=>incompletePleMessage(report));
+         if(incomplete)throw new Error(`${incomplete.learner?.full_name||"Learner"} — ${incompletePleMessage(incomplete)}`);
+         reportState.zipProgress={current:0,total:reports.length,phase:"preparing"};
+         render();
+        const [currentStamp,verificationCodes]=await Promise.all([zipContext.includeStamp?api("/api/schools/stamp"):Promise.resolve(undefined),issueReportAuthenticityCodes(reports)]);
+        const files=[];
+        reportState.zipProgress={current:0,total:reports.length,phase:"rendering"};
+        render();
+        await new Promise(resolve=>setTimeout(resolve,0));
+        for(let index=0;index<reports.length;index++){
+          const report=reports[index];
+          const verification=verificationCodes[String(report.learner?.id)];
+          const bytes=await window.ReportCardPdf.render(reportForDownload(report,currentStamp,verification,zipContext),zipContext.data.class.level,zipContext.template,zipContext.includeStamp,zipContext.layoutFormat);
+          files.push({name:`${window.ReportCardPdf.archiveNamePart(report.learner?.full_name,"Learner")}_${window.ReportCardPdf.archiveTermPart(zipContext.term)}_${window.ReportCardPdf.archiveNamePart(zipContext.year,"Year")}_ReportCard.pdf`,bytes});
+          reportState.zipProgress={current:files.length,total:reports.length,phase:"rendering"};
+          if(files.length%2===0||files.length===reports.length){render();await new Promise(resolve=>setTimeout(resolve,0))}
+        }
+        reportState.zipProgress={current:reports.length,total:reports.length,phase:"packaging"};
+        render();
+        await new Promise(resolve=>setTimeout(resolve,0));
+        const zip=window.ReportCardPdf.createZip(files);
+        saveDownload(zip,`${window.ReportCardPdf.archiveNamePart(zipContext.data.class.name,"Class")}_${window.ReportCardPdf.archiveTermPart(zipContext.term)}_${window.ReportCardPdf.archiveNamePart(zipContext.year,"Year")}_ReportCards.zip`);
+        toast(`Downloaded ${reports.length} report cards.`);
+      }
     catch(error){toast(error.message||"Could not create the class ZIP.","error")}
-    finally{reportState.busy=false;render()}
+     finally{reportState.busy=false;reportState.zipProgress=null;render()}
   }
 
   async function uploadNurseryActivityIcon(input){

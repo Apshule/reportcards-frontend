@@ -2305,6 +2305,20 @@
     endView.setUint16(20, 0, true);
     return new Blob([...localParts, ...centralParts, end], { type: "application/zip" });
   }
+  function archiveNamePart(value, fallback = "file") {
+    const cleaned = String(value ?? "")
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "_")
+      .replace(/[^A-Za-z0-9_-]/g, "")
+      .replace(/_+/g, "_")
+      .replace(/^[-_]+|[-_]+$/g, "")
+      .slice(0, 90);
+    return cleaned || fallback;
+  }
+  function archiveTermPart(value) {
+    return archiveNamePart(value, "TERM1").replace(/^TERM_?([123])$/i, "TERM$1");
+  }
 
   function drawA5Text(page, text, x, y, font, size, fill, maxWidth, align = "left") {
     const line = fitted(text, font, size, maxWidth);
@@ -2845,5 +2859,7 @@
     renderOLevel: (learner, school, marksData) => renderSecondary(learner, "O_LEVEL", school, marksData),
     renderALevel: (learner, school, marksData) => renderSecondary(learner, "A_LEVEL", school, marksData),
     createZip: zipStore,
+    archiveNamePart,
+    archiveTermPart,
   };
 })();
