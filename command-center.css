@@ -65,6 +65,15 @@
 .cc-contact-list strong{overflow-wrap:anywhere;color:#342d40;font-size:12px}
 .cc-contact-list span{overflow-wrap:anywhere;color:#777083;font-size:11px}
 .cc-detail-empty{margin:0;padding:17px 12px;border:1px dashed #ded8e8;border-radius:8px;color:#817b8b;font-size:12px}
+.cc-accounts-panel{display:grid;gap:16px}
+.cc-password-policy{margin:0;line-height:1.5}
+.cc-password-policy strong{color:#3a2c59}
+.cc-accounts-table{min-width:980px}
+.cc-account-role,.cc-account-status{display:inline-flex;align-items:center;max-width:100%;padding:4px 8px;border-radius:20px;font-size:11px;font-weight:750;text-transform:capitalize}
+.cc-account-role{background:#f1edfb;color:#4b2e9e}
+.cc-account-status{background:#e9f6f0;color:#28664e}
+.cc-account-status.temporary{background:#fff5df;color:#815a15}
+.cc-account-status.disabled{background:#fbeceb;color:#963f3a}
 .cc-credit-actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:12px}
 .cc-sms-analytics{display:grid;gap:18px}
 .cc-wholesale-cost-form{display:flex;align-items:end;gap:12px;flex-wrap:wrap;padding:15px;border:1px solid #e9e4f1;border-radius:12px;background:#faf9fc}
