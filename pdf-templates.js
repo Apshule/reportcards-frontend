@@ -777,7 +777,7 @@
       }
       const gradeText = `GRADING SCALE: ${str(gradeKey)}`;
       if (report.authenticity_qr_data_url) {
-        const qrSize = 42.52;
+        const qrSize = 28.35;
         const qrSide = qrFooterSide(report);
         const qrX = qrSide === "right" ? width - 28 - qrSize : (width - qrSize) / 2;
         const gap = 8;
@@ -850,29 +850,35 @@
     const pageLabel = `Page ${pageNumber} of ${doc.getPages().length}`;
     if (address || school.website || school.report_footer_text) {
       const ink = rgb(0.32, 0.32, 0.34);
+      const drawFooterLines = (text, x, maxWidth) => wrappedLines(
+        text,
+        fonts.regular,
+        reportFonts.body,
+        maxWidth,
+      ).slice(0, 2).forEach((line, lineIndex) => drawText(
+        page,
+        line,
+        x,
+        63 - lineIndex * 9,
+        fonts.regular,
+        reportFonts.body,
+        ink,
+        maxWidth,
+      ));
       if (report.authenticity_qr_data_url) {
-        const qrSize = 42.52;
+        const qrSize = 28.35;
         const qrSide = qrFooterSide(report);
         const qrX = qrSide === "right" ? width - 28 - qrSize : (width - qrSize) / 2;
         if (qrSide === "center") {
-          drawText(page, str(address), 30, 59, fonts.regular, reportFonts.body, ink, Math.max(80, qrX - 40));
-          drawText(
-            page,
-            str(school.website || school.report_footer_text),
-            qrX + qrSize + 8,
-            59,
-            fonts.regular,
-            reportFonts.body,
-            ink,
-            Math.max(60, width - qrX - qrSize - 38),
-          );
+          drawFooterLines(str(address), 30, Math.max(80, qrX - 40));
+          drawFooterLines(str(school.website || school.report_footer_text), qrX + qrSize + 8, Math.max(60, width - qrX - qrSize - 38));
         } else {
           const contact = [address, school.website || school.report_footer_text].filter(Boolean).join(" · ");
-          drawText(page, str(contact), 30, 59, fonts.regular, reportFonts.body, ink, Math.max(80, qrX - 40));
+          drawFooterLines(str(contact), 30, Math.max(80, qrX - 40));
         }
       } else {
-        drawText(page, str(address), 30, 59, fonts.regular, reportFonts.body, ink, width * 0.58);
-        drawText(page, str(school.website || school.report_footer_text), width * 0.62, 59, fonts.regular, reportFonts.body, ink, width * 0.34);
+        drawFooterLines(str(address), 30, width * 0.58);
+        drawFooterLines(str(school.website || school.report_footer_text), width * 0.62, width * 0.34);
       }
     }
     page.drawRectangle({ x: 28, y: 28, width: width - 56, height: 24, color: colorToPdf(accent) });
@@ -1700,10 +1706,10 @@
       ?? report.grading_scale?.preset_key;
     const oldUce = level === "O_LEVEL" && presetKey === "o_level_old_uce";
     const newUce = level === "O_LEVEL" && presetKey === "o_level_new_uce";
-    const usesUce = oldUce || newUce;
+    const usesUce = (oldUce || newUce) && report.uce_report_mode !== "progressive";
     const title = level === "A_LEVEL" ? "A-Level Report"
-      : oldUce ? "Old UCE Report"
-        : newUce ? "New UCE Report" : "O-Level Report";
+      : usesUce && oldUce ? "Old UCE Report"
+        : usesUce && newUce ? "New UCE Report" : "O-Level Report";
     const { doc, page, fonts, accent, lineAccent, backgroundColor, theme, y } = await prepare(report, level, title);
     const entries = marks(report);
     const period = assessmentPeriod(report);
@@ -1790,15 +1796,17 @@
       boldColumns: [subjectIndex], italicColumns: [descriptorIndex],
       columnFontSizes: { [subjectIndex]: reportFonts.table, [descriptorIndex]: reportFonts.descriptor },
       smallTextColumns: [descriptorIndex],
-      wrappedColumns: [subjectIndex],
-      completeWrappedColumns: usesUce
-        ? oldUce ? [4] : [5, 6]
-        : [descriptorIndex],
+      completeWrappedColumns: [
+        subjectIndex,
+        ...(usesUce ? oldUce ? [4] : [5, 6] : [descriptorIndex]),
+      ],
       completeTextMaxFontSizes: {
+        [subjectIndex]: 7.5,
         ...(usesUce ? { [oldUce ? 4 : 5]: 8 } : {}),
         [usesUce && !oldUce ? 6 : descriptorIndex]: isALevel ? 8 : 9,
       },
       completeTextMinFontSizes: {
+        [subjectIndex]: 4.5,
         ...(usesUce ? { [oldUce ? 4 : 5]: 3.5 } : {}),
         [usesUce && !oldUce ? 6 : descriptorIndex]: 3.5,
       },
@@ -2092,36 +2100,74 @@
       let nextY = top;
       if (meta.academicBanner) nextY = variantBanner(page, "ACADEMIC PERFORMANCE", nextY, fonts, accent, backgroundColor, width);
       const period = assessmentPeriod(report);
-      const columns = [
-        { label: "SUBJECT", weight: 1.75 },
-        ...period.fields.map(({ label }) => ({ label, weight: 0.56, align: "center" })),
-        ...(period.combined ? [{ label: "FINAL", weight: 0.6, align: "center" }] : []),
-        { label: "GRADE", weight: 0.58, align: "center" },
-        { label: "GRADE DESCRIPTOR", weight: 2.1 },
-        { label: "TR", weight: 0.55, align: "center" },
-      ];
-      const rows = entries.map(({ subject, mark }) => [
-        subject.name,
-        ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
-        ...(period.combined ? [num(periodScore(mark, period))] : []),
-        gradeLabel(mark, report),
-        subjectRemark(mark, report),
-        str(mark.teacher_initials),
-      ]);
+      const formative = Boolean(meta.formativeEotiFinal);
+      const subjectLabel = meta.alternatePaperCodes ? "PAPER / SUBJECT" : "SUBJECT";
+      const columns = formative
+        ? [
+          { label: subjectLabel, weight: 1.75 },
+          ...["A1", "A2", "A3", "AVG", "20%", "EOT", "80%"].map((label) => ({ label, weight: 0.55, align: "center" })),
+          { label: "FINAL", weight: 0.82, align: "center" },
+          { label: "GR.", weight: 0.58, align: "center" },
+          { label: "LEVEL", weight: 1.55 },
+          { label: "REMARK", weight: 1.35 },
+          { label: "TR", weight: 0.48, align: "center" },
+        ]
+        : [
+          { label: subjectLabel, weight: 1.75 },
+          ...period.fields.map(({ label }) => ({ label, weight: 0.56, align: "center" })),
+          ...(period.combined ? [{ label: "FINAL", weight: 0.6, align: "center" }] : []),
+          { label: "GRADE", weight: 0.58, align: "center" },
+          { label: "GRADE DESCRIPTOR", weight: 2.1 },
+          { label: "TR", weight: 0.55, align: "center" },
+        ];
+      const rows = entries.map(({ subject, mark }) => {
+        const displayName = meta.alternatePaperCodes && subject.code
+          ? `${subject.code}: ${subject.name}`
+          : subject.name;
+        if (formative) {
+          return [
+            displayName,
+            num(mark.a1),
+            num(mark.a2),
+            num(mark.a3),
+            num(mark.avg),
+            num(mark.pct20),
+            num(mark.eot_period ?? mark.eot),
+            num(mark.pct80),
+            num(mark.pct100 ?? scoreForMark(mark, report)),
+            gradeLabel(mark, report),
+            str(mark.descriptor ?? mark.grade_desc),
+            subjectRemark(mark, report),
+            str(mark.teacher_initials),
+          ];
+        }
+        return [
+          displayName,
+          ...period.fields.map(({ key }) => num(periodValue(mark, key, period))),
+          ...(period.combined ? [num(periodScore(mark, period))] : []),
+          gradeLabel(mark, report),
+          subjectRemark(mark, report),
+          str(mark.teacher_initials),
+        ];
+      });
+      const gradeIndex = formative ? 9 : columns.length - 3;
+      const descriptorIndex = formative ? 10 : columns.length - 2;
+      const remarkIndex = formative ? 11 : descriptorIndex;
       let flow = await drawTableFlow(doc, page, report, fonts, theme, title, `TERM PERFORMANCE RECORDS — ${period.title}`, columns, rows, 28, nextY, width - 56, {
-        rowHeight: 17, fontSize: 5.8, headerFontSize: 6.1, headerHeight: 23, backgroundColor,
+        rowHeight: formative ? 18 : 17, fontSize: formative ? 5.5 : 5.8, headerFontSize: formative ? 4.8 : 6.1, headerHeight: 23, backgroundColor,
         accentColor: lineAccent, headerColor: theme.table_header_color, headerTextColor: theme.table_header_text_color, bottomLimit: 340,
-        boldColumns: [0], italicColumns: [columns.length - 2],
-        columnFontSizes: { 0: 6.5 },
-        wrappedColumns: [0],
-        completeWrappedColumns: [columns.length - 2],
-        completeTextMaxFontSizes: { [columns.length - 2]: 9 },
-        completeTextMinFontSizes: { [columns.length - 2]: 3.5 },
+        boldColumns: [0], italicColumns: formative ? [remarkIndex] : [descriptorIndex],
+        columnFontSizes: { 0: meta.alternatePaperCodes ? 5.8 : 6.5, ...(formative ? { [remarkIndex]: 5.3 } : {}) },
+        completeWrappedColumns: formative ? [0, descriptorIndex, remarkIndex] : [0, descriptorIndex],
+        completeTextMaxFontSizes: { 0: 7, [descriptorIndex]: 8, ...(formative ? { [remarkIndex]: 8 } : {}) },
+        completeTextMinFontSizes: { 0: 4.5, [descriptorIndex]: 3.5, ...(formative ? { [remarkIndex]: 3.5 } : {}) },
         centerColumns: [
-          ...period.fields.map((_, index) => index + 1),
-          ...(period.combined ? [period.fields.length + 1] : []),
-          columns.length - 3,
-          columns.length - 1,
+          ...(formative ? [1, 2, 3, 4, 5, 6, 7, gradeIndex, columns.length - 1] : [
+            ...period.fields.map((_, index) => index + 1),
+            ...(period.combined ? [period.fields.length + 1] : []),
+            gradeIndex,
+            columns.length - 1,
+          ]),
         ],
       }, meta);
       const summary = report.summary || {};

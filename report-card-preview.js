@@ -158,7 +158,8 @@
     const presetKey = report.grading_scale_preset_key
       ?? report.active_grading_scale?.preset_key
       ?? report.grading_scale?.preset_key;
-    const bannerText = ["o_level_old_uce", "o_level_new_uce"].includes(presetKey)
+    const bannerText = ["o_level_old_uce", "o_level_new_uce"].includes(presetKey) &&
+      report.uce_report_mode !== "progressive"
       ? "ANNUAL UCE REPORT"
       : `${termNumber} PROGRESS REPORT — ${period.title}`;
     return `<header class="rc-head">
@@ -829,7 +830,7 @@
       ?? report.grading_scale?.preset_key;
     const oldUce = level === "O_LEVEL" && presetKey === "o_level_old_uce";
     const newUce = level === "O_LEVEL" && presetKey === "o_level_new_uce";
-    const usesUce = oldUce || newUce;
+    const usesUce = (oldUce || newUce) && report.uce_report_mode !== "progressive";
     const prefixHeads = level === "A_LEVEL" ? ["CODE", "SUBJECT", "PAPER"] : ["SUBJECT"];
     const heads = usesUce
       ? oldUce
@@ -895,12 +896,12 @@
       { text: formatReportDate(report.term_dates?.next_term_begins), span: Math.max(1, heads.length - 2) },
     ]] : [];
     const title = level === "A_LEVEL" ? "A-Level Report"
-      : oldUce ? "Old UCE Report"
-        : newUce ? "New UCE Report" : "O-Level Report";
+      : usesUce && oldUce ? "Old UCE Report"
+        : usesUce && newUce ? "New UCE Report" : "O-Level Report";
     const result = report.uce_result || {};
-    const uceSummary = oldUce
+    const uceSummary = usesUce && oldUce
       ? `<div class="rc-summary rc-summary-wide rc-uce-summary"><span><b>Best-8 Aggregate:</b> ${value(result.aggregate ?? summary.aggregate)}</span><span><b>Division:</b> ${value(result.division_code ?? summary.aggregate_division)}</span></div>`
-      : newUce
+      : usesUce && newUce
         ? `<div class="rc-summary rc-summary-wide rc-uce-summary"><span><b>Result:</b> ${value(result.result_indicator)}</span><span><b>Certificate:</b> ${result.qualified_for_certificate ? "Qualified" : "Did not qualify"}</span><span><b>Project Work:</b> ${result.project_work_completed ? "Completed" : "Not completed"}</span><span><b>Subjects graded:</b> ${value(result.completed_subject_count)}</span></div>`
         : "";
     return `<article ${previewAttrs(report, level, options)}>

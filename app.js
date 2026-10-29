@@ -35,7 +35,7 @@
     ["sms-gateway","SMS Gateway","fa-comment-sms"],["account-settings","Account Settings","fa-user-gear"]
   ];
     const state = {token:readStoredSessionToken(),school:null,user:null,role:"school_admin",mustChangePassword:false,route:"dashboard",loading:false,modal:null,toast:null,filter:{level:"",mark_entry_level:"",class_id:"",subject_id:"",academic_year:String(new Date().getFullYear()),term:"TERM_1",assessment_period:"EOT",search:""},data:{},authMode:authPathMode(),finance:{tab:"overview",term:"TERM_1",year:String(new Date().getFullYear()),loading:false,error:"",data:{},incomeFilters:{},expenseFilters:{},schoolpayFilters:{},reportClass:"",feeBalanceClass:""},rm:{classes:null,marks:null,submission:null,comments:{},signature:null,review:null,reviewBusy:false,promotionClassId:"",promotion:null,promotionBusy:false,promotionError:"",markEntryMode:"CBC",rawMarkMax:100,commentOptions:[]},parentAdmin:{announcements:[],feedback:[],loading:false,error:""}};
-  const reportState = {classId:"",learnerId:"",term:"TERM_1",year:String(new Date().getFullYear()),template:"1",period:"EOT",layoutFormat:"A4",includeStamp:true,zoom:100,fullscreen:false,data:null,learners:[],busy:false,zipProgress:null,rosterBusy:false,rosterRequestId:0,rosterError:"",error:"",promotionError:"",promotionBusy:false,verifications:{},verificationBusy:false,verificationError:"",verificationRequestId:0};
+  const reportState = {classId:"",learnerId:"",term:"TERM_1",year:String(new Date().getFullYear()),template:"1",period:"EOT",uceMode:"annual",subjectClassId:"",selectedSubjectIds:null,layoutFormat:"A4",includeStamp:true,zoom:100,fullscreen:false,data:null,learners:[],busy:false,zipProgress:null,rosterBusy:false,rosterRequestId:0,rosterError:"",error:"",promotionError:"",promotionBusy:false,verifications:{},verificationBusy:false,verificationError:"",verificationRequestId:0};
   const projectState = {classId:"",term:"TERM_1",year:String(new Date().getFullYear()),data:null,busy:false,error:""};
   const root = document.getElementById("app");
   let schoolpayTimer=null;
@@ -524,15 +524,29 @@
       ${!canLoad?empty("Choose a class and subject","Select the assessment period and load the register."):marks===null||marks===undefined?loading():marks.length?`${legacy?'<div class="formula-note" style="margin-bottom:15px">Older RC-2 CA1/CA2/exam marks are preserved separately. New CBC entries do not overwrite them.</div>':""}
         <div class="table-wrap marks-mobile-wrap"><table id="marks-table"><thead>${markEntryTableHeaders(period,level)}</thead><tbody>${marks.map(m=>markEntryRow({...m,grade:m.grade_code},period,level,false,false,state.filter.subject_id)).join("")}</tbody></table></div>`:empty("No learners in this class","Add active learners to the selected class before entering marks.")}</section>`;
   }
+  function reportSubjectKey(subject){return String(subject?.id??subject?.subject_id??subject?.name??"")}
+  function reportSubjectOptions(data=reportState.data){
+    const report=data?.learners?.[0];
+    const unique=new Map();
+    for(const subject of [...(report?.subjects||[]),...(report?.other_subjects||[])])unique.set(reportSubjectKey(subject),subject);
+    return [...unique.entries()];
+  }
+  function reportWithSelectedSubjects(report){
+    if(!report||!Array.isArray(reportState.selectedSubjectIds))return report;
+    const selected=new Set(reportState.selectedSubjectIds.map(String));
+    const keep=subject=>selected.has(reportSubjectKey(subject));
+    return {...report,subjects:(report.subjects||[]).filter(keep),other_subjects:(report.other_subjects||[]).filter(keep)};
+  }
   function reportsPage(){
      const classes=state.data.classes||[],reports=reportState.data?.learners||[],learners=reportState.learners||reports.map(r=>r.learner);
-    const selected=reports.find(r=>String(r.learner.id)===String(reportState.learnerId));
+    const selectedRaw=reports.find(r=>String(r.learner.id)===String(reportState.learnerId));
+    const selected=reportWithSelectedSubjects(selectedRaw);
     const level=reportState.data?.class?.level||classes.find(c=>String(c.id)===String(reportState.classId))?.level||"NURSERY";
      const promotion=selected?.promotion||null;
      const promotionPanel=reportState.term==="TERM_3"&&selected&&state.role==="school_admin"?`<section class="card section-card promotion-decision-card"><div class="section-title"><div><h2>Promotion decision</h2><p>Term III recommendation based on the learner’s final average.</p></div></div>${reportState.promotionError?`<div class="alert error" role="alert">${esc(reportState.promotionError)}</div>`:""}<div class="promotion-decision-summary"><span><strong>Final average</strong> ${fmt(promotion?.final_avg)}</span><span><strong>Suggested</strong> ${esc(promotionText(promotion?.suggested_decision,promotion?.current_class,promotion?.next_class))}</span></div><div class="promotion-edit-row"><div class="field"><label for="report-promotion-decision">Admin decision</label><select id="report-promotion-decision" data-promotion-decision><option value="promoted" ${(promotion?.promotion_decision||promotion?.suggested_decision)==="promoted"?"selected":""}>Promoted</option><option value="try_another" ${(promotion?.promotion_decision||promotion?.suggested_decision)==="try_another"?"selected":""}>Try another class</option><option value="repeat" ${(promotion?.promotion_decision||promotion?.suggested_decision)==="repeat"?"selected":""}>Advised to repeat</option><option value="pending" ${(promotion?.promotion_decision||promotion?.suggested_decision)==="pending"?"selected":""}>Pending</option></select></div><div class="field"><label for="report-promotion-note">Decision note <span class="field-hint">(optional)</span></label><input id="report-promotion-note" maxlength="2000" value="${esc(promotion?.promotion_note||"")}" placeholder="Add a note for the learner’s record"></div><button class="btn btn-primary" data-action="save-report-promotion" ${reportState.promotionBusy?"disabled":""}>${icon("fa-floppy-disk")} ${reportState.promotionBusy?"Saving…":"Save decision"}</button></div></section>`:"";
     const ages=reports.map(item=>Number(item.learner?.age)).filter(age=>Number.isFinite(age)&&age>0);
     const classAverageAge=ages.length?ages.reduce((sum,age)=>sum+age,0)/ages.length:null;
-     const previewReport=selected?{...selected,school:reportState.data.school,class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,period:reportState.period,layout_format:reportState.layoutFormat,term_dates:reportState.data.term_dates,level_theme:reportState.data.level_theme,stamp_config:reportState.data.stamp_config,class_average_age:classAverageAge,authenticity_qr_data_url:reportState.verifications[String(selected.learner?.id)]?.qrDataUrl}:null;
+    const previewReport=selected?{...selected,school:reportState.data.school,class:reportState.data.class,term:reportState.data.term,year:reportState.data.year,period:reportState.period,uce_report_mode:reportState.uceMode,layout_format:reportState.layoutFormat,term_dates:reportState.data.term_dates,level_theme:reportState.data.level_theme,stamp_config:reportState.data.stamp_config,class_average_age:classAverageAge,authenticity_qr_data_url:reportState.verifications[String(selected.learner?.id)]?.qrDataUrl}:null;
     const cardMarkup=previewReport&&window.ReportCardPreview?window.ReportCardPreview.render(previewReport,{template:reportState.template,period:reportState.period,includeStamp:reportState.includeStamp,layoutFormat:reportState.layoutFormat}):"";
     const previewToolbar=(fullscreen=false)=>`<div class="rc-viewer-controls" role="toolbar" aria-label="Report card preview controls">
       <div class="rc-viewer-zoom"><button class="btn btn-outline btn-small" data-action="preview-zoom-out" aria-label="Zoom out">−</button><span data-preview-zoom-label>${reportState.zoom}%</span><button class="btn btn-outline btn-small" data-action="preview-zoom-in" aria-label="Zoom in">+</button></div>
@@ -547,7 +561,9 @@
       ${previewToolbar(false)}${previewStage(false)}
       ${reportState.fullscreen?`<div class="rc-preview-fullscreen" role="dialog" aria-modal="true" aria-label="Full-screen report card preview"><div class="rc-preview-fullscreen-panel">${previewToolbar(true)}${previewStage(true)}</div></div>`:""}
     </div>`:"";
-    const templatePicker=window.ReportCardTemplatePicker?window.ReportCardTemplatePicker.render({level,template:reportState.template,period:reportState.period,layoutFormat:reportState.layoutFormat,includeStamp:reportState.includeStamp}):"";
+    const templatePicker=window.ReportCardTemplatePicker?window.ReportCardTemplatePicker.render({level,template:reportState.template,period:reportState.period,layoutFormat:reportState.layoutFormat,includeStamp:reportState.includeStamp,uceEnabled:reports.some(report=>["o_level_old_uce","o_level_new_uce"].includes(report.grading_scale_preset_key)),uceMode:reportState.uceMode}):"";
+      const subjectOptions=reportSubjectOptions();
+      const subjectPicker=reportState.data?`<details class="report-subject-picker" open><summary>Subjects on this report <span>${reportState.selectedSubjectIds?.length??subjectOptions.length} of ${subjectOptions.length} selected</span></summary><div class="report-subject-picker__actions"><button class="text-button" type="button" data-action="select-all-report-subjects">Select all</button><button class="text-button" type="button" data-action="clear-report-subjects">Clear all</button></div><div class="report-subject-picker__list">${subjectOptions.map(([key,subject])=>`<label><input type="checkbox" data-report-subject="${esc(key)}" ${reportState.selectedSubjectIds?.includes(key)?"checked":""}><span>${esc(subject.name||subject.subject_name||key)}</span>${(subject.category||"CORE")==="OTHER"?'<small>Other</small>':""}</label>`).join("")||'<span class="muted">No subjects are configured for this level.</span>'}</div></details>`:"";
       const zipProgress=reportState.zipProgress;
       const zipProgressMarkup=zipProgress?`<div class="alert info class-zip-progress" role="status" aria-live="polite">${zipProgress.phase==="preparing"?"Generating ZIP... This may take a minute. Preparing class reports.":zipProgress.phase==="packaging"?"Generating ZIP... This may take a minute. Packaging PDFs.":`Generating ZIP... This may take a minute. Created ${zipProgress.current} of ${zipProgress.total} PDFs.`}</div>`:"";
       const actions=`<button class="btn btn-primary" data-action="download-class-zip" aria-busy="${zipProgress?"true":"false"}" ${!reportState.classId||!reportState.term||!reportState.year||reportState.busy||reportState.verificationBusy?"disabled":""}>${icon("fa-file-zipper")} ${zipProgress?"Generating ZIP…":"Download Class ZIP"}</button><button class="btn btn-outline" data-action="download-report-pdf" ${!selected||reportState.busy||reportState.verificationBusy?"disabled":""}>${icon("fa-file-pdf")} Download PDF</button>`;
@@ -563,7 +579,7 @@
       <div class="field"><label for="report-year">Year</label><input id="report-year" type="number" min="2000" max="2100" value="${esc(reportState.year)}" data-report-filter="year"></div>
       <div class="field"><label for="report-term">Term</label><select id="report-term" data-report-filter="term">${["TERM_1","TERM_2","TERM_3"].map(t=>`<option value="${t}" ${reportState.term===t?"selected":""}>${t.replace("_"," ")}</option>`).join("")}</select></div>
        <button class="btn btn-primary" data-action="load-report-class" ${reportState.busy||!classes.length?"disabled":""}>${icon("fa-eye")} Load preview</button></div>
-       ${templatePicker}
+       ${templatePicker}${subjectPicker}
         ${reportState.error?`<div class="alert error" role="alert">${esc(reportState.error)}</div>`:""}${reportState.rosterError?`<div class="alert error" role="alert">${esc(reportState.rosterError)}</div>`:""}${reportState.verificationError?`<div class="alert error" role="alert">${esc(reportState.verificationError)} <button class="text-button" type="button" data-action="retry-report-verification">Retry</button></div>`:""}${reportState.verificationBusy?'<div class="alert info" role="status">Preparing the authenticity QR code…</div>':""}${zipProgressMarkup}${reportState.busy&&!zipProgress?loading():""}
        ${!classes.length?empty("No classes yet","Create a class and add learners before generating report cards."):!reportState.data?`<div class="report-empty"><strong>Choose a class and assessment period.</strong><span>The preview uses saved marks, fees, school details, and term dates for that period.</span></div>`:!learners.length?empty("No active learners in this class","Add an active learner to this class before generating report cards."):!reportState.learnerId?empty("Choose a learner","Select a learner to preview their report card."):!selected?empty("Report data unavailable","This learner is in the class register, but report-card details were not returned. Reload the preview."):preview}</section>${promotionPanel}${projectPanel}`;
   }
@@ -1480,6 +1496,10 @@
     if(a==="publish-submission"){if(!confirm("Publish these results to report cards?"))return;try{await api(`/api/rm/submissions/${encodeURIComponent(id)}/publish`,{method:"POST",body:{}});toast("Results published.");await loadReviewQueue()}catch(e){toast(e.message,"error")}return}
      if(a==="save-marks"){await saveMarks();return}
      if(a==="toggle-mark-fullscreen"){toggleMarkFullscreen();return}
+    if(a==="select-all-report-subjects"){
+      reportState.selectedSubjectIds=reportSubjectOptions().map(([key])=>key);render();return
+    }
+    if(a==="clear-report-subjects"){reportState.selectedSubjectIds=[];render();return}
     if(a==="load-report-class"){await loadReportClass();return}
     if(a==="load-project-register"){await loadProjectRegister();return}
     if(a==="download-report-pdf"){await downloadReportPdf();return}
@@ -1674,6 +1694,7 @@
        year:String(reportState.year),
        period:apiReportPeriod(reportState.period),
        template:window.ReportCardTemplatePicker.normalizeTemplate(reportState.template),
+       uce_mode:reportState.uceMode,
      });
      try{
        const classId=reportState.classId;
@@ -1685,6 +1706,14 @@
        ]);
        reportState.data=cardData;
        reportState.learners=rosterData.learners||[];
+       const returnedSubjectKeys=reportSubjectOptions(cardData).map(([key])=>key);
+       if(reportState.subjectClassId!==String(classId)||!Array.isArray(reportState.selectedSubjectIds)){
+         reportState.selectedSubjectIds=returnedSubjectKeys;
+         reportState.subjectClassId=String(classId);
+       }else{
+         const validSubjectKeys=new Set(returnedSubjectKeys);
+         reportState.selectedSubjectIds=reportState.selectedSubjectIds.filter(key=>validSubjectKeys.has(String(key)));
+       }
        if(reportState.term==="TERM_3"){
          try{
            const promotion=await api(`/api/class/${encodeURIComponent(classId)}/promotion-suggestions?term=TERM_3&year=${encodeURIComponent(reportState.year)}`);
@@ -1742,7 +1771,7 @@
   async function printReportCards(wholeClass){
     const reports=reportState.data?.learners||[];
     const selected=reports.find(item=>String(item.learner?.id)===String(reportState.learnerId));
-    const list=wholeClass?reports:(selected?[selected]:[]);
+    const list=(wholeClass?reports:(selected?[selected]:[])).map(reportWithSelectedSubjects);
     if(!list.length){toast(wholeClass?"Load a class first.":"Choose a learner first.","error");return}
     const incomplete=list.find(item=>incompletePleMessage(item));
     if(incomplete){toast(`${incomplete.learner?.full_name||"Learner"} — ${incompletePleMessage(incomplete)}`,"error");return}
@@ -1776,7 +1805,8 @@
     }catch(error){toast(error.message||"Could not export the report card image.","error")}
   }
   async function downloadReportPdf(){
-    const report=reportState.data?.learners?.find(r=>String(r.learner.id)===String(reportState.learnerId));
+    const rawReport=reportState.data?.learners?.find(r=>String(r.learner.id)===String(reportState.learnerId));
+    const report=reportWithSelectedSubjects(rawReport);
     if(!report){toast("Load a class and choose a learner first.","error");return}
     if(incompletePleMessage(report)){toast(incompletePleMessage(report),"error");return}
     if(!window.ReportCardPdf||!window.PDFLib){toast("The PDF library did not load. Refresh and try again.","error");return}
@@ -1785,7 +1815,7 @@
   }
    async function downloadClassZip(){
       const classId=reportState.classId;
-      const zipContext={data:null,term:reportState.term,year:reportState.year,period:reportState.period,layoutFormat:reportState.layoutFormat,template:reportState.template,includeStamp:reportState.includeStamp};
+      const zipContext={data:null,term:reportState.term,year:reportState.year,period:reportState.period,uceMode:reportState.uceMode,layoutFormat:reportState.layoutFormat,template:reportState.template,includeStamp:reportState.includeStamp};
        let reports=[];
       if(!classId||!zipContext.term||!zipContext.year){toast("Choose a class, term, and year first.","error");return}
       if(!/^\d{4}$/.test(String(zipContext.year))){toast("Enter a valid four-digit year.","error");return}
@@ -1800,9 +1830,10 @@
            year:String(zipContext.year),
            period:apiReportPeriod(zipContext.period),
            template:window.ReportCardTemplatePicker.normalizeTemplate(zipContext.template),
+           uce_mode:zipContext.uceMode,
          });
          zipContext.data=await api(`/api/class/${encodeURIComponent(classId)}/card-data?${query}`);
-         reports=zipContext.data.learners||[];
+         reports=(zipContext.data.learners||[]).map(reportWithSelectedSubjects);
          if(!reports.length)throw new Error("There are no active learners in this class for the selected report.");
          const incomplete=reports.find(report=>incompletePleMessage(report));
          if(incomplete)throw new Error(`${incomplete.learner?.full_name||"Learner"} — ${incompletePleMessage(incomplete)}`);
@@ -2139,13 +2170,22 @@
   window.ReportCardsAttendance?.bind(root,api,()=>render(),toast);
   root.addEventListener("change",e=>{
     const target=e.target;
+    if(target.matches("[data-report-subject]")){
+      const key=String(target.dataset.reportSubject);
+      const selected=new Set((reportState.selectedSubjectIds||[]).map(String));
+      if(target.checked)selected.add(key);else selected.delete(key);
+      reportState.selectedSubjectIds=[...selected];
+      e.stopImmediatePropagation();render();return;
+    }
     if(!target.matches("[data-report-filter]"))return;
     const key=target.dataset.reportFilter;
-    if(key==="layoutFormat"||key==="period"){
+    if(key==="layoutFormat"||key==="period"||key==="uceMode"){
       e.stopImmediatePropagation();
       if(key==="layoutFormat"){
         reportState.layoutFormat=window.ReportCardTemplatePicker.normalizeLayoutFormat(target.value);
         if(reportState.layoutFormat==="A5_CONDENSED")reportState.period="COMBINED_BM";
+      }else if(key==="uceMode"){
+        reportState.uceMode=target.value==="progressive"?"progressive":"annual";
       }else{
         reportState.period=window.ReportCardTemplatePicker.normalizePeriod(target.value);
         if(reportState.layoutFormat==="A5_CONDENSED"&&reportState.period!=="COMBINED_BM"){
@@ -2163,6 +2203,8 @@
       reportState.data=null;
       reportState.learners=[];
       reportState.learnerId="";
+      reportState.selectedSubjectIds=null;
+      reportState.subjectClassId="";
       reportState.error="";
       reportState.rosterError="";
       loadReportLearners(target.value);

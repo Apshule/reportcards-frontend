@@ -31,14 +31,14 @@
 
     const qrImage = await document.embedPng(pngBytes(source));
     const font = await document.embedFont(window.PDFLib.StandardFonts.Helvetica);
-    const size = 42.52;
+    const size = 28.35;
     const side = sideForReport(report);
     const x = side === "right" ? page.getWidth() - 28 - size : (page.getWidth() - size) / 2;
     const verticalNudge = 5 * 72 / 25.4;
     const qrY = 60 + verticalNudge;
     page.drawImage(qrImage, { x, y: qrY, width: size, height: size });
     const label = "Scan to Verify Authenticity";
-    const labelSize = 5.5;
+    const labelSize = 4.5;
     const labelWidth = font.widthOfTextAtSize(label, labelSize);
     page.drawText(label, {
       x: x + (size - labelWidth) / 2,

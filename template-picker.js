@@ -143,13 +143,14 @@
     return "NURSERY";
   };
 
-  function render({ level, template, period, includeStamp, layoutFormat } = {}) {
+  function render({ level, template, period, includeStamp, layoutFormat, uceEnabled, uceMode } = {}) {
     const key = levelKey(level);
     const palettes = paletteLabels[key];
     const selectedTemplate = String(template ?? "1");
     const selectedPeriod = String(period ?? "EOT");
     const checked = includeStamp === true || includeStamp === "true" || includeStamp === 1;
     const selectedLayout = layoutFormat === "A5_CONDENSED" ? "A5_CONDENSED" : "A4";
+    const selectedUceMode = uceMode === "progressive" ? "progressive" : "annual";
     const levelLabel = escapeHTML(String(level ?? key.replace("_", " ")));
 
     return `<div class="rc-template-picker" data-report-template-picker>
@@ -168,6 +169,14 @@
           ${periods.map(([value, label]) => `<option value="${value}" ${selectedPeriod === value ? "selected" : ""}>${label}</option>`).join("")}
         </select>
       </div>
+      ${key === "O_LEVEL" && uceEnabled ? `<div class="rc-template-picker__field">
+        <label for="report-uce-mode">O-Level report format</label>
+        <select id="report-uce-mode" data-report-filter="uceMode" aria-label="O-Level report format">
+          <option value="annual" ${selectedUceMode === "annual" ? "selected" : ""}>Annual UCE</option>
+          <option value="progressive" ${selectedUceMode === "progressive" ? "selected" : ""}>Progressive term report</option>
+        </select>
+        <small class="rc-template-picker__hint">Annual UCE uses official examination marks; progressive uses the selected term's saved marks.</small>
+      </div>` : ""}
       <div class="rc-template-picker__field">
         <label for="report-layout-format">Layout format</label>
         <select id="report-layout-format" data-report-filter="layoutFormat" aria-label="Layout format">

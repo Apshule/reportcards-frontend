@@ -62,7 +62,7 @@ test("verification QR points to the clean public verification URL and produces a
   assert.equal(qrWindow.encodedValue, url);
 });
 
-test("PDF QR renderer overlays a 15mm QR after moving it up 5mm", async () => {
+test("PDF QR renderer uses a compact 10mm QR after moving it up 5mm", async () => {
   const calls = { images: [], text: [] };
   const page = {
     getWidth: () => 595.28,
@@ -99,9 +99,9 @@ test("PDF QR renderer overlays a 15mm QR after moving it up 5mm", async () => {
   assert.deepEqual([...result], [8, 9, 10]);
   assert.deepEqual(calls.pngBytes, [97, 98, 99]);
   assert.equal(calls.images.length, 1);
-  assert.equal(calls.images[0].options.width, 42.52);
-  assert.equal(calls.images[0].options.height, 42.52);
-  assert.equal(calls.images[0].options.x, (595.28 - 42.52) / 2);
+  assert.equal(calls.images[0].options.width, 28.35);
+  assert.equal(calls.images[0].options.height, 28.35);
+  assert.equal(calls.images[0].options.x, (595.28 - 28.35) / 2);
   const expectedY = 60 + (5 * 72 / 25.4);
   assert.ok(Math.abs(calls.images[0].options.y - expectedY) < 0.001);
   assert.equal(calls.text[0].text, "Scan to Verify Authenticity");
@@ -141,6 +141,6 @@ test("PDF QR renderer moves to the opposite footer corner when the stamp is cent
     school: { stamp_config: { position: "Bottom Center" } },
   });
 
-  assert.equal(calls[0].x, 595.28 - 28 - 42.52);
+  assert.equal(calls[0].x, 595.28 - 28 - 28.35);
 });
 

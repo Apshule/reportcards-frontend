@@ -88,6 +88,37 @@ test("HTML preview uses only selected-period columns and labels the header", () 
   }
 });
 
+test("O-Level report can use progressive term marks while an annual UCE preset remains configured", () => {
+  const report = {
+    ...reportFor("EOT"),
+    class: { name: "S.2", level: "O_LEVEL" },
+    grading_scale_preset_key: "o_level_old_uce",
+    uce_report_mode: "progressive",
+    subjects: [{
+      id: "english",
+      name: "English",
+      mark: {
+        eot_period: 85,
+        pct100: 85,
+        selected_period: "EOT",
+        period_score: 85,
+        grade: "D1",
+        teacher_initials: "JK",
+        tr: "Good progress.",
+      },
+    }],
+  };
+  const html = window.ReportCardPreview.render(report, { template: "1", period: "EOT" });
+  const tableHead = html.match(/<thead>[\s\S]*?<\/thead>/)?.[0] ?? "";
+
+  assert.ok(html.includes(`TERM 1 PROGRESS REPORT — ${window.ReportCardTemplatePicker.periodDefinition("EOT").title}`));
+  assert.ok(tableHead.includes(">E.O.T<"));
+  assert.ok(!tableHead.includes("CA 20%"));
+  assert.ok(!html.includes("ANNUAL UCE RESULTS"));
+  assert.ok(html.includes("JK"));
+  assert.ok(html.includes("Good progress."));
+});
+
 test("Nursery preview uses period-specific assessment columns and school activity icons", () => {
   const activities = ["Writing", "Listening", "Reading", "Speaking", "Drawing", "Games", "Rhymes / Stories", "Music", "Health Habits", "Toilet Habits"];
   const nursery = {

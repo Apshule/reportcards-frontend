@@ -93,6 +93,7 @@ window.ReportCardThemeEngine = {
     table_header_text_color: "#4B2E9E",
   }),
 };
+new Function("window", readFileSync(new URL("../pdf-templates/olevel-templates.js", import.meta.url), "utf8"))(window);
 new Function("window", readFileSync(new URL("../pdf-templates.js", import.meta.url), "utf8"))(window);
 
 const baseReport = {
@@ -171,6 +172,47 @@ test("common Nursery, Primary, O-Level, and A-Level cards remain single-page", a
         assert.equal(drawnText.some((text) => text.includes(headerLine)), true, `${level} header should include ${headerLine}`);
       }
   }
+});
+
+test("O-Level templates 4 and 5 render their distinct tables and preserve complete subject/address text", async () => {
+  const report = {
+    ...baseReport,
+    class: { level: "O_LEVEL", name: "S.2" },
+    school: { ...baseReport.school, city: "Kampala City" },
+    subjects: [{
+      id: "english",
+      code: "ENG",
+      name: "English",
+      mark: {
+        a1: 2.7,
+        a2: 2.8,
+        a3: 2.9,
+        avg: 2.8,
+        pct20: 18,
+        pct80: 68,
+        pct100: 86,
+        eot: 85,
+        eot_period: 85,
+        grade: "D1",
+        descriptor: "Exhibits an extraordinary level of competency",
+        tr: "Excellent work in English.",
+        teacher_initials: "AB",
+      },
+    }],
+    period: "EOT",
+  };
+
+  await window.ReportCardPdf.render(report, "O_LEVEL", "4");
+  for (const label of ["A1", "A2", "A3", "AVG", "20%", "EOT", "80%", "FINAL", "REMARK"]) {
+    assert.ok(drawnText.join(" ").includes(label), `Template 4 should show ${label}`);
+  }
+  assert.ok(drawnText.some((text) => text.includes("Kampala City")));
+  assert.equal(drawnText.some((text) => text.includes("...")), false, `Template 4 emitted truncated text: ${drawnText.filter((text) => text.includes("...")).join("|")}`);
+
+  await window.ReportCardPdf.render(report, "O_LEVEL", "5");
+  assert.ok(drawnText.join(" ").includes("ACADEMIC PERFORMANCE"));
+  assert.ok(drawnText.join(" ").includes("PAPER / SUBJECT"));
+  assert.ok(drawnText.some((text) => text.includes("ENG: English")));
 });
 
 test("Nursery PDF renders all ten activity icons and wraps full text in its one-page layout", async () => {
