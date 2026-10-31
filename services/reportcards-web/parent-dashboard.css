@@ -1,0 +1,46 @@
+.parent-portal{margin:0;background:#f5f4f8;color:#252236;font-family:"DM Sans",Inter,system-ui,sans-serif}
+.parent-app{max-width:1180px;margin:auto;padding:24px}
+.parent-topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:15px 20px;background:#fff;border-radius:16px;box-shadow:0 4px 18px #20163e0b}
+.parent-brand{display:flex;align-items:center;gap:12px;color:#30205f;font-weight:800}
+.parent-brand-mark{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#4b2e9e,#7859d4);color:white}
+.parent-brand-logo{object-fit:contain;background:#fff;border:1px solid #eeebf3;padding:2px}
+.parent-brand-copy{display:grid;gap:2px;min-width:0}
+.parent-brand-copy strong{font-size:15px;line-height:1.2}
+.parent-school{display:block;color:#777287;font-size:12px;font-weight:500}
+.parent-main{padding:22px 0}
+.parent-heading{display:flex;justify-content:space-between;align-items:end;gap:16px;margin-bottom:18px}
+.parent-heading h1{margin:0;font-size:28px}
+.parent-heading p,.parent-muted{color:#777287}
+.parent-child-select{display:grid;gap:5px;min-width:230px;font-size:12px;font-weight:700}
+.parent-child-select select,.parent-card input,.parent-card select,.parent-card textarea{border:1px solid #dedbe8;border-radius:10px;padding:10px 12px;background:#fff;color:#252236;font:inherit}
+.parent-tabs{display:flex;gap:7px;overflow:auto;padding:6px;margin-bottom:16px;background:#ebe8f2;border-radius:12px}
+.parent-tabs button{flex:0 0 auto;border:0;border-radius:9px;background:transparent;padding:10px 14px;color:#625c70;font-weight:700}
+.parent-tabs button.active{background:#4b2e9e;color:#fff}
+.parent-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.parent-card{background:#fff;border:1px solid #eeebf3;border-radius:14px;padding:18px;box-shadow:0 3px 12px #20163e08}
+.parent-card h2,.parent-card h3{margin:0 0 12px}
+.parent-stat{font-size:24px;font-weight:800;color:#4b2e9e}
+.parent-stat small{display:block;margin-top:4px;color:#777287;font-size:12px;font-weight:500}
+.parent-wide{grid-column:1/-1}
+.parent-card table{width:100%;border-collapse:collapse;font-size:13px}
+.parent-card th,.parent-card td{padding:10px 8px;border-bottom:1px solid #eeeaf4;text-align:left;vertical-align:top}
+.parent-card th{color:#686276;font-size:11px;text-transform:uppercase}
+.parent-card form{display:grid;gap:12px}
+.parent-card textarea{min-height:100px;resize:vertical}
+.parent-announcement{padding:13px 0;border-bottom:1px solid #eeeaf4}
+.parent-announcement:last-child{border-bottom:0}
+.parent-announcement p{margin:6px 0 0;white-space:pre-wrap}
+.parent-login{width:min(100%,460px);max-width:460px;margin:10vh auto;padding:32px}
+.parent-login .parent-brand{margin-bottom:24px}
+.parent-alert{padding:12px 14px;margin:12px 0;border-radius:10px;background:#fff1ee;color:#9c3429}
+.parent-success{padding:12px 14px;margin:12px 0;border-radius:10px;background:#eaf7ee;color:#256547}
+.parent-empty{padding:24px;text-align:center;color:#777287}
+.parent-payment-note{font-size:12px;color:#817c8e}
+.parent-account-actions{display:flex;align-items:center;gap:12px}
+.parent-learner-avatar{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:50%;object-fit:cover;background:#eeeaf7;color:#4b2e9e}
+.parent-learner-avatar-placeholder{background:linear-gradient(135deg,#eeeaf7,#ded7f2);font-size:17px}
+.parent-account-actions button{white-space:nowrap}
+.parent-login .parent-brand-copy{max-width:100%}
+.parent-login .parent-brand-copy strong{overflow-wrap:anywhere}
+@media(max-width:740px){.parent-app{padding:12px}.parent-topbar{padding:13px}.parent-heading{align-items:stretch;flex-direction:column}.parent-child-select{min-width:0}.parent-grid{grid-template-columns:1fr}.parent-wide{grid-column:auto}.parent-card{padding:15px}.parent-card .table-wrap{overflow:auto}.parent-card table{min-width:560px}.parent-login{margin:7vh 12px;padding:24px}}
+@media(max-width:520px){.parent-topbar{flex-wrap:wrap}.parent-brand{min-width:0}.parent-account-actions{margin-left:auto;flex-wrap:wrap;gap:8px}.parent-account-actions .parent-muted{max-width:132px;overflow-wrap:anywhere}.parent-learner-avatar{flex-basis:38px;width:38px;height:38px}}

@@ -140,7 +140,7 @@
     if(!response.ok)throw new Error(payload.error||`Request failed (${response.status}).`);
     return payload;
   }
-  function genericLoginBrandMarkup(){return `<span class="brand-mark"></span>appshule`}
+  function genericLoginBrandMarkup(){return `<img class="auth-company-logo" src="appshule-logo.jpeg" alt=""><span>AppShule</span>`}
   async function updateLoginBranding(identifier){
     const requestId=++authBrandingRequestId;
     const brand=root.querySelector("#login-brand");

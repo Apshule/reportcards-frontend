@@ -49,7 +49,9 @@
     const name = school?.name || "AppShule";
     const mark = source
       ? `<img class="parent-brand-mark parent-brand-logo" src="${esc(source)}" alt="" data-school-brand-logo>`
-      : `<span class="parent-brand-mark">${icon("fa-graduation-cap")}</span>`;
+      : school
+        ? `<span class="parent-brand-mark">${icon("fa-graduation-cap")}</span>`
+        : `<img class="parent-brand-mark parent-brand-logo parent-company-logo" src="appshule-logo.jpeg" alt="">`;
     return `${mark}<span class="parent-brand-copy"><strong>${esc(name)}</strong><small class="parent-school">Parent Portal</small></span>`;
   }
   function learnerAvatarMarkup(learner) {
