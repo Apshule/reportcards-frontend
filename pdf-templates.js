@@ -55,8 +55,22 @@
     }).format(date);
   }
   const periodTools = () => window.ReportCardTemplatePicker;
-  const assessmentPeriod = (report) =>
-    periodTools().periodDefinition(report?.period ?? "EOT");
+  const assessmentPeriod = (report) => {
+    const suppliedDefinition = report?.periodDefinition ?? report?.period_definition;
+    if (suppliedDefinition && typeof suppliedDefinition === "object" && Array.isArray(suppliedDefinition.fields)) {
+      return suppliedDefinition;
+    }
+    const picker = periodTools();
+    if (typeof picker?.periodDefinition === "function") {
+      return picker.periodDefinition(report?.period ?? "EOT");
+    }
+    return {
+      key: "EOT",
+      title: "END OF TERM",
+      fields: [{ key: "eot_period", label: "E.O.T" }],
+      combined: false,
+    };
+  };
   const periodValue = (mark, field, period) =>
     periodTools().periodValue(mark, field, period.key);
   const periodScore = (mark, period) =>
@@ -900,7 +914,30 @@
     }));
     centered(page, str(school.motto || ""), width / 2, 36, fonts.regular, reportFonts.body, footerTextColor, width - 230);
     drawText(page, pageLabel, width - 122, 36, fonts.bold, reportFonts.body, footerTextColor, 90);
-    centered(page, "This report is invalid without the official school stamp.", width / 2, 13, fonts.italic, 6.5, lineAccent, width - 56);
+    const footerNoteY = 13;
+    const footerContentWidth = width - 56;
+    const disclaimerWidth = footerContentWidth * 0.58;
+    const noteGap = footerContentWidth * 0.04;
+    const poweredWidth = footerContentWidth * 0.38;
+    const footerNoteSize = 5;
+    const disclaimer = "This report is invalid without the official school stamp.";
+    const poweredBy = "Powered by AP SHULE TECHNOLOGIES";
+    const disclaimerTextWidth = fonts.italic.widthOfTextAtSize(disclaimer, footerNoteSize);
+    const poweredTextWidth = fonts.regular.widthOfTextAtSize(poweredBy, footerNoteSize);
+    page.drawText(disclaimer, {
+      x: 28 + Math.max(0, (disclaimerWidth - disclaimerTextWidth) / 2),
+      y: footerNoteY,
+      size: footerNoteSize,
+      font: fonts.italic,
+      color: lineAccent,
+    });
+    page.drawText(poweredBy, {
+      x: 28 + disclaimerWidth + noteGap + Math.max(0, (poweredWidth - poweredTextWidth) / 2),
+      y: footerNoteY,
+      size: footerNoteSize,
+      font: fonts.regular,
+      color: lineAccent,
+    });
   }
   async function drawAllFooters(doc, report, fonts, accent, options = {}) {
     const pages = doc.getPages();
@@ -2628,7 +2665,8 @@
     drawNurseryWrappedText(page, footerText, x, footerTop, contentWidth, 12, fonts.regular, 5.2, ink, "left", 4.2);
     page.drawLine({ start: { x, y: 24 }, end: { x: width - x, y: 24 }, thickness: 0.6, color: maroon });
     drawNurseryWrappedText(page, school.report_footer_text || school.motto || "Let's learn with ease.", x, 20, contentWidth, 9, fonts.italic, 5.2, maroon, "center", 4.2);
-    drawNurseryWrappedText(page, "This report is invalid without the official school stamp.", x, 10, contentWidth, 7, fonts.italic, 4.8, maroon, "center", 4.1);
+    drawNurseryWrappedText(page, "This report is invalid without the official school stamp.", x, 10, contentWidth * 0.58, 7, fonts.italic, 4.8, maroon, "left", 4.1);
+    drawNurseryWrappedText(page, "Powered by AP SHULE TECHNOLOGIES", x + contentWidth * 0.58, 10, contentWidth * 0.42, 7, fonts.regular, 4.8, maroon, "right", 4.1);
     doc.setTitle(`${period.title} Nursery Report — ${str(learner.full_name)}`);
     doc.setAuthor(str(school.name));
     return doc.save();
@@ -2852,7 +2890,8 @@
     page.drawLine({ start: { x, y: signatureY + 12 }, end: { x: width - x, y: signatureY + 12 }, thickness: 0.5, color: accent });
     page.drawLine({ start: { x, y: signatureY }, end: { x: x + 93, y: signatureY }, thickness: 0.6, color: ink });
     drawA5Text(page, "Class Teacher's signature", x + 97, signatureY + 2, fonts.regular, 7.5, ink, contentWidth - 97);
-    drawA5Text(page, "This report is invalid without the official school stamp.", x, 8, fonts.regular, 5.2, maroon, contentWidth, "center");
+    drawA5Text(page, "This report is invalid without the official school stamp.", x, 8, fonts.regular, 5.2, maroon, contentWidth * 0.58, "left");
+    drawA5Text(page, "Powered by AP SHULE TECHNOLOGIES", x + contentWidth * 0.58, 8, fonts.regular, 5.2, maroon, contentWidth * 0.42, "right");
     return doc.save();
   }
 

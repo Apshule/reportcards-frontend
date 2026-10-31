@@ -363,11 +363,13 @@
 
   async function loadCard() {
     state.card = null;
+    const child = state.children.find((item) => String(item.id) === String(state.childId));
+    state.template = normalizeReportTemplate(child?.default_template_id || state.template);
     const query = new URLSearchParams({
       term: state.term,
       year: String(state.year),
       period: state.period,
-      template: normalizeReportTemplate(state.template),
+      template: state.template,
     });
     state.card = await api(`/api/parents/children/${encodeURIComponent(state.childId)}/card-data?${query}`);
   }
