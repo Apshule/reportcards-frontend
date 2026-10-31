@@ -1,0 +1,49 @@
+.holiday-form-card{margin-bottom:18px}
+.holiday-payment-toggle{display:flex;align-items:flex-start;gap:11px;padding:14px;border:1px solid var(--line);border-radius:11px;background:#fbfaff;cursor:pointer}
+.holiday-payment-toggle input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--purple)}
+.holiday-payment-toggle span{display:grid;gap:3px}
+.holiday-payment-toggle small,.holiday-resource-meta small,.holiday-pending-table small{display:block;color:var(--muted);font-size:12px;font-weight:500}
+.holiday-paid-fields{padding:14px;border:1px solid #eee7fa;border-radius:11px;background:#fbf9ff}
+.holiday-form-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:16px}
+.holiday-local-preview{display:flex;align-items:center;gap:12px;margin-top:10px;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff}
+.holiday-local-preview[hidden],.holiday-paid-fields[hidden]{display:none}
+.holiday-local-preview img{width:76px;height:92px;object-fit:contain;background:#f3f1f7;border-radius:6px}
+.holiday-local-preview span{font-size:13px;font-weight:700;overflow-wrap:anywhere}
+.holiday-resource-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.holiday-resource-card{display:flex;align-items:flex-start;gap:13px;padding:18px}
+.holiday-resource-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:12px;background:#f1edfa;color:var(--purple);font-size:18px}
+.holiday-resource-copy{flex:1;min-width:0}
+.holiday-resource-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.holiday-resource-heading h3{margin:0;font-size:16px;overflow-wrap:anywhere}
+.holiday-resource-copy p{margin:7px 0;color:var(--muted);font-size:13px;white-space:pre-wrap}
+.holiday-resource-meta{display:grid;gap:5px;color:#676174;font-size:12px}
+.holiday-resource-meta span{overflow-wrap:anywhere}
+.holiday-pill{flex:0 0 auto;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:800}
+.holiday-pill.free{background:#e9f7ef;color:#24734a}
+.holiday-pill.paid{background:#fff2e5;color:#9e5714}
+.holiday-resource-actions{display:flex;flex-direction:column;gap:7px}
+.holiday-pending-card{padding:0}
+.holiday-pending-table small{margin-top:4px;overflow-wrap:anywhere}
+.holiday-tabs .settings-tab{white-space:nowrap}
+.holiday-tab-count{display:inline-grid;place-items:center;min-width:19px;height:19px;margin-left:4px;padding:0 5px;border-radius:99px;background:#f0edf6;color:#534775;font-size:10px}
+.holiday-tabs .active .holiday-tab-count{background:#fff;color:var(--purple)}
+@media(max-width:900px){.holiday-resource-grid{grid-template-columns:1fr}}
+@media(max-width:620px){.holiday-resource-card{flex-wrap:wrap}.holiday-resource-copy{flex-basis:calc(100% - 58px)}.holiday-resource-actions{width:100%;flex-direction:row}.holiday-resource-actions .btn{flex:1}.holiday-form-actions{flex-direction:column-reverse}.holiday-form-actions .btn{width:100%}.holiday-pending-table{min-width:700px}}
+.parent-holiday-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.parent-holiday-card{display:flex;align-items:flex-start;gap:13px}
+.parent-holiday-icon{display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:12px;background:#f1edfa;color:var(--purple,#4b2e9e);font-size:18px}
+.parent-holiday-copy{flex:1;min-width:0}
+.parent-holiday-title{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.parent-holiday-title h3{margin:0;font-size:16px;overflow-wrap:anywhere}
+.parent-holiday-copy>p{margin:7px 0;color:var(--muted,#6b6677);font-size:13px;white-space:pre-wrap}
+.parent-holiday-pill{flex:0 0 auto;border-radius:999px;padding:4px 8px;font-size:11px;font-weight:800}
+.parent-holiday-pill.free{background:#e9f7ef;color:#24734a}
+.parent-holiday-pill.paid{background:#fff2e5;color:#9e5714}
+.parent-holiday-payment{display:grid;gap:5px;margin-top:11px;padding:10px;border-radius:9px;background:#fbf8ff;color:#54466e;font-size:12px}
+.parent-holiday-pending{color:#9e5714;font-weight:700}
+.parent-holiday-approved{color:#24734a;font-weight:700}
+.parent-holiday-actions{display:flex;gap:8px;margin-top:12px}
+.parent-holiday-backdrop{position:fixed;z-index:1100;inset:0;display:grid;place-items:center;padding:18px;background:#151222b8}
+.parent-holiday-modal{width:min(720px,100%);max-height:min(92vh,900px);overflow:auto;padding:18px;border-radius:16px;background:#fff;box-shadow:0 24px 80px #100b1c55}
+.parent-holiday-modal img{display:block;width:100%;max-height:72vh;object-fit:contain;margin:14px auto 0;background:#f4f2f7;border-radius:8px}
+@media(max-width:700px){.parent-holiday-grid{grid-template-columns:1fr}.parent-holiday-card{flex-wrap:wrap}.parent-holiday-copy{flex-basis:calc(100% - 58px)}.parent-holiday-actions{flex-wrap:wrap}.parent-holiday-actions .btn{flex:1}.parent-holiday-backdrop{padding:8px}.parent-holiday-modal{padding:13px;border-radius:12px}.parent-holiday-modal .parent-heading{align-items:flex-start}.parent-holiday-modal .parent-heading .btn{padding:7px}}

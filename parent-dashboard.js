@@ -18,10 +18,16 @@
     template: "1",
     card: null,
     busy: false,
+    holidayResources: [],
+    holidayResourcesLoading: false,
+    holidayBusyId: "",
+    holidayPreview: null,
     error: "",
     success: "",
     mustChange: false,
   };
+  let brandingLookupId = 0;
+  let holidayResourcesRequestId = 0;
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const money = (value) => `UGX ${new Intl.NumberFormat("en-UG", { maximumFractionDigits: 0 }).format(Number(value || 0))}`;
@@ -37,6 +43,14 @@
     return source
       ? `<img class="parent-brand-mark parent-brand-logo" src="${esc(source)}" alt="${esc(state.school?.name || "School")} logo">`
       : `<span class="parent-brand-mark">${icon("fa-graduation-cap")}</span>`;
+  }
+  function parentLoginBrandMarkup(school = null) {
+    const source = imageSource(school?.logo_base64);
+    const name = school?.name || "AppShule";
+    const mark = source
+      ? `<img class="parent-brand-mark parent-brand-logo" src="${esc(source)}" alt="" data-school-brand-logo>`
+      : `<span class="parent-brand-mark">${icon("fa-graduation-cap")}</span>`;
+    return `${mark}<span class="parent-brand-copy"><strong>${esc(name)}</strong><small class="parent-school">Parent Portal</small></span>`;
   }
   function learnerAvatarMarkup(learner) {
     const source = imageSource(learner?.photo_base64);
@@ -62,6 +76,35 @@
     if (!response.ok) throw new Error(payload.error || `Request failed (${response.status}).`);
     return payload;
   }
+  async function binaryApi(path) {
+    const response = await fetch(API + path, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${state.token}` },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.error || `Request failed (${response.status}).`);
+    }
+    return response.blob();
+  }
+
+  async function updateParentLoginBranding(identifier) {
+    const requestId = ++brandingLookupId;
+    const brand = root.querySelector("#parent-login-brand");
+    if (!brand) return;
+    if (!identifier) {
+      brand.innerHTML = parentLoginBrandMarkup();
+      return;
+    }
+    try {
+      const result = await api(`/api/schools/branding?identifier=${encodeURIComponent(identifier)}`, { auth: false });
+      if (requestId !== brandingLookupId || !brand.isConnected) return;
+      brand.innerHTML = parentLoginBrandMarkup(result.school || null);
+    } catch {
+      // Branding lookup is optional and must never block sign-in.
+    }
+  }
 
   function showError(message) { state.error = message; state.success = ""; render(); }
 
@@ -80,20 +123,113 @@
     if (!state.childId) return;
     state.detail = await api(`/api/parents/children/${encodeURIComponent(state.childId)}`);
   }
+  function clearHolidayPreview() {
+    if (state.holidayPreview?.url) URL.revokeObjectURL(state.holidayPreview.url);
+    state.holidayPreview = null;
+  }
+  async function loadHolidayResources() {
+    if (!state.childId) {
+      state.holidayResources = [];
+      return;
+    }
+    const childId = state.childId;
+    const requestId = ++holidayResourcesRequestId;
+    state.holidayResourcesLoading = true;
+    state.holidayResources = [];
+    state.error = "";
+    render();
+    try {
+      const result = await api(`/api/holiday-resources/children/${encodeURIComponent(childId)}/resources`, { cache: "no-store" });
+      if (requestId === holidayResourcesRequestId && String(childId) === String(state.childId)) {
+        state.holidayResources = result.resources || [];
+      }
+    } catch (error) {
+      if (requestId === holidayResourcesRequestId) state.error = error.message || "Could not load holiday resources.";
+    } finally {
+      if (requestId === holidayResourcesRequestId) {
+        state.holidayResourcesLoading = false;
+        render();
+      }
+    }
+  }
+  async function previewHolidayResource(resourceId) {
+    const childId = state.childId;
+    state.holidayBusyId = resourceId;
+    state.error = "";
+    render();
+    try {
+      const blob = await binaryApi(`/api/holiday-resources/children/${encodeURIComponent(childId)}/resources/${encodeURIComponent(resourceId)}/preview`);
+      if (String(state.childId) !== String(childId)) return;
+      clearHolidayPreview();
+      state.holidayPreview = { resourceId, url: URL.createObjectURL(blob) };
+    } catch (error) {
+      state.error = error.message || "Could not load the resource preview.";
+    } finally {
+      state.holidayBusyId = "";
+      render();
+    }
+  }
+  async function downloadHolidayResource(resourceId) {
+    const childId = state.childId;
+    const resource = state.holidayResources.find((item) => String(item.id) === String(resourceId));
+    if (!resource) return;
+    state.holidayBusyId = resourceId;
+    state.error = "";
+    render();
+    try {
+      const blob = await binaryApi(`/api/holiday-resources/children/${encodeURIComponent(childId)}/resources/${encodeURIComponent(resourceId)}/download`);
+      if (String(state.childId) !== String(childId)) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = resource.file_name || "holiday-resource";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1500);
+    } catch (error) {
+      state.error = error.message || "Could not download the resource.";
+    } finally {
+      state.holidayBusyId = "";
+      render();
+    }
+  }
+  async function markHolidayResourcePaid(resourceId) {
+    const childId = state.childId;
+    state.holidayBusyId = resourceId;
+    state.error = "";
+    state.success = "";
+    render();
+    try {
+      const result = await api(`/api/holiday-resources/children/${encodeURIComponent(childId)}/resources/${encodeURIComponent(resourceId)}/mark-paid`, { method: "POST", body: {} });
+      if (String(state.childId) !== String(childId)) return;
+      state.holidayResources = state.holidayResources.map((resource) => String(resource.id) === String(resourceId)
+        ? { ...resource, access_status: result.access?.status || "pending" }
+        : resource);
+      state.success = result.access?.status === "paid"
+        ? "Payment is already confirmed. You can download this resource."
+        : "Payment confirmation requested. The school will review it before the full file is available.";
+    } catch (error) {
+      state.error = error.message || "Could not submit the payment confirmation request.";
+    } finally {
+      state.holidayBusyId = "";
+      render();
+    }
+  }
 
   function loginView() {
-    return `<main class="parent-card parent-login"><div class="parent-brand"><span class="parent-brand-mark">${icon("fa-graduation-cap")}</span><span>AppShule <small class="parent-school">Parent Portal</small></span></div>
+    return `<div class="parent-auth-shell"><main class="parent-card parent-login"><div id="parent-login-brand" class="parent-brand">${parentLoginBrandMarkup()}</div>
       <h1>Welcome back</h1><p class="parent-muted">Sign in with your email or phone number and password to reach your school workspace.</p>
       ${state.error ? `<div class="parent-alert" role="alert">${esc(state.error)}</div>` : ""}
       <form id="parent-login-form"><label>Email or Phone Number<input type="text" name="email" autocomplete="username" required maxlength="254"></label><label>Password<div class="parent-password-wrap"><input id="parent-login-password" type="password" name="password" autocomplete="current-password" required><button type="button" data-parent-action="toggle-password" data-target="parent-login-password" aria-label="View password" aria-pressed="false">${icon("fa-eye")}</button></div></label><button class="btn btn-primary" type="submit" ${state.busy ? "disabled" : ""}>${state.busy ? "Signing in…" : "Sign in"}</button></form>
-      <p class="parent-muted">Parent accounts are provided by your school. Staff and school accounts will continue to their own workspace.</p></main>`;
+      <p class="parent-muted">Parent accounts are provided by your school. Staff and school accounts will continue to their own workspace.</p></main><footer class="powered-by-footer powered-by-parent"><img src="appshule-logo.jpeg" alt="AppShule" loading="lazy"><span>Powered by AP SHULE TECHNOLOGIES</span></footer></div>`;
   }
 
   function passwordView() {
-    return `<main class="parent-card parent-login"><div class="parent-brand"><span class="parent-brand-mark">${icon("fa-key")}</span>Change your temporary password</div>
+    return `<div class="parent-auth-shell"><main class="parent-card parent-login"><div class="parent-brand"><span class="parent-brand-mark">${icon("fa-key")}</span>Change your temporary password</div>
       <p class="parent-muted">Choose a new password before continuing to your children’s information.</p>
       ${state.error ? `<div class="parent-alert" role="alert">${esc(state.error)}</div>` : ""}
-      <form id="parent-password-form"><label>Temporary password<input name="old_password" type="password" required autocomplete="current-password"></label><label>New password<input name="new_password" type="password" minlength="8" required autocomplete="new-password"></label><label>Confirm new password<input name="confirm_password" type="password" minlength="8" required autocomplete="new-password"></label><button class="btn btn-primary" type="submit">Change password</button></form></main>`;
+      <form id="parent-password-form"><label>Temporary password<input name="old_password" type="password" required autocomplete="current-password"></label><label>New password<input name="new_password" type="password" minlength="8" required autocomplete="new-password"></label><label>Confirm new password<input name="confirm_password" type="password" minlength="8" required autocomplete="new-password"></label><button class="btn btn-primary" type="submit">Change password</button></form></main><footer class="powered-by-footer powered-by-parent"><img src="appshule-logo.jpeg" alt="AppShule" loading="lazy"><span>Powered by AP SHULE TECHNOLOGIES</span></footer></div>`;
   }
 
   function overview() {
@@ -132,16 +268,46 @@
     return `<div class="parent-grid"><section class="parent-card parent-wide"><h2>School announcements</h2>${(d.announcements || []).map((item) => `<article class="parent-announcement"><strong>${esc(item.title)}</strong><small class="parent-muted"> · <time datetime="${esc(item.created_at)}">${esc(announcementDate(item.created_at))}</time></small><p>${esc(item.message)}</p></article>`).join("") || `<p class="parent-empty">No announcements have been published.</p>`}</section>
       <section class="parent-card parent-wide"><h2>Send feedback to the school</h2><form id="parent-feedback-form"><label>Message<textarea name="message" maxlength="3000" required placeholder="Share a question or comment with the school"></textarea></label><button class="btn btn-primary" type="submit">Send feedback</button></form></section></div>`;
   }
+  function holidayResources() {
+    if (state.holidayResourcesLoading) {
+      return `<section class="parent-card parent-wide"><h2>Holiday resources</h2><p class="parent-muted">Loading resources for ${esc(state.children.find((item) => String(item.id) === String(state.childId))?.full_name || "this learner")}…</p></section>`;
+    }
+    const items = state.holidayResources || [];
+    const content = items.length ? `<div class="parent-holiday-grid">${items.map((resource) => {
+      const isPaid = resource.is_paid === true || resource.is_paid === "true" || resource.is_paid === "t";
+      const access = String(resource.access_status || "");
+      const canDownload = !isPaid || access === "paid";
+      const busy = String(state.holidayBusyId) === String(resource.id);
+      return `<article class="parent-card parent-holiday-card">
+        <div class="parent-holiday-icon">${icon(resource.mime_type === "application/pdf" ? "fa-file-pdf" : "fa-image")}</div>
+        <div class="parent-holiday-copy"><div class="parent-holiday-title"><h3>${esc(resource.title)}</h3><span class="parent-holiday-pill ${isPaid ? "paid" : "free"}">${isPaid ? "Paid" : "Free"}</span></div>
+          <p>${esc(resource.description || "No description provided.")}</p>
+          <small class="parent-muted">${esc(resource.class_name || "Whole school")} · ${esc(resource.file_name)}</small>
+          ${isPaid ? `<div class="parent-holiday-payment"><strong>${money(resource.price)}</strong><span>Payment contact: <b>${esc(resource.payment_contact || "Contact the school")}</b></span>${access === "pending" ? `<span class="parent-holiday-pending">${icon("fa-clock")} Payment awaiting school confirmation</span>` : access === "paid" ? `<span class="parent-holiday-approved">${icon("fa-circle-check")} Payment confirmed</span>` : `<span>Pay directly, then select “I have paid”.</span>`}</div>` : ""}
+          <div class="parent-holiday-actions">
+            ${isPaid ? `<button class="btn btn-outline" type="button" data-parent-action="holiday-preview" data-id="${esc(resource.id)}" ${busy ? "disabled" : ""}>${icon("fa-eye")} Preview</button>` : ""}
+            ${canDownload ? `<button class="btn btn-primary" type="button" data-parent-action="holiday-download" data-id="${esc(resource.id)}" ${busy ? "disabled" : ""}>${icon("fa-download")} ${busy ? "Preparing…" : "Download"}</button>` : access === "pending" ? "" : `<button class="btn btn-primary" type="button" data-parent-action="holiday-mark-paid" data-id="${esc(resource.id)}" ${busy ? "disabled" : ""}>${icon("fa-check")} I have paid</button>`}
+          </div>
+        </div>
+      </article>`;
+    }).join("")}</div>` : `<div class="parent-empty">There are no holiday resources for this learner’s class yet.</div>`;
+    return `<section class="parent-card parent-wide"><div class="parent-heading"><div><h2>Holiday resources</h2><p class="parent-muted">Resources are shown for the selected child’s class and whole-school notices.</p></div><button class="btn btn-outline" type="button" data-parent-action="holiday-refresh">${icon("fa-rotate")} Refresh</button></div>${content}</section>`;
+  }
+  function holidayPreviewModal() {
+    if (!state.holidayPreview) return "";
+    const resource = state.holidayResources.find((item) => String(item.id) === String(state.holidayPreview.resourceId));
+    return `<div class="parent-holiday-backdrop" role="presentation"><section class="parent-holiday-modal" role="dialog" aria-modal="true" aria-label="Holiday resource preview"><div class="parent-heading"><div><h2>${esc(resource?.title || "Resource preview")}</h2><p class="parent-muted">Preview only — the complete paid file remains locked until the school confirms payment.</p></div><button class="btn btn-outline" type="button" data-parent-action="holiday-close-preview" aria-label="Close preview">${icon("fa-xmark")} Close</button></div><img src="${esc(state.holidayPreview.url)}" alt="First-page preview of ${esc(resource?.title || "holiday resource")}"></section></div>`;
+  }
 
   function dashboardView() {
     if (!state.children.length) return `<div class="parent-app"><header class="parent-topbar"><div class="parent-brand">${schoolLogoMarkup()}<span class="parent-brand-copy"><strong>${esc(state.school?.name || "School")}</strong><small class="parent-school">Parent Portal</small></span></div><div class="parent-account-actions">${learnerAvatarMarkup(null)}<span class="parent-muted">${esc(state.user?.name || state.user?.email || "")}</span><button class="btn btn-outline" data-parent-action="logout">Sign out</button></div></header><section class="parent-card parent-empty">No learner is linked to this parent account yet. Please contact the school office.</section></div>`;
     const child = state.children.find((item) => String(item.id) === String(state.childId)) || {};
-    const tabs = [["overview","Overview"],["academics","Academics"],["finance","Finance"],["attendance","Attendance"],["communication","Communication"]];
-    const content = { overview, academics, finance, attendance, communication }[state.tab]();
+    const tabs = [["overview","Overview"],["academics","Academics"],["finance","Finance"],["attendance","Attendance"],["communication","Communication"],["holiday-resources","Holiday Resources"]];
+    const content = { overview, academics, finance, attendance, communication, "holiday-resources": holidayResources }[state.tab]();
     return `<div class="parent-app"><header class="parent-topbar"><div class="parent-brand">${schoolLogoMarkup()}<span class="parent-brand-copy"><strong>${esc(state.school?.name || "School")}</strong><small class="parent-school">Parent Portal</small></span></div><div class="parent-account-actions">${learnerAvatarMarkup(child)}<span class="parent-muted">${esc(state.user?.name || state.user?.email || "")}</span><button class="btn btn-outline" data-parent-action="logout">Sign out</button></div></header>
       <main class="parent-main"><div class="parent-heading"><div><p class="parent-muted">Learner overview</p><h1>${esc(child.full_name || "My child")}</h1><p class="parent-muted">${esc(child.class_name || "")} · ${esc(child.reg_no || "")}</p></div><label class="parent-child-select">Child<select id="parent-child">${state.children.map((item) => `<option value="${esc(item.id)}" ${String(item.id) === String(state.childId) ? "selected" : ""}>${esc(item.full_name)} · ${esc(item.class_name || "")}</option>`).join("")}</select></label></div>
-      ${state.error ? `<div class="parent-alert" role="alert">${esc(state.error)}</div>` : ""}${state.success ? `<div class="parent-success" role="status">${esc(state.success)}</div>` : ""}
-      <nav class="parent-tabs" aria-label="Parent sections">${tabs.map(([key, label]) => `<button class="${state.tab === key ? "active" : ""}" data-parent-tab="${key}">${label}</button>`).join("")}</nav>${content}</main></div>`;
+       ${state.error ? `<div class="parent-alert" role="alert">${esc(state.error)}</div>` : ""}${state.success ? `<div class="parent-success" role="status">${esc(state.success)}</div>` : ""}
+       <nav class="parent-tabs" aria-label="Parent sections">${tabs.map(([key, label]) => `<button class="${state.tab === key ? "active" : ""}" data-parent-tab="${key}">${label}</button>`).join("")}</nav>${content}</main>${holidayPreviewModal()}</div>`;
   }
 
   function render() {
@@ -234,6 +400,12 @@
     } catch (error) { showError(error.message || "Could not download report card."); }
   }
 
+  root.addEventListener("focusout", (event) => {
+    const input = event.target;
+    if (input.matches?.('#parent-login-form input[name="email"]')) {
+      void updateParentLoginBranding(input.value.trim());
+    }
+  });
   root.addEventListener("submit", async (event) => {
     if (event.target.id === "parent-login-form") { event.preventDefault(); await login(event.target); }
     else if (event.target.id === "parent-password-form") { event.preventDefault(); await changePassword(event.target); }
@@ -248,8 +420,16 @@
   });
   root.addEventListener("change", async (event) => {
     if (event.target.id === "parent-child") {
+      clearHolidayPreview();
       state.childId = event.target.value; state.error = ""; state.success = "";
-      try { await loadDetail(); } catch (error) { state.error = error.message; }
+      state.holidayResources = [];
+      try {
+        await loadDetail();
+        if (state.tab === "holiday-resources") {
+          await loadHolidayResources();
+          return;
+        }
+      } catch (error) { state.error = error.message; }
       render();
     } else if (event.target.matches("[data-card-filter]")) {
       state[event.target.dataset.cardFilter] = event.target.value;
@@ -259,12 +439,19 @@
   });
   root.addEventListener("click", async (event) => {
     const tab = event.target.closest("[data-parent-tab]");
-    if (tab) { state.tab = tab.dataset.parentTab; state.error = ""; render(); return; }
+    if (tab) {
+      state.tab = tab.dataset.parentTab; state.error = ""; state.success = "";
+      render();
+      if (state.tab === "holiday-resources") await loadHolidayResources();
+      return;
+    }
     const button = event.target.closest("[data-parent-action]");
     if (!button) return;
     const action = button.dataset.parentAction;
     if (action === "logout") {
+      clearHolidayPreview();
       state.token = ""; state.user = null; state.school = null; state.children = []; state.childId = "";
+      state.holidayResources = [];
       localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(LEGACY_TOKEN_KEY); render(); return;
     }
     if (action === "toggle-password") {
@@ -284,6 +471,11 @@
       state.busy = false; render(); return;
     }
     if (action === "download-card") { await downloadCard(); return; }
+    if (action === "holiday-refresh") { await loadHolidayResources(); return; }
+    if (action === "holiday-preview") { await previewHolidayResource(button.dataset.id); return; }
+    if (action === "holiday-download") { await downloadHolidayResource(button.dataset.id); return; }
+    if (action === "holiday-mark-paid") { await markHolidayResourcePaid(button.dataset.id); return; }
+    if (action === "holiday-close-preview") { clearHolidayPreview(); render(); return; }
     if (action === "simulate-payment") { state.success = "This mobile money option is a demo only. No payment was made or charged."; render(); }
   });
 
