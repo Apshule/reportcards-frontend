@@ -28,6 +28,8 @@ test("class editor offers all five parent report-card templates", () => {
   assert.match(app, /name="default_template_id"/u);
   assert.match(app, /Array\.from\(\{length:5\}/u);
   assert.match(app, /item\.default_template_id\|\|"template_1"/u);
+  assert.ok(app.includes('name="stream" value="${esc(item.stream??"")}" maxlength="80">'));
+  assert.ok(!app.includes('name="stream" value="${esc(item.stream||"")}" maxlength="80" placeholder="A"'));
 });
 
 test("parent PDF download uses the template returned by card-data", () => {
