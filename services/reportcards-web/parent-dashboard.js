@@ -15,7 +15,7 @@
     term: "TERM_1",
     year: String(new Date().getFullYear()),
     period: "EOT",
-    template: "1",
+    template: "template_1",
     card: null,
     busy: false,
     holidayResources: [],
@@ -32,6 +32,12 @@
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const money = (value) => `UGX ${new Intl.NumberFormat("en-UG", { maximumFractionDigits: 0 }).format(Number(value || 0))}`;
   const icon = (name) => `<i class="fa-solid ${name}" aria-hidden="true"></i>`;
+  function normalizeReportTemplate(value) {
+    const raw = String(value ?? "").trim();
+    if (/^template_[1-5]$/iu.test(raw)) return raw.toLowerCase();
+    if (/^[1-5]$/u.test(raw)) return `template_${raw}`;
+    return "template_1";
+  }
   function imageSource(value) {
     const raw = String(value || "").trim();
     if (!raw) return "";
@@ -357,7 +363,12 @@
 
   async function loadCard() {
     state.card = null;
-    const query = new URLSearchParams({ term: state.term, year: state.year, period: state.period, template: state.template });
+    const query = new URLSearchParams({
+      term: state.term,
+      year: String(state.year),
+      period: state.period,
+      template: normalizeReportTemplate(state.template),
+    });
     state.card = await api(`/api/parents/children/${encodeURIComponent(state.childId)}/card-data?${query}`);
   }
 
@@ -366,8 +377,7 @@
       if (!state.card) await loadCard();
       if (!window.ReportCardPdf || !window.PDFLib) throw new Error("Report card PDF library is unavailable. Refresh and try again.");
       if (!window.ReportCardsAuthenticityQr) throw new Error("Report verification support is unavailable. Refresh and try again.");
-      const templateValue = String(state.card.template || state.template);
-      const templateId = /^template_/iu.test(templateValue) ? templateValue : `template_${templateValue}`;
+      const templateId = normalizeReportTemplate(state.card.template || state.template);
       const issued = await api("/api/verify/issue", {
         method: "POST",
         body: {
@@ -394,7 +404,7 @@
         stamp_config: state.card.stamp_config,
         level_theme: state.card.level_theme,
       };
-      const bytes = await window.ReportCardPdf.render(report, state.card.class?.level, state.template, true);
+      const bytes = await window.ReportCardPdf.render(report, state.card.class?.level, templateId, true);
       const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
       const link = document.createElement("a");
       link.href = url; link.download = `${state.card.learner?.reg_no || state.card.learner?.full_name || "report-card"}-${state.card.term}-${state.card.year}.pdf`;

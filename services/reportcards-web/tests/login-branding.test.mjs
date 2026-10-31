@@ -35,5 +35,5 @@ test("parent sign-in brand and card stay centered and fit narrow screens", () =>
   assert.match(styles, /\.parent-login \.parent-brand\{justify-content:center;flex-direction:column/);
   assert.match(parentStyles, /\.parent-login\{width:min\(100%,460px\);max-width:460px/);
   assert.match(loginHtml, /styles\.css\?v=login-branding-v1/);
-  assert.match(parentHtml, /parent-dashboard\.js\?v=login-branding-v1/);
+  assert.match(parentHtml, /parent-dashboard\.js\?v=login-branding-v1-academics-template-v1/);
 });
