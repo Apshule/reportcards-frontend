@@ -696,6 +696,11 @@
       render();
     }
   }
+  function minLocalDateTime(){
+    const value=new Date(Date.now()+60_000);
+    value.setSeconds(0,0);
+    return new Date(value.getTime()-value.getTimezoneOffset()*60_000).toISOString().slice(0,16);
+  }
   function smsGatewaySettingsMarkup(){
     const wallet=state.data.smsWallet||{current_balance:0,bundles:[],purchase_simulation_enabled:false};
     const bundles=Array.isArray(wallet.bundles)?wallet.bundles:[];
@@ -709,15 +714,16 @@
       ${state.data.smsWalletError?`<div class="alert error" role="alert">${esc(state.data.smsWalletError)}</div>`:""}
       <div class="sms-bundle-section"><div class="section-title"><div><h3>Available bundles</h3><p>${simulation?"Simulated purchases are enabled only in development.":"Yo Payments is pending; production credits are added by a Super Admin after payment is confirmed."}</p></div></div>${bundleCards}</div>
        <p class="field-hint sms-test-notice">Sending SMS may incur charges. Each accepted message uses one credit. Only message a number you own or have permission to contact. Failed attempts are logged for this school.</p>
-      <form id="sms-test-form" class="form-grid" novalidate><div class="form-two">
+       <form id="sms-test-form" class="form-grid" novalidate><div class="form-two">
         <div class="field"><label for="sms-test-recipient">Recipient phone number *</label><input id="sms-test-recipient" name="recipient" type="tel" autocomplete="tel" inputmode="tel" placeholder="+256 700 000 000" maxlength="24" required></div>
         <div class="field"><label for="sms-test-message">Message *</label><textarea id="sms-test-message" name="message" rows="4" maxlength="1600" required placeholder="Type a short test message"></textarea><span class="field-hint">Maximum 1,600 characters.</span></div>
-      </div><div id="sms-test-result" aria-live="polite"></div><div class="page-actions"><button class="btn btn-primary" type="submit">${icon("fa-paper-plane")} Send test SMS</button></div></form>
+       </div><label class="sms-schedule-toggle"><input type="checkbox" name="schedule" data-sms-schedule="test"> Schedule message</label><div data-sms-schedule-fields="test" hidden><div class="field"><label for="sms-test-scheduled-at">Send at *</label><input id="sms-test-scheduled-at" name="scheduled_at" type="datetime-local" min="${esc(minLocalDateTime())}"><span class="field-hint">Uses your device's local time. Scheduled SMS are checked every 5 minutes; credits are deducted only when sent. If the wallet has no credits then, the message stays scheduled.</span></div></div><div id="sms-test-result" aria-live="polite"></div><div class="page-actions"><button class="btn btn-primary" type="submit">${icon("fa-paper-plane")} Send test SMS</button></div></form>
       <div class="sms-bulk-section"><div class="section-title"><div><h3>Send Bulk SMS</h3><p>Send one message to up to 100 phone numbers at once.</p></div></div>
         <p class="field-hint">Enter one number per line or separate numbers with commas. Invalid numbers block the whole batch so no recipient is silently skipped.</p>
         <form id="sms-bulk-form" class="form-grid" novalidate>
-          <div class="field"><label for="sms-bulk-recipients">Phone numbers *</label><textarea id="sms-bulk-recipients" name="recipients" rows="4" required placeholder="+256 700 000 000, +256 701 111 222"></textarea><span class="field-hint">Maximum 100 recipients per batch.</span></div>
+          <div class="field"><label for="sms-bulk-recipients">Phone numbers *</label><textarea id="sms-bulk-recipients" name="recipients" rows="4" required placeholder="+256 700 000 000, +256 701 111 222"></textarea><div class="sms-recipient-tools"><button class="btn btn-outline btn-small" type="button" data-action="sms-upload-csv">${icon("fa-file-csv")} Upload CSV</button><input id="sms-bulk-csv-file" type="file" accept=".csv,text/csv" hidden><button class="btn btn-outline btn-small" type="button" data-action="sms-sync-contacts">${icon("fa-address-book")} Sync Phone Contacts</button></div><span class="field-hint">Maximum 100 recipients per batch.</span><div id="sms-bulk-recipient-result" class="field-hint" aria-live="polite"></div></div>
           <div class="field"><label for="sms-bulk-message">Message *</label><textarea id="sms-bulk-message" name="message" rows="4" maxlength="1600" required placeholder="Type the message to send"></textarea><span class="field-hint">Maximum 1,600 characters; each recipient uses one credit.</span></div>
+          <label class="sms-schedule-toggle"><input type="checkbox" name="schedule" data-sms-schedule="bulk"> Schedule message</label><div data-sms-schedule-fields="bulk" hidden><div class="field"><label for="sms-bulk-scheduled-at">Send at *</label><input id="sms-bulk-scheduled-at" name="scheduled_at" type="datetime-local" min="${esc(minLocalDateTime())}"><span class="field-hint">Uses your device's local time. Scheduled SMS are checked every 5 minutes; credits are deducted only when sent. If the wallet has no credits then, the messages stay scheduled.</span></div></div>
           <div id="sms-bulk-result" aria-live="polite"></div>
           <div class="page-actions"><button class="btn btn-primary" type="submit">${icon("fa-paper-plane")} Send Bulk SMS</button></div>
         </form>
@@ -734,8 +740,11 @@
     const rows=logs.map(log=>{
       const created=log.created_at?new Date(log.created_at).toLocaleString("en-UG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"—";
       const status=String(log.status||"pending");
-      const tone=status==="sent"?"sms-status-sent":status==="failed"?"sms-status-failed":"sms-status-pending";
-      return `<tr><td>${esc(created)}</td><td class="row-primary">${esc(log.recipient_phone||"—")}</td><td class="sms-log-message">${esc(log.message||"")}</td><td><span class="badge ${tone}">${esc(status)}</span></td></tr>`;
+      const labels={delivered:"Delivered",sent:"Sent to network",queued:"Queued",scheduled:"Scheduled",failed:"Failed",pending:"Pending"};
+      const tone=status==="sent"||status==="delivered"?"sms-status-sent":status==="failed"?"sms-status-failed":status==="scheduled"?"sms-status-scheduled":"sms-status-pending";
+      const scheduledAt=log.scheduled_at?new Date(log.scheduled_at).toLocaleString("en-UG",{day:"2-digit",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"}):"";
+      const statusDetail=status==="scheduled"&&scheduledAt?`<small class="sms-log-detail">Scheduled for ${esc(scheduledAt)}</small>`:log.failure_reason?`<small class="sms-log-detail">${esc(log.failure_reason)}</small>`:"";
+      return `<tr><td>${esc(created)}</td><td class="row-primary">${esc(log.recipient_phone||"—")}</td><td class="sms-log-message">${esc(log.message||"")}</td><td><span class="badge ${tone}">${esc(labels[status]||status)}</span>${statusDetail}</td></tr>`;
     }).join("");
     return `${heading("SMS Logs","The latest 100 SMS attempts for this school.",action)}<section class="card section-card"><div class="table-wrap sms-logs-table"><table><thead><tr><th>Date/Time</th><th>Recipient</th><th>Message</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
   }
@@ -2033,10 +2042,23 @@
     const resultTarget=form.querySelector("#sms-test-result");
     const recipient=String(form.elements.recipient.value||"").trim();
     const message=String(form.elements.message.value||"").trim();
-    if(button){button.disabled=true;button.textContent="Sending SMS…"}
-    if(resultTarget)resultTarget.innerHTML='<div class="alert info" role="status">Sending one test message…</div>';
+    const scheduledAt=readSmsScheduledAt(form);
+    if(scheduledAt===undefined)return;
+    if(scheduledAt&&!window.confirm(`Schedule this SMS for ${new Date(scheduledAt).toLocaleString()}? One credit will be deducted when it is sent.`))return;
+    if(button){button.disabled=true;button.textContent=scheduledAt?"Scheduling SMS…":"Sending SMS…"}
+    if(resultTarget)resultTarget.innerHTML=scheduledAt
+      ?'<div class="alert info" role="status">Scheduling one test message…</div>'
+      :'<div class="alert info" role="status">Sending one test message…</div>';
     try{
-      const result=await api("/api/sms/send",{method:"POST",body:{recipient,message}});
+      const body={recipient,message};
+      if(scheduledAt)body.scheduled_at=scheduledAt;
+      const result=await api("/api/sms/send",{method:"POST",body});
+      if(result.scheduled){
+        const when=new Date(result.scheduled_at||scheduledAt).toLocaleString();
+        if(resultTarget)resultTarget.innerHTML=`<div class="alert success" role="status">Test SMS scheduled for ${esc(when)}. Credits will be deducted when it is sent.</div>`;
+        form.elements.message.value="";
+        return;
+      }
       const accepted=result.status==="queued"?"Africa’s Talking accepted the message and queued it.":"Africa’s Talking accepted the message for sending.";
       const providerId=result.provider_message_id?` Provider message ID: ${esc(result.provider_message_id)}.`:"";
       if(resultTarget)resultTarget.innerHTML=`<div class="alert success" role="status">${accepted}${providerId}</div>`;
@@ -2057,11 +2079,27 @@
     const message=String(form.elements.message.value||"").trim();
     if(!recipients.length){if(resultTarget)resultTarget.innerHTML='<div class="alert error" role="alert">Add at least one phone number.</div>';return}
     if(recipients.length>100){if(resultTarget)resultTarget.innerHTML='<div class="alert error" role="alert">Bulk SMS is limited to 100 recipients per batch.</div>';return}
-    if(!window.confirm(`You are about to send ${recipients.length} SMS. This will cost ${recipients.length} credits. Proceed?`))return;
-    if(button){button.disabled=true;button.textContent="Sending bulk SMS…"}
-    if(resultTarget)resultTarget.innerHTML=`<div class="alert info" role="status">Sending ${recipients.length} messages…</div>`;
+    const scheduledAt=readSmsScheduledAt(form);
+    if(scheduledAt===undefined)return;
+    const proceed=scheduledAt
+      ?window.confirm(`Schedule ${recipients.length} SMS for ${new Date(scheduledAt).toLocaleString()}? They will cost ${recipients.length} credits when sent.`)
+      :window.confirm(`You are about to send ${recipients.length} SMS. This will cost ${recipients.length} credits. Proceed?`);
+    if(!proceed)return;
+    if(button){button.disabled=true;button.textContent=scheduledAt?"Scheduling bulk SMS…":"Sending bulk SMS…"}
+    if(resultTarget)resultTarget.innerHTML=scheduledAt
+      ?`<div class="alert info" role="status">Scheduling ${recipients.length} messages…</div>`
+      :`<div class="alert info" role="status">Sending ${recipients.length} messages…</div>`;
     try{
-      const result=await api("/api/sms/bulk",{method:"POST",body:{recipients,message}});
+      const body={recipients,message};
+      if(scheduledAt)body.scheduled_at=scheduledAt;
+      const result=await api("/api/sms/bulk",{method:"POST",body});
+      if(result.scheduled){
+        const when=new Date(result.scheduled_at||scheduledAt).toLocaleString();
+        if(resultTarget)resultTarget.innerHTML=`<div class="alert success" role="status">${fmt(result.scheduled_count)} messages scheduled for ${esc(when)}. Credits will be deducted when sent.</div>`;
+        form.elements.message.value="";
+        await refreshSmsWalletBalance();
+        return;
+      }
       const accepted=(result.sent_count||0)+(result.queued_count||0);
       const failures=Array.isArray(result.results)?result.results.filter(item=>item.status==="failed"):[];
       const details=failures.length?`<ul>${failures.map(item=>`<li>${esc(item.recipient_phone)}: ${esc(item.error||"Provider rejected the message.")}</li>`).join("")}</ul>`:"";
@@ -2073,7 +2111,87 @@
       if(resultTarget)resultTarget.innerHTML=`<div class="alert error" role="alert">${esc(error.message||"Could not send the SMS batch.")}</div>`;
     }finally{
       if(button){button.disabled=false;button.innerHTML=`${icon("fa-paper-plane")} Send Bulk SMS`}
-      try{state.data.smsWallet=await api("/api/sms/wallet",{cache:"no-store"});const balance=document.getElementById("sms-credit-balance");if(balance)balance.textContent=fmt(state.data.smsWallet.current_balance??0)}catch{}
+      await refreshSmsWalletBalance();
+    }
+  }
+  function readSmsScheduledAt(form){
+    if(form.elements.schedule?.checked!==true)return null;
+    const value=String(form.elements.scheduled_at?.value||"");
+    const date=new Date(value);
+    if(!value||!Number.isFinite(date.getTime())||date.getTime()<=Date.now()){
+      const target=form.querySelector(form.id==="sms-test-form"?"#sms-test-result":"#sms-bulk-result");
+      if(target)target.innerHTML='<div class="alert error" role="alert">Choose a future date and time to schedule this SMS.</div>';
+      return undefined;
+    }
+    return date.toISOString();
+  }
+  async function refreshSmsWalletBalance(){
+    try{
+      state.data.smsWallet=await api("/api/sms/wallet",{cache:"no-store"});
+      const balance=document.getElementById("sms-credit-balance");
+      if(balance)balance.textContent=fmt(state.data.smsWallet.current_balance??0);
+    }catch{}
+  }
+  function parseSmsPhoneCsv(text){
+    const rows=[];let row=[],field="",quoted=false;
+    for(let i=0;i<text.length;i++){
+      const char=text[i];
+      if(quoted){
+        if(char==='"'&&text[i+1]==='"'){field+='"';i++}
+        else if(char==='"')quoted=false;
+        else field+=char;
+      }else if(char==='"')quoted=true;
+      else if(char===","){row.push(field);field=""}
+      else if(char==="\n"||char==="\r"){
+        if(char==="\r"&&text[i+1]==="\n")i++;
+        row.push(field);if(row.some(value=>value.trim()))rows.push(row);
+        row=[];field="";
+      }else field+=char;
+    }
+    if(quoted)throw new Error("CSV has an unclosed quoted field.");
+    row.push(field);if(row.some(value=>value.trim()))rows.push(row);
+    const headerNames=new Set(["phone","phone number","phone_number","mobile","mobile number","number","recipient","recipient phone"]);
+    if(rows[0]?.[0]?.replace(/^\uFEFF/u,"").trim().toLowerCase()&&headerNames.has(rows[0][0].replace(/^\uFEFF/u,"").trim().toLowerCase()))rows.shift();
+    if(rows.some(values=>values.slice(1).some(value=>value.trim())))throw new Error("Upload a single-column CSV containing only phone numbers.");
+    const numbers=rows.map(values=>values[0]?.replace(/^\uFEFF/u,"").trim()).filter(Boolean);
+    if(!numbers.length)throw new Error("The CSV does not contain any phone numbers.");
+    return numbers;
+  }
+  async function loadSmsPhoneCsv(file){
+    const status=document.getElementById("sms-bulk-recipient-result");
+    try{
+      const numbers=parseSmsPhoneCsv(await file.text());
+      const recipients=document.getElementById("sms-bulk-recipients");
+      if(recipients)recipients.value=numbers.join("\n");
+      if(status)status.textContent=numbers.length>100
+        ?`Loaded ${numbers.length} numbers. The current batch limit is 100; split them into separate sends.`
+        :`Loaded ${numbers.length} numbers.`;
+    }catch(error){
+      if(status)status.textContent=error.message||"Could not read that CSV.";
+    }finally{
+      const input=document.getElementById("sms-bulk-csv-file");
+      if(input)input.value="";
+    }
+  }
+  async function syncSmsContacts(){
+    const status=document.getElementById("sms-bulk-recipient-result");
+    const picker=navigator.contacts;
+    if(!picker||typeof picker.select!=="function"){
+      if(status)status.textContent="Contact sync is not supported on this device. Please upload a CSV or paste numbers manually.";
+      return;
+    }
+    if(status)status.textContent="Opening the device contact picker…";
+    try{
+      const contacts=await picker.select(["tel"],{multiple:true});
+      const numbers=[...new Set((contacts||[]).flatMap(contact=>Array.isArray(contact.tel)?contact.tel:[]).map(value=>String(value).trim()).filter(Boolean))];
+      if(!numbers.length){if(status)status.textContent="No phone numbers were selected.";return}
+      const recipients=document.getElementById("sms-bulk-recipients");
+      if(recipients)recipients.value=numbers.join("\n");
+      if(status)status.textContent=numbers.length>100
+        ?`Loaded ${numbers.length} numbers from contacts. The current batch limit is 100; split them into separate sends.`
+        :`Loaded ${numbers.length} numbers from contacts.`;
+    }catch(error){
+      if(status)status.textContent=error?.name==="AbortError"?"Contact selection was cancelled.":"Could not read contacts. Please upload a CSV or paste numbers manually.";
     }
   }
   async function confirmSmsBundlePurchase(){
@@ -2297,7 +2415,16 @@
       await window.ReportCardsParentAdmin?.publish?.(e.target,api,toast,()=>loadRoute("announcements"));
     }
   });
-   root.addEventListener("click",e=>{const financeTab=e.target.closest("[data-fin-tab]");if(financeTab){e.preventDefault();state.finance.tab=financeTab.dataset.finTab;loadRoute("finance");return}const financeButton=e.target.closest("[data-fin-action]");if(financeButton){e.preventDefault();financeAction(financeButton);return}const link=e.target.closest("[data-route]");if(link){e.preventDefault();go(link.dataset.route);return}const btn=e.target.closest("[data-action]");if(btn)action(btn,e)});
+   root.addEventListener("click",async e=>{const smsUpload=e.target.closest('[data-action="sms-upload-csv"]');if(smsUpload){e.preventDefault();root.querySelector("#sms-bulk-csv-file")?.click();return}const smsContacts=e.target.closest('[data-action="sms-sync-contacts"]');if(smsContacts){e.preventDefault();await syncSmsContacts();return}const financeTab=e.target.closest("[data-fin-tab]");if(financeTab){e.preventDefault();state.finance.tab=financeTab.dataset.finTab;loadRoute("finance");return}const financeButton=e.target.closest("[data-fin-action]");if(financeButton){e.preventDefault();financeAction(financeButton);return}const link=e.target.closest("[data-route]");if(link){e.preventDefault();go(link.dataset.route);return}const btn=e.target.closest("[data-action]");if(btn)action(btn,e)});
+  root.addEventListener("change",async e=>{
+    const target=e.target;
+    if(target.matches("[data-sms-schedule]")){
+      const fields=root.querySelector(`[data-sms-schedule-fields="${target.dataset.smsSchedule}"]`);
+      if(fields){fields.hidden=!target.checked;const input=fields.querySelector('input[name="scheduled_at"]');if(input)input.required=target.checked}
+      return;
+    }
+    if(target.id==="sms-bulk-csv-file"&&target.files?.[0])await loadSmsPhoneCsv(target.files[0]);
+  });
     root.addEventListener("change",e=>{const target=e.target,mode=target.closest("[data-tr-mode]");if(mode){const row=mode.closest("tr"),selected=mode.value;row?.querySelectorAll("[data-tr-input]").forEach(input=>{input.hidden=input.dataset.trInput!==selected});const auto=row?.querySelector('[data-tr-panel="auto"]');if(auto)auto.hidden=selected!=="auto";if(selected==="auto"&&row)calculateMarks(row)}if(target.matches("[data-ple-subject]")){if(state.modal)state.modal.subjectId=target.value;render();return}if(target.matches("[data-overall-grade],[data-grade-point-type]"))calculateMarks(target.closest("tr"))});
   root.addEventListener("change",e=>{
     const target=e.target;
